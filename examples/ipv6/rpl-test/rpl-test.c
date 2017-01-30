@@ -1,0 +1,369 @@
+/*
+ * Copyright (c) 2011-2016, Swedish Institute of Computer Science.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+/**
+ * \file
+ *         Simple RPL node to dump network info
+ *
+ * \Author
+ *         Robert Olsson
+ *
+ * \Used code from border-router.c with authors
+ *         Niclas Finne <nfi@sics.se>
+ *         Joakim Eriksson <joakime@sics.se>
+ *
+ * \Used code from pdr.c with authors:
+ *         Atis Elsts       <atis.elsts@bristol.ac.uk>
+ *         Christian Rohner <christian.rohner@it.uu.se>
+ *         Robert Olsson    <roolss@kth.se> 
+ */
+
+#define VERSION "0.9-2017-01-30\n"
+
+#if CONTIKI_TARGET_AVR_RSS2
+#define radio_set_txpower rf230_set_txpower
+#define radio_get_txpower rf230_get_txpower
+#define radio_set_channel rf230_set_channel
+#define radio_get_channel rf230_get_channel
+#define radio_get_rssi    rf230_rssi
+#endif
+
+#include "contiki.h"
+#include "net/rpl/rpl.h"
+#include "net/rpl/rpl-private.h"
+#include "net/mac/framer-802154.h"
+#include <string.h>
+#include <stdlib.h>
+#include "net/packetbuf.h"
+#include "dev/serial-line.h"
+#include "sys/process.h"
+
+#define DEBUG DEBUG_PRINT
+#include "net/ip/uip-debug.h"
+
+#if CONTIKI_TARGET_AVR_RSS2
+#include <avr/wdt.h>
+#endif
+
+const char *delim = " \t\r,";
+#define END_OF_FILE 26
+uint8_t eof = END_OF_FILE;
+uint8_t channel;
+static struct etimer periodic;
+
+#define READY_PRINT_INTERVAL (CLOCK_SECOND * 5)
+
+PROCESS(rpl_test, "RPL Node");
+AUTOSTART_PROCESSES(&rpl_test);
+
+
+static const char *
+get_nbr_state_name(uint8_t state)
+{
+  switch(state) {
+  case NBR_INCOMPLETE:
+    return "INCOMPLETE";
+  case NBR_REACHABLE:
+    return "REACHABLE";
+  case NBR_STALE:
+    return "STALE";
+  case NBR_DELAY:
+    return "DELAY";
+  case NBR_PROBE:
+    return "PROBE";
+  default:
+    return "unknown";
+  }
+}
+
+void
+show_dag(void)
+{
+  rpl_dag_t *dag = rpl_get_any_dag();
+  rpl_instance_t *instance;
+  if(dag != NULL) {
+    instance = dag->instance;
+    printf("DAG: rank:%d version:%d\n", dag->rank, dag->version);
+    printf("INSTANCE: instance_id: %d used; %d\n",
+	   instance->instance_id, instance->used);
+
+#ifdef RPL_CONF_STATS
+    printf("    dio_sent: %d dio_recv: %d dio_totint: %d\n",
+	   instance->dio_totsend, instance->dio_totrecv,
+	   instance->dio_totint);
+#endif
+  } else {
+    printf("No DAG joined\n");
+  }
+  
+  rpl_print_neighbor_list();
+}
+
+
+void
+show_routes(void)
+{
+  uip_ds6_route_t *r;
+  uip_ds6_defrt_t *defrt;
+  uip_ipaddr_t *ipaddr;
+  defrt = NULL;
+  if((ipaddr = uip_ds6_defrt_choose()) != NULL) {
+    defrt = uip_ds6_defrt_lookup(ipaddr);
+  }
+  if(defrt != NULL) {
+    printf("DefRT: :: -> ");
+    uip_debug_ipaddr_print(&defrt->ipaddr);
+    if(defrt->isinfinite) {
+      printf(" (infinite lifetime)\n");
+    } else {
+      printf(" lifetime: %lu sec\n", stimer_remaining(&defrt->lifetime));
+    }
+  } else {
+    printf("DefRT: :: -> NULL\n");
+  }
+
+  printf("Routes:\n");
+  for(r = uip_ds6_route_head(); r != NULL; r = uip_ds6_route_next(r)) {
+    printf(" ");
+    uip_debug_ipaddr_print(&r->ipaddr);
+    printf(" -> ");
+    if(uip_ds6_route_nexthop(r) != NULL) {
+      uip_debug_ipaddr_print(uip_ds6_route_nexthop(r));
+    } else {
+      printf("NULL");
+    }
+    if(r->state.lifetime < 600) {
+      printf(" %ld s\n", r->state.lifetime);
+    } else {
+      printf(" >600 s\n");
+    }
+  }
+  printf("\n");
+}
+
+void
+show_neighbors(void)
+{
+  uip_ds6_nbr_t *nbr;
+  rpl_instance_t *def_instance;
+  const uip_lladdr_t *lladdr;
+  rpl_parent_t *p;
+  uint16_t rank;
+
+  def_instance = rpl_get_default_instance();
+  
+  printf("Neighbors IPv6         \t  sec  state       rank      RPL flg\n");
+  for(nbr = nbr_table_head(ds6_neighbors);
+      nbr != NULL;
+      nbr = nbr_table_next(ds6_neighbors, nbr)) {
+    uip_debug_ipaddr_print(&nbr->ipaddr);
+    lladdr = uip_ds6_nbr_get_ll(nbr);
+    p = nbr_table_get_from_lladdr(rpl_parents, (const linkaddr_t*)lladdr);
+    rank = p != NULL ? p->rank : 0;
+#if UIP_ND6_SEND_NA || UIP_ND6_SEND_RA
+    if(stimer_expired(&nbr->reachable)) {
+      printf("\t %5c ", '-');
+  } else {
+      printf("\t %5lu ", stimer_remaining(&nbr->reachable));
+  }
+#else
+    printf("\t  N/A  ");
+#endif
+    printf("%-10s ", get_nbr_state_name(nbr->state));
+    printf(" %d.%02d[%3d] %c",
+	   rank / 128, (int)(rank * 100L / 128) % 100, rank,
+      p != NULL ? 'P' : ' ');
+    if(def_instance != NULL && def_instance->current_dag != NULL &&
+       def_instance->current_dag->preferred_parent == p) {
+      printf("*");
+    } else {
+      printf(" ");
+    }
+    if(p != NULL) {
+      printf(" %2x", p->flags);
+    } else {
+    printf("   ");
+    }
+    printf("\n");
+  }
+    printf("\n");
+}
+        
+void
+show_net_all(void)
+{
+  show_dag();
+  show_routes();
+  show_neighbors();
+}
+  
+static void print_help(void)
+{
+    printf("rpl-test: version=%s", VERSION);
+    printf("show dag     - - DODAG info\n");
+    printf("show neighbor -- neighbor list\n");
+    printf("show routes\n");
+    printf("show channel\n");
+    printf("show version\n");
+    printf("set channel  -- set [11-26] channel\n");
+    printf("help         -- this menu\n");
+    printf("upgr         -- reboot via bootloader\n");
+}
+
+static int cmd_chan(uint8_t verbose)
+{
+    uint8_t tmp;
+    char *p = strtok(NULL, delim);
+    
+    if(p) {
+        tmp  =  atoi((char *) p);
+        if( tmp >= 11 && tmp <= 26) {
+            channel = tmp;
+            radio_set_channel(channel);
+        }
+        else {
+            printf("Invalid chan=%d\n", tmp);
+            return 0;
+        }
+    }
+    if(verbose)
+      printf("chan=%d\n", radio_get_channel());
+    return 1;
+}
+
+static void handle_serial_input(const char *line)
+{
+    char *p;
+    //printf("in: '%s'\n", line);
+    p = strtok((char *)&line[0], (const char *) delim);
+    
+    if (!p) 
+      return;
+
+    printf("\n");
+    
+    if (!strcmp(p, "sh") || !strcmp(p, "sho") || !strcmp(p, "show")) {
+      p = strtok(NULL, (const char *) delim);
+      if(p) {
+	if (!strcmp(p, "d") || !strcmp(p, "da") || !strcmp(p, "dag")) {
+	  show_dag();
+	}
+	else if (!strcmp(p, "r") || !strcmp(p, "ro") || !strcmp(p, "route")) {
+	  show_routes();
+	}
+	else if (!strcmp(p, "n") || !strcmp(p, "ne") || !strcmp(p, "neigh")) {
+	  show_neighbors();
+	}
+      
+	else if (!strcmp(p, "ch") || !strcmp(p, "chan")) {
+	  cmd_chan(1);
+	}
+	else if (!strcmp(p, "v") || !strcmp(p, "ver")) {
+	  printf("%s", VERSION);
+	}
+      }
+    }
+    else if (!strcmp(p, "li") || !strcmp(p, "lisy")) {
+        show_net_all();
+    }
+    else if (!strcmp(p, "help") || !strcmp(p, "h")) {
+        print_help();
+    }
+#ifdef CONTIKI_TARGET_AVR_RSS2
+    else if (!strcmp(p, "upgr") || !strcmp(p, "upgrade")) {
+        printf("OK\n");
+	printf("%c", eof);
+        cli();
+        wdt_enable(WDTO_15MS);
+        while(1);
+    }
+#endif
+    else printf("Illegal command '%s'\n", p);
+    printf("C> ");
+}
+
+static void
+net_init(uip_ipaddr_t *root_prefix)
+{
+  uip_ipaddr_t global_ipaddr;
+
+  if(root_prefix) { /* We are RPL root. */
+    memcpy(&global_ipaddr, root_prefix, 16);
+    uip_ds6_set_addr_iid(&global_ipaddr, &uip_lladdr);
+    uip_ds6_addr_add(&global_ipaddr, 0, ADDR_AUTOCONF);
+    rpl_set_root(RPL_DEFAULT_INSTANCE, &global_ipaddr);
+    rpl_set_prefix(rpl_get_any_dag(), root_prefix, 64);
+    rpl_repair_root(RPL_DEFAULT_INSTANCE);
+  }
+  NETSTACK_MAC.on();
+}
+
+PROCESS_THREAD(rpl_test, ev, data)
+{
+  static struct etimer et;
+  PROCESS_BEGIN();
+
+  static int is_root = 0;
+
+  unsigned char node_mac[8];
+  //unsigned char root_mac[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x37, 0xdb }; //NSLAB
+  unsigned char root_mac[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e };
+  memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
+
+  if(memcmp(node_mac, root_mac, 8) == 0) {
+      is_root = 1;
+  }
+
+  if(is_root) {
+    uip_ipaddr_t prefix;
+    uip_ip6addr(&prefix, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+    net_init(&prefix);
+  } else {
+    net_init(NULL);
+  }
+
+  etimer_set(&et, CLOCK_SECOND);
+
+  for(;;) {
+    PROCESS_WAIT_EVENT();
+        
+    //printf("event %u (%u) at %u, data %p\n", (uint16_t)ev, (uint16_t)serial_line_event_message, currentState, data);
+        
+      if (etimer_expired(&periodic)) {
+	etimer_set(&periodic, READY_PRINT_INTERVAL);
+      }
+      if (ev == PROCESS_EVENT_POLL) {
+	etimer_set(&periodic, READY_PRINT_INTERVAL);
+      }
+      else if (ev == serial_line_event_message && data != NULL) {
+	handle_serial_input((const char *) data);
+      }
+  }
+  PROCESS_END();
+}
