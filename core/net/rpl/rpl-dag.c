@@ -59,6 +59,8 @@
 #include <string.h>
 
 #define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_PRINT
+
 #include "net/ip/uip-debug.h"
 
 /* A configurable function called after every RPL parent switch */
@@ -88,6 +90,53 @@ rpl_instance_t instance_table[RPL_MAX_INSTANCES];
 rpl_instance_t *default_instance;
 
 /*---------------------------------------------------------------------------*/
+static void
+ipaddr_print(const uip_ipaddr_t *addr)
+{
+  uint16_t a;
+  int8_t i, f;
+  for(i = 0, f = 0; i < sizeof(uip_ipaddr_t); i += 2) {
+    a = (addr->u8[i] << 8) + addr->u8[i + 1];
+    if(a == 0 && f >= 0) {
+      if(f++ == 0) {
+        printf("::");
+      }
+    } else {
+      if(f > 0) {
+        f = -1;
+      } else if(i > 0) {
+        printf(":");
+      }
+      printf("%x", a);
+    }
+  }
+}
+
+void rpl_print_dag(rpl_dag_t *dag) {
+  printf("Dag ID "); ipaddr_print(&dag->dag_id);
+  printf(" grounded %d", dag->grounded);
+  printf(" preference %d", dag->preference);
+  printf(" rank %d", dag->rank);
+  if (dag->preferred_parent && dag->preferred_parent->dag) {
+    printf(" parent ");
+    ipaddr_print(&dag->preferred_parent->dag->dag_id);
+  }
+  if (dag->instance && (dag->instance->current_dag == dag))
+    printf(" (current)");
+  printf("\n");
+}
+
+void rpl_print_dag_list(rpl_instance_t *instance) {
+  rpl_dag_t *dag;
+  int i;
+
+  for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; ++i) {
+    dag = &instance->dag_table[i];
+    if(dag->used)
+      rpl_print_dag(dag);
+  }
+}
+
 void
 rpl_print_neighbor_list(void)
 {
@@ -98,12 +147,15 @@ rpl_print_neighbor_list(void)
     rpl_parent_t *p = nbr_table_head(rpl_parents);
     clock_time_t clock_now = clock_time();
 
-    printf("RPL: MOP %u OCP %u rank %u dioint %u, nbr count %u\n",
+    printf("RPL: ID %d MOP %u OCP %u rank %u dioint %u, nbr count %u\n",
+	   default_instance->instance_id, 
         default_instance->mop, default_instance->of->ocp, curr_rank, curr_dio_interval, uip_ds6_nbr_num());
+    rpl_print_dag_list(default_instance);
+    printf("\n");
     while(p != NULL) {
       const struct link_stats *stats = rpl_get_parent_link_stats(p);
-      printf("RPL: nbr %3u %5u, %5u => %5u -- %2u %c%c (last tx %u min ago)\n",
-          rpl_get_parent_ipaddr(p)->u8[15],
+      printf("RPL: nbr %2x%02x %5u, %5u => %5u -- %2u %c%c (last tx %u min ago)\n",
+          rpl_get_parent_ipaddr(p)->u8[14], rpl_get_parent_ipaddr(p)->u8[15],
           p->rank,
           rpl_get_parent_link_metric(p),
           rpl_rank_via_parent(p),
@@ -115,6 +167,9 @@ rpl_print_neighbor_list(void)
       p = nbr_table_next(rpl_parents, p);
     }
     printf("RPL: end of list\n");
+  }
+  else {
+    printf("RPL: no instance\n");
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1589,6 +1644,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   PRINT6ADDR(&instance->current_dag->dag_id);
   PRINTF(", rank %u, min_rank %u, ",
 	 instance->current_dag->rank, instance->current_dag->min_rank);
+  PRINTF("grounded %d, ", instance->current_dag->grounded);
   PRINTF("parent rank %u, link metric %u\n",
 	 p->rank, rpl_get_parent_link_metric(p));
 

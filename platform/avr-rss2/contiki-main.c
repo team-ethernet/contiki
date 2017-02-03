@@ -603,6 +603,10 @@ main(void)
         }
         PRINTF("\n---------\n");
       }
+            
+      if ((clocktime % 60) == 2)
+	rpl_print_neighbor_list();
+
 #endif
 
 #if STACKMONITOR
