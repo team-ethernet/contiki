@@ -114,12 +114,18 @@ ipaddr_print(const uip_ipaddr_t *addr)
 
 void rpl_print_dag(rpl_dag_t *dag) {
   printf("Dag ID "); ipaddr_print(&dag->dag_id);
+  printf(" version %d", dag->version);
   printf(" grounded %d", dag->grounded);
   printf(" preference %d", dag->preference);
   printf(" rank %d", dag->rank);
-  if (dag->preferred_parent && dag->preferred_parent->dag) {
+  if (dag->preferred_parent) {
+    uip_ipaddr_t *parentaddr;
     printf(" parent ");
-    ipaddr_print(&dag->preferred_parent->dag->dag_id);
+    parentaddr = rpl_get_parent_ipaddr(dag->preferred_parent);
+    if (parentaddr == NULL)
+      printf("(none)");
+    else
+      ipaddr_print(parentaddr);
   }
   if (dag->instance && (dag->instance->current_dag == dag))
     printf(" (current)");
@@ -645,6 +651,7 @@ rpl_alloc_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
     instance = rpl_alloc_instance(instance_id);
     if(instance == NULL) {
       RPL_STAT(rpl_stats.mem_overflows++);
+      printf("Failed to alloc RPL instance %d\n", instance_id);
       return NULL;
     }
   }
@@ -661,6 +668,7 @@ rpl_alloc_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
   }
 
   RPL_STAT(rpl_stats.mem_overflows++);
+  printf("Failed to create dag for new RPL instance %d\n", instance_id);
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
