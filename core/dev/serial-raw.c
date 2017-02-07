@@ -30,7 +30,6 @@
  *
  */
 #include "dev/serial-raw.h"
-#include <string.h> /* for memcpy() */
 #include <stdio.h>
 
 #include "lib/ringbuf.h"
@@ -94,8 +93,6 @@ PROCESS_THREAD(serial_raw_process, ev, data)
 void
 serial_raw_init(void)
 {
-
-  //printf("here is serial raw init\n");
   ringbuf_init(&rxbuf, rxbuf_data, sizeof(rxbuf_data));
   process_start(&serial_raw_process, NULL);
 }

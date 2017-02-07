@@ -48,6 +48,19 @@
 /* Warmup time before sensor data can be read (secs) */
 #define PMS_STARTUP_INTERVAL    10
 
+#define PMS_CONF_SERIAL_I2C 1
+#ifdef PMS_CONF_SERIAL_I2C
+#define PMS_SERIAL_I2C PMS_CONF_SERIAL_I2C
+#else
+#define PMS_SERIAL_I2C 1
+#endif
+#define PMS_CONF_SERIAL_UART 1
+#ifdef PMS_CONF_SERIAL_UART
+#define PMS_SERIAL_UART PMS_CONF_SERIAL_UART
+#else
+#define PMS_SERIAL_UART 1
+#endif
+
 /* Event to signal presense of new data */
 process_event_t pms5003_event;
 
