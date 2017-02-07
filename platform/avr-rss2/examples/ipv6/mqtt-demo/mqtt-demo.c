@@ -180,7 +180,7 @@ typedef struct mqtt_client_config {
 } mqtt_client_config_t;
 /*---------------------------------------------------------------------------*/
 /* Maximum TCP segment size for outgoing segments of our socket */
-#define MAX_TCP_SEGMENT_SIZE  62  
+#define MAX_TCP_SEGMENT_SIZE  32  
 /*---------------------------------------------------------------------------*/
 #define STATUS_LED LEDS_YELLOW
 /*---------------------------------------------------------------------------*/
