@@ -29,20 +29,30 @@
  * This file is part of the Contiki operating system.
  *
  *
- * Author  : Robert Olsson rolss@kth.se/robert@radio-sensors.com
- * Created : 2016-09-14
+ * Author  : Peter Sjodin psj@kth.se
+ * Created : 2017-01-06
  */
 
-#ifndef BME280_ARCH_H
-#define BME280_ARCH_H
+#ifndef PMS5003_ARCH_H
+#define PMS5003_ARCH_H
 
 /**
  * \file
- *	Architecture-specific definitions for the BME280 sensor for avr-rss2
+ *	Architecture-specific definitions for the Plantower PMS X003 dust sensors for avr-rss2
  * \author
- * 	Robert Olsson
+ * 	Peter Sjodin, KTH
  */
 
-#include "i2c.h"
+/* AVR configuration for controlling dust sensor */
+#define SET_PMS_DDR  DDRD   /* Data Direction Register: Port B */
+#define SET_PMS_PORT PORTD  /* Serial Peripheral Interface */
+#define PMS_SET      6      /* PD6: OW2_PIN, Chip Select */
 
+/* Duty cycle mode */
+#define STANDBY_MODE_OFF	0
+#define STANDBY_MODE_ON		1
+
+extern void pms5003_set_standby_mode(uint8_t mode);
+extern uint8_t pms5003_get_standby_mode(void);
+extern uint8_t pms5003_i2c_probe(void);
 #endif
