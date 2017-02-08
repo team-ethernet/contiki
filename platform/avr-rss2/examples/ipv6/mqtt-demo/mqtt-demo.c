@@ -217,7 +217,7 @@ static uint16_t seq_nr_value = 0;
 /* Parent RSSI functionality */
 static struct uip_icmp6_echo_reply_notification echo_reply_notification;
 static struct etimer echo_request_timer;
-static int def_rt_rssi = 0;
+static unsigned int def_rt_rssi = 0;
 /*---------------------------------------------------------------------------*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
@@ -463,6 +463,8 @@ subscribe(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+#define MQTT_PUBLISH_SENML
+#ifdef MQTT_PUBLISH_IBMQS
 static void
 publish(void)
 {
@@ -614,6 +616,88 @@ publish(void)
 
   DBG("APP - Publish!\n");
 }
+
+#elif defined(MQTT_PUBLISH_SENML)
+
+#define PUTFMT(...) { \
+		len = snprintf(buf_ptr, remaining, __VA_ARGS__);	\
+		if (len < 0 || len >= remaining) { \
+			printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); \
+			return; \
+		} \
+		remaining -= len; \
+		buf_ptr += len; \
+	}
+
+static void
+publish(void)
+{
+  /* Publish MQTT topic in SenML format */
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+
+  int len;
+  int remaining = APP_BUFFER_SIZE;
+
+  seq_nr_value++;
+
+  buf_ptr = app_buffer;
+
+  uip_ipaddr_t loc_fipaddr; /* Link local address - use 8 last bytes for ID */
+  uint8_t *ll; 
+  uip_create_linklocal_prefix(&loc_fipaddr);
+  uip_ds6_set_addr_iid(&loc_fipaddr, &uip_lladdr);
+  ll = (uint8_t *) &loc_fipaddr;
+  ll = (uint8_t *) &linkaddr_node_addr.u8;
+
+  PUTFMT("[{\"bn\":\"urn:dev:mac:\"%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[8], ll[9], ll[10], ll[11], ll[12], ll[13], ll[14], ll[15]);
+  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"seq_no\", \"v\":%d}", seq_nr_value);
+  PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
+
+  /* Put our Default route's string representation in a buffer */
+  char def_rt_str[64];
+  memset(def_rt_str, 0, sizeof(def_rt_str));
+  ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
+
+  PUTFMT(",{\"n\":\"def_route\",\v\":%s}", def_rt_str);
+  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\v\":%d}", def_rt_rssi);
+
+#ifdef CO2
+  PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
+#endif
+
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
+
+  PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
+  PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
+  PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));  
+
+  extern uint32_t pms5003_valid_frames();
+  extern uint32_t pms5003_invalid_frames();
+
+  PUTFMT(",{\"n\":\"pms5003;valid_frames\",\"v\":%lu}", pms5003_valid_frames());
+  PUTFMT(",{\"n\":\"pms5003;invalid_frames\",\"v\":%lu}", pms5003_invalid_frames());
+
+  if( i2c_probed & I2C_BME280 ) {
+    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
+    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
+    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_PRESSURE)/10,
+	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);
+  }
+
+  PUTFMT("]");
+
+  printf("MQTT publish %d:\n", seq_nr_value);
+  printf("%s\n", app_buffer);
+  mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+
+  DBG("APP - Publish!\n");
+}
+#endif
+
 /*---------------------------------------------------------------------------*/
 static void
 connect_to_broker(void)
@@ -909,6 +993,9 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
 	  printf(" (not ready)\n");
 	}
 	etimer_reset(&checktimer);
+      }
+      else {
+	printf("\n");
       }
     }
 #ifdef notdef
