@@ -77,6 +77,7 @@ uint8_t eof = END_OF_FILE;
 uint8_t channel;
 static struct etimer periodic;
 
+
 #define READY_PRINT_INTERVAL (CLOCK_SECOND * 5)
 
 PROCESS(rpl_test, "RPL Node");
@@ -105,11 +106,48 @@ get_nbr_state_name(uint8_t state)
 void
 show_dag(void)
 {
-  rpl_dag_t *dag = rpl_get_any_dag();
+  rpl_dag_t *dag;
   rpl_instance_t *instance;
+  uip_ipaddr_t ipaddr;
+  rpl_parent_t *parent;
+  rpl_instance_t *end;
+
+  uip_ip6addr(&ipaddr, 0xfe80, 0, 0, 0, 0, 0, 0, 0);
+  //uip_ds6_set_addr_iid(&ipaddr, (uip_lladdr_t *)addr);
+
+  for(instance = &instance_table[0], end = instance + RPL_MAX_INSTANCES; instance < end; ++instance) {
+    if(instance->used == 1 ) {
+      parent = rpl_find_parent_any_dag(instance, &ipaddr);
+      if(parent != NULL) {
+	
+	printf("DAG %u: \n");
+
+      }
+    }
+  }
+
+  dag = rpl_get_any_dag();
   if(dag != NULL) {
+    printf("DAG_ID: ");
+    uip_debug_ipaddr_print(&dag->dag_id);
+
+    printf("\nDAG: rank:%d version:%d\n", dag->rank, dag->version);
+    printf("DAG: grounded:%d preferenc:%d\n", dag->grounded, dag->preference);
+    printf("DAG: used:%d joined:%d\n", dag->used, dag->joined);
+    printf("DAG: lifetime:%lu\n", dag->lifetime);
+
+#if 0
+    pp = dag>preferred_parent;
+    if(pp) {
+      pp->dag;
+      if(ppd) {
+	printf("DAG_ID: ");
+	uip_debug_ipaddr_print(&dag->dag_id);
+      }
+    }
+#endif
+
     instance = dag->instance;
-    printf("DAG: rank:%d version:%d\n", dag->rank, dag->version);
     printf("INSTANCE: instance_id: %d used; %d\n",
 	   instance->instance_id, instance->used);
 
@@ -234,6 +272,9 @@ static void print_help(void)
     printf("set channel  -- set [11-26] channel\n");
     printf("help         -- this menu\n");
     printf("upgr         -- reboot via bootloader\n");
+
+    printf("Uptime %u sec\n", clock_seconds());
+    
 }
 
 static int cmd_chan(uint8_t verbose)
@@ -324,6 +365,7 @@ net_init(uip_ipaddr_t *root_prefix)
   NETSTACK_MAC.on();
 }
 
+
 PROCESS_THREAD(rpl_test, ev, data)
 {
   static struct etimer et;
@@ -339,6 +381,9 @@ PROCESS_THREAD(rpl_test, ev, data)
   if(memcmp(node_mac, root_mac, 8) == 0) {
       is_root = 1;
   }
+
+
+  is_root = 0; // 
 
   if(is_root) {
     uip_ipaddr_t prefix;
@@ -366,4 +411,5 @@ PROCESS_THREAD(rpl_test, ev, data)
       }
   }
   PROCESS_END();
-}
+ }
+
