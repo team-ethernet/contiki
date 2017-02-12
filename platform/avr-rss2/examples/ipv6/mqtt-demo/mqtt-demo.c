@@ -554,7 +554,7 @@ publish(void)
 
   remaining -= len;
   buf_ptr += len;
-
+#if 0
   len = snprintf(buf_ptr, remaining, ",\"Particles std. atmosphere (ug/m3)\": {\"PM1\":%d, \"PM2.5\":%d, \"PM10\":%d}",
                  pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM),
                  pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM), 
@@ -567,12 +567,26 @@ publish(void)
 
   remaining -= len;
   buf_ptr += len;
+
+
   extern uint32_t pms5003_valid_frames();
   extern uint32_t pms5003_invalid_frames();
 
   len = snprintf(buf_ptr, remaining, ",\"PMS5003\": {\"valid frames\":%lu, \"invalid frames\":%lu}",
                  pms5003_valid_frames(),
                  pms5003_invalid_frames());
+
+  if(len < 0 || len >= remaining) {
+    printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
+    return;
+  }
+
+  remaining -= len;
+  buf_ptr += len;
+
+#endif
+
+  len = snprintf(buf_ptr, remaining, ",\"Battery\": {\"Volt\":%-4.2f}", adc_read_v_in());
 
   if(len < 0 || len >= remaining) {
     printf("Buffer too short. Have %d, need %d + \\0\n", remaining, len);
