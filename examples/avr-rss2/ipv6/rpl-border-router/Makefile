@@ -8,6 +8,7 @@ SMALL=1
 
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 PROJECT_SOURCEFILES += eth-bridge.c
+PROJECT_SOURCEFILES += commands.c
 #PROJECT_SOURCEFILES += enc28j60.c
 PROJECT_SOURCEFILES += enc28j60-ip64-driver.c
 
@@ -39,7 +40,7 @@ CFLAGS += -DWEBSERVER=2
 endif
 
 ifeq ($(PREFIX),)
- PREFIX = aaaa::1/64
+ PREFIX = fd02::1/64
 endif
 
 CONTIKI_WITH_IPV6 = 1
