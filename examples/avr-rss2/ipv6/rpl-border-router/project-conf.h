@@ -31,8 +31,15 @@
 #ifndef PROJECT_ROUTER_CONF_H_
 #define PROJECT_ROUTER_CONF_H_
 
-#define NETSTACK_CONF_RDC nullrdc_driver
-#define NETSTACK_CONF_MAC nullmac_driver
+
+/* Netstack layers */
+#if 0
+#define NETSTACK_CONF_MAC         csma_driver
+#define NETSTACK_CONF_RDC         contikimac_driver
+#else
+#define NETSTACK_CONF_RDC         nullrdc_driver
+#define NETSTACK_CONF_MAC         nullmac_driver
+#endif
 #define NETSTACK_CONF_FRAMER  framer_802154
 
 #ifndef UIP_FALLBACK_INTERFACE
@@ -55,8 +62,11 @@
 #define WEBSERVER_CONF_CFS_CONNS 2
 #endif
 
+#define RPL_CONF_STATS 1
+
 #define RPL_CONF_GROUNDED 1
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
+#define RPL_CONF_DEFAULT_INSTANCE 0x1d
 
 #endif /* PROJECT_ROUTER_CONF_H_ */
