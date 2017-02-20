@@ -818,9 +818,6 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
   printf("MQTT Demo Process\n");
 
-  rpl_set_mode(RPL_MODE_LEAF);
-  printf("RPL mode=%d\n", rpl_get_mode());
-
   if(init_config() != 1) {
     PROCESS_EXIT();
   }
