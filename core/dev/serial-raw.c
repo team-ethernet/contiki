@@ -69,6 +69,9 @@ PROCESS_THREAD(serial_raw_process, ev, data)
 
   PROCESS_BEGIN();
   
+  serial_raw_event_message = process_alloc_event();
+  printf("serial_rwa_event_message initied to %d\n", serial_raw_event_message);
+
   while(1) {
     int c = ringbuf_get(&rxbuf);
     if (c == -1) {
@@ -79,7 +82,7 @@ PROCESS_THREAD(serial_raw_process, ev, data)
       /* Broadcast event */
       process_post(PROCESS_BROADCAST, serial_raw_event_message, buf);
 
-      /* Wait until all processes have handled the serial line event */
+      /* Wait until all processes have handled the serial raw event */
       if(PROCESS_ERR_OK ==
 	 process_post(PROCESS_CURRENT(), PROCESS_EVENT_CONTINUE, NULL)) {
 	PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_CONTINUE);

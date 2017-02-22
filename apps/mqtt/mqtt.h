@@ -122,7 +122,7 @@
  * Debug configuration, this is similar but not exactly like the Debugging
  * System discussion at https://github.com/contiki-os/contiki/wiki.
  */
-#define DEBUG_MQTT 0
+#define DEBUG_MQTT 1
 
 #if DEBUG_MQTT == 1
 #define DBG(...) printf(__VA_ARGS__)
@@ -196,15 +196,15 @@ typedef enum {
   MQTT_CONN_STATE_ERROR,
   MQTT_CONN_STATE_DNS_ERROR,
   MQTT_CONN_STATE_DISCONNECTING,
+  MQTT_CONN_STATE_ABORT_IMMEDIATE, /* 3 */
 
-  MQTT_CONN_STATE_NOT_CONNECTED,
+  MQTT_CONN_STATE_NOT_CONNECTED, /* 4 */
   MQTT_CONN_STATE_DNS_LOOKUP,
   MQTT_CONN_STATE_TCP_CONNECTING,
   MQTT_CONN_STATE_TCP_CONNECTED,
-  MQTT_CONN_STATE_CONNECTING_TO_BROKER,
+  MQTT_CONN_STATE_CONNECTING_TO_BROKER, /* 8 */
   MQTT_CONN_STATE_CONNECTED_TO_BROKER,
   MQTT_CONN_STATE_SENDING_MQTT_DISCONNECT,
-  MQTT_CONN_STATE_ABORT_IMMEDIATE,
 } mqtt_conn_state_t;
 /*---------------------------------------------------------------------------*/
 struct mqtt_string {

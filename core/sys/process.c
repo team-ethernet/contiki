@@ -88,6 +88,9 @@ static void call_process(struct process *p, process_event_t ev, process_data_t d
 #define PRINTF(...)
 #endif
 
+/* DeBIGGINDE* */
+  extern struct process tcpip_process;
+
 /*---------------------------------------------------------------------------*/
 process_event_t
 process_alloc_event(void)
@@ -146,6 +149,8 @@ exit_process(struct process *p, struct process *fromprocess)
      */
     for(q = process_list; q != NULL; q = q->next) {
       if(p != q) {
+	      if (q == &tcpip_process && PROCESS_EVENT_EXITED == 0)
+		      printf("exit to tcpip_process");
 	call_process(q, PROCESS_EVENT_EXITED, (process_data_t)p);
       }
     }
@@ -176,6 +181,10 @@ call_process(struct process *p, process_event_t ev, process_data_t data)
 {
   int ret;
 
+
+  if (p == &tcpip_process && ev == 0) {
+	  printf("Ev 0 to tcpip_process");
+  }
 #if DEBUG
   if(p->state == PROCESS_STATE_CALLED) {
     printf("process: process '%s' called again with event %d\n", PROCESS_NAME_STRING(p), ev);
@@ -232,6 +241,9 @@ do_poll(void)
     if(p->needspoll) {
       p->state = PROCESS_STATE_RUNNING;
       p->needspoll = 0;
+      if (p == &tcpip_process)
+	      printf("dopoll to tcpip_process");
+
       call_process(p, PROCESS_EVENT_POLL, NULL);
     }
   }
@@ -281,6 +293,7 @@ do_event(void)
 	if(poll_requested) {
 	  do_poll();
 	}
+	
 	call_process(p, ev, data);
       }
     } else {
@@ -312,14 +325,67 @@ process_run(void)
   return nevents + poll_requested;
 }
 /*---------------------------------------------------------------------------*/
+void
+printevents() {
+  process_event_t ev;
+  process_data_t data;
+  struct process *p;
+
+  int nevs = nevents;
+  int fev = fevent;
+  
+  while (nevs > 0) {
+    ev = events[fev].ev;
+    
+    data = events[fev].data;
+    p = events[fev].p;
+    
+    printf("Event %d:", fev);
+    printf(" ev %d (0x%x)", ev, ev);
+    if (p)
+      printf(" process '%s'",PROCESS_NAME_STRING(p));
+    else
+      printf(" BROADCAST");
+    printf(" data 0x%x", data);
+    printf("\n");
+    fev = (fev + 1) % PROCESS_CONF_NUMEVENTS;
+    --nevs;
+  }
+}
+/*---------------------------------------------------------------------------*/
 int
 process_nevents(void)
 {
   return nevents + poll_requested;
 }
 /*---------------------------------------------------------------------------*/
+int nevents_max = 0;
+
 int
-process_post(struct process *p, process_event_t ev, process_data_t data)
+__process_post(char *file, int line, struct process *p, process_event_t ev, process_data_t data) {
+  int ret;
+  extern process_event_t mqtt_event_min;
+  extern process_event_t mqtt_event_max;
+
+  if (p == PROCESS_BROADCAST && ev == 0)
+    printf("%s:%d: ######## NULL event 0x%x - %d ####\n", file, line, (unsigned) p, ev);
+  
+  if (ev >= mqtt_event_min && ev <=  mqtt_event_max) {
+	  printf("%s:%d: mqtt event %d to %s\n", file, line, ev, p ? PROCESS_NAME_STRING(p) : "BROADCAST");
+  }
+  ret = _process_post(p, ev, data);
+  if (nevents > nevents_max) {
+    printf("%s%d: NEW max nevents (%d)\n", file, line, nevents);
+    nevents_max = nevents;
+    if (nevents_max == 28)
+      printevents();
+      
+  }
+  return ret;
+}
+
+int
+_process_post(struct process *p, process_event_t ev, process_data_t data)
 {
   process_num_events_t snum;
 
@@ -333,6 +399,7 @@ process_post(struct process *p, process_event_t ev, process_data_t data)
   }
   
   if(nevents == PROCESS_CONF_NUMEVENTS) {
+#define DEBUG 1
 #if DEBUG
     if(p == PROCESS_BROADCAST) {
       printf("soft panic: event queue is full when broadcast event %d was posted from %s\n", ev, PROCESS_NAME_STRING(process_current));
@@ -343,6 +410,12 @@ process_post(struct process *p, process_event_t ev, process_data_t data)
     return PROCESS_ERR_FULL;
   }
   
+  if (p == PROCESS_BROADCAST && ev == 0) {
+	  struct process **pp;
+	  printf("\n****Posting Broadcase Event 0");
+	  pp = &p;
+	  printf("\nRet == 0x%x", (unsigned) pp[-1]);
+  }
   snum = (process_num_events_t)(fevent + nevents) % PROCESS_CONF_NUMEVENTS;
   events[snum].ev = ev;
   events[snum].data = data;
@@ -362,6 +435,9 @@ void
 process_post_synch(struct process *p, process_event_t ev, process_data_t data)
 {
   struct process *caller = process_current;
+
+  if (p == &tcpip_process && ev == 0)
+		printf("processpostsync to tcpip_process");
 
   call_process(p, ev, data);
   process_current = caller;

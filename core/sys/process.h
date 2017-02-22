@@ -56,6 +56,9 @@
 #include "sys/pt.h"
 #include "sys/cc.h"
 
+
+#define process_post(P, E, D) __process_post(__FILE__, __LINE__, (P),(E),(D))
+
 typedef unsigned char process_event_t;
 typedef void *        process_data_t;
 typedef unsigned char process_num_events_t;
@@ -362,7 +365,7 @@ CCIF void process_start(struct process *p, process_data_t data);
  * \retval PROCESS_ERR_FULL The event queue was full and the event could
  * not be posted.
  */
-CCIF int process_post(struct process *p, process_event_t ev, process_data_t data);
+CCIF int _process_post(struct process *p, process_event_t ev, process_data_t data);
 
 /**
  * Post a synchronous event to a process.

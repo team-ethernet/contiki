@@ -191,6 +191,7 @@ printpm() {
 #if PMS_SERIAL_UART
 extern process_event_t serial_raw_event_message;
 
+int pms5003_uart_debug_count = 0;
 PROCESS_THREAD(pms5003_uart_process, ev, data)
 {
   static uint8_t buf[PMSBUFFER], *bufp;
@@ -204,6 +205,7 @@ PROCESS_THREAD(pms5003_uart_process, ev, data)
     do {
       PROCESS_WAIT_EVENT();
       leds_on(LEDS_RED);
+      pms5003_uart_debug_count++;
     } while (ev != serial_raw_event_message);
     if (!configured_on)
       continue;
@@ -262,6 +264,7 @@ PROCESS_THREAD(pms5003_uart_process, ev, data)
 /* Timer thread: check if end of idle period, and if so, wakeup. 
  * For I2C, read data, if it is time, and then enter idle period.
  */
+int pms5003_i2c_debug_count = 0;
 PROCESS_THREAD(pms5003_timer_process, ev, data)
 {
   static struct etimer pmstimer;
@@ -276,6 +279,8 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
   /* Main loop */
   while(1) {
     PROCESS_YIELD();
+    pms5003_i2c_debug_count++;
+
     if (!configured_on)
       continue;
 

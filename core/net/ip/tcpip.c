@@ -202,6 +202,8 @@ packet_input(void)
 #endif /* UIP_CONF_IP_FORWARD */
 
     check_for_tcp_syn();
+    /*printf("UIP INPUT 0x%x", (unsigned) uip_conn);*/
+
     uip_input();
     if(uip_len > 0) {
 #if UIP_CONF_TCP_SPLIT
@@ -233,6 +235,7 @@ tcp_connect(const uip_ipaddr_t *ripaddr, uint16_t port, void *appstate)
   c->appstate.p = PROCESS_CURRENT();
   c->appstate.state = appstate;
 
+  printf("Doing TCP CONNECT\n");
   tcpip_poll_tcp(c);
 
   return c;
@@ -483,6 +486,7 @@ eventhandler(process_event_t ev, process_data_t data)
 #if UIP_TCP
   case TCP_POLL:
     if(data != NULL) {
+      printf("UIP POLL CONN (%d) 0x%x", TCP_POLL, (unsigned) data);
       uip_poll_conn(data);
 #if NETSTACK_CONF_WITH_IPV6
       tcpip_ipv6_output();
@@ -760,6 +764,7 @@ tcpip_poll_udp(struct uip_udp_conn *conn)
 void
 tcpip_poll_tcp(struct uip_conn *conn)
 {
+  printf("tcpip_poll_tcp");
   process_post(&tcpip_process, TCP_POLL, conn);
 }
 #endif /* UIP_TCP */

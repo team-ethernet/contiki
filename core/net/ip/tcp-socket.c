@@ -61,6 +61,7 @@ senddata(struct tcp_socket *s)
   int len = MIN(s->output_data_max_seg, uip_mss());
 
   if(s->output_senddata_len > 0) {
+	  printf("*SD %d-%d*", len, s->output_senddata_len);
     len = MIN(s->output_senddata_len, len);
     s->output_data_send_nxt = len;
     uip_send(s->output_data_ptr, len);
@@ -89,10 +90,12 @@ acked(struct tcp_socket *s)
       relisten(s);
       return;
     }
+    printf("-A%d-", s->output_data_send_nxt);
     s->output_data_len -= s->output_data_send_nxt;
     s->output_senddata_len = s->output_data_len;
     s->output_data_send_nxt = 0;
 
+    
     call_event(s, TCP_SOCKET_DATA_SENT);
   }
 }
@@ -147,6 +150,16 @@ appcall(void *state)
      * a previous connection */
     return;
   }
+  printf("#A0x%x-", uip_flags);
+  if (uip_aborted()) printf("B");
+  if (uip_acked()) printf("K");
+  if (uip_closed()) printf("C");    
+  if (uip_connected()) printf("D");  
+  if (uip_newdata()) printf("N");  
+  if (uip_poll()) printf("P");
+  if (uip_rexmit()) printf("R");
+  if (uip_timedout()) printf("T");
+  printf("#");
   if(uip_connected()) {
     /* Check if this connection originated in a local listen
        socket. We do this by checking the state pointer - if NULL,
@@ -173,6 +186,7 @@ appcall(void *state)
     }
 
     if(s == NULL) {
+      printf("TCP socket abort 1\n");      
       uip_abort();
     } else {
       if(uip_newdata()) {
@@ -189,6 +203,7 @@ appcall(void *state)
   }
 
   if(uip_aborted()) {
+    printf("TCP socket  aborted\n");
     tcp_markconn(uip_conn, NULL);
     call_event(s, TCP_SOCKET_ABORTED);
     relisten(s);
@@ -196,6 +211,7 @@ appcall(void *state)
   }
 
   if(s == NULL) {
+    printf("TCP socket abort 2\n");
     uip_abort();
     return;
   }
@@ -233,12 +249,16 @@ appcall(void *state)
   }
 }
 /*---------------------------------------------------------------------------*/
+unsigned int tcp_socket_debug_count = 0;
+unsigned int tcp_socket_run_debug_count = 0;
 PROCESS_THREAD(tcp_socket_process, ev, data)
 {
+  tcp_socket_run_debug_count++;
+
   PROCESS_BEGIN();
   while(1) {
     PROCESS_WAIT_EVENT();
-
+    tcp_socket_debug_count++;
     if(ev == tcpip_event) {
       appcall(data);
     }

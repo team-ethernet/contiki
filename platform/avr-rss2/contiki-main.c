@@ -462,6 +462,11 @@ ipaddr_add(const uip_ipaddr_t *addr)
 /*-------------------------------------------------------------------------*/
 /*------------------------- Main Scheduler loop----------------------------*/
 /*-------------------------------------------------------------------------*/
+#define PSDEBUG
+#ifdef PSDEBUG
+int debug_events_processed = 0;
+#endif
+
 int
 main(void)
 {
@@ -471,7 +476,14 @@ main(void)
   initialize();
 
   while(1) {
+#ifdef PSDEBUG
+    if (process_nevents())
+      debug_events_processed++;
+#endif
+    
     process_run();
+    if (process_list == NULL)
+      printf("\n***** processes gone ******\n");
     watchdog_periodic();
 
     /* Turn off LED's */
@@ -607,6 +619,68 @@ main(void)
       if ((clocktime % 60) == 2)
 	rpl_print_neighbor_list();
 
+#ifdef PSDEBUG
+      if ((clocktime % 60) == 32) {
+	      extern int pms5003_i2c_debug_count;
+	      extern int pms5003_uart_debug_count;
+	      extern int mqtt_debug_count;
+
+	      printf("DBG count: MQTT %d, PMS5003_ipc %d, PMS5003_uart %d. Events %d\n",
+		     mqtt_debug_count,
+		     pms5003_i2c_debug_count,
+		     pms5003_uart_debug_count,
+		     debug_events_processed);
+
+	      static int last_pms5003_i2c_debug_count = 0;
+	      static int last_pms5003_uart_debug_count = 0;
+	      static int last_mqtt_debug_count = 0;
+
+
+	      struct process *p;
+	      for(p = process_list; p != NULL; p = p->next) {
+		printf("%s: state 0x%x poll %d", p->name, p->state, p->needspoll);
+		if (p == process_current)
+		  printf(" (c)");
+		printf("\n");
+	      }
+	      if (!process_list)
+		printf("--- no processes ---\n");
+	      extern unsigned int mqtt_wait_send;
+	      extern unsigned int mqtt_loop;
+	      extern unsigned int mqtt_thread_loop;
+	      extern unsigned int mqtt_end_loop;	      
+	      extern unsigned int publish_st;
+	      extern unsigned int tcp_socket_debug_count;
+	      extern uint8_t uip_flags;
+	      
+
+	      printf("PT_MQTT_WAIT_SEND: %u ", mqtt_wait_send);
+	      printf(", MQTT_LOOP: begin %u end %u ", mqtt_loop, mqtt_end_loop);
+	      printf(", MQTT_THREAD: %u ", mqtt_thread_loop);
+	      printf(", publish_st %u", publish_st);
+	      printf(", TCP socket %u, run count %u (uip flags 0x%x)", tcp_socket_debug_count,
+		     tcp_socket_debug_count, uip_flags);
+	      extern int nevents_max;
+	      printf(", %u nevents (max %u)", process_nevents(), nevents_max);
+	      
+	      if (last_pms5003_i2c_debug_count == pms5003_i2c_debug_count &&
+	      last_pms5003_uart_debug_count == pms5003_uart_debug_count &&
+		  last_mqtt_debug_count == mqtt_debug_count) {
+		if (last_mqtt_debug_count != 0) {
+		  printf("--------- STUCK (%d events) ----------\n", process_nevents());
+		  void printevents();
+		  printevents();
+		}
+	      }
+	      else {
+		last_pms5003_i2c_debug_count= pms5003_i2c_debug_count;
+		last_pms5003_uart_debug_count = pms5003_uart_debug_count;
+		last_mqtt_debug_count = mqtt_debug_count;
+	      }
+      }
+
+
+#endif
 #endif
 
 #if STACKMONITOR

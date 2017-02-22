@@ -64,6 +64,7 @@
 #include <string.h>
 /*---------------------------------------------------------------------------*/
 #define DEBUG 0
+#define DEBUG 1
 #if DEBUG
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -129,14 +130,16 @@ typedef enum {
 #define MQTT_STRING_LENGTH(s) (((s)->length) == 0 ? 0 : (MQTT_STRING_LEN_SIZE + (s)->length))
 /*---------------------------------------------------------------------------*/
 /* Protothread send macros */
+int writeline = 0;
 #define PT_MQTT_WRITE_BYTES(conn, data, len)                                   \
+	conn->out_write_pos = 0; \
   while(write_bytes(conn, data, len)) {                                        \
-    PT_WAIT_UNTIL(pt, (conn)->out_buffer_sent);                                \
+    writeline = __LINE__; PT_WAIT_UNTIL(pt, (conn)->out_buffer_sent);                                \
   }
 
 #define PT_MQTT_WRITE_BYTE(conn, data)                                         \
   while(write_byte(conn, data)) {                                              \
-    PT_WAIT_UNTIL(pt, (conn)->out_buffer_sent);                                \
+    writeline = __LINE__;    PT_WAIT_UNTIL(pt, (conn)->out_buffer_sent);                                \
   }
 /*---------------------------------------------------------------------------*/
 /*
@@ -145,20 +148,25 @@ typedef enum {
  * The reason we cannot use PROCESS_PAUSE() is since we would risk loosing any
  * events posted during the sending process.
  */
-#define PT_MQTT_WAIT_SEND()                                                    \
-  do {                                                                         \
-    process_post(PROCESS_CURRENT(), mqtt_continue_send_event, NULL);           \
-    PROCESS_WAIT_EVENT();                                                      \
-    if(ev == mqtt_abort_now_event) {                                           \
-      conn->state = MQTT_CONN_STATE_ABORT_IMMEDIATE;                           \
-      PT_EXIT(&conn->out_proto_thread);                                        \
-      process_post(PROCESS_CURRENT(), ev, data);                               \
-    } else if(ev >= mqtt_event_min && ev <= mqtt_event_max) {                  \
-      process_post(PROCESS_CURRENT(), ev, data);                               \
-    }                                                                          \
+#define PT_MQTT_WAIT_SEND()                                                \
+  do {                                                                     \
+    if (PROCESS_ERR_OK ==						   \
+	process_post(PROCESS_CURRENT(), mqtt_continue_send_event, NULL)) { \
+      do {								   \
+	PROCESS_WAIT_EVENT(); 					  	   \
+	if(ev == mqtt_abort_now_event) {				   \
+		printf("\n%d (writeline %d): ABORT NOW EVENT while PT_MQTT_WAIT_SEND. From state %d to New state %d\n", __LINE__, writeline, conn->state, MQTT_CONN_STATE_ABORT_IMMEDIATE); \
+	  conn->state = MQTT_CONN_STATE_ABORT_IMMEDIATE;		   \
+	  PT_INIT(&conn->out_proto_thread);				   \
+	  process_post(PROCESS_CURRENT(), ev, data);			   \
+	} else if(ev >= mqtt_event_min && ev <= mqtt_event_max) {	   \
+	  process_post(PROCESS_CURRENT(), ev, data);			   \
+	}								   \
+      } while (ev !=  mqtt_continue_send_event);			   \
+    }									   \
   } while(0)
 /*---------------------------------------------------------------------------*/
-static process_event_t mqtt_do_connect_tcp_event;
+static process_event_t mqtt_do_connect_tcp_event; /* 144 */
 static process_event_t mqtt_do_connect_mqtt_event;
 static process_event_t mqtt_do_disconnect_mqtt_event;
 static process_event_t mqtt_do_subscribe_event;
@@ -166,16 +174,16 @@ static process_event_t mqtt_do_unsubscribe_event;
 static process_event_t mqtt_do_publish_event;
 static process_event_t mqtt_do_pingreq_event;
 static process_event_t mqtt_continue_send_event;
-static process_event_t mqtt_abort_now_event;
-process_event_t mqtt_update_event;
+static process_event_t mqtt_abort_now_event; /* 152 */
+process_event_t mqtt_update_event;  /* 151 */
 
 /*
  * Min and Max event numbers we want to acknowledge while we're in the process
  * of doing something else. continue_send does not count, therefore must be
  * allocated last
  */
-static process_event_t mqtt_event_min;
-static process_event_t mqtt_event_max;
+ process_event_t mqtt_event_min;
+ process_event_t mqtt_event_max;
 /*---------------------------------------------------------------------------*/
 /* Prototypes */
 static int
@@ -267,8 +275,10 @@ send_out_buffer(struct mqtt_connection *conn)
   DBG("MQTT - (send_out_buffer) Space used in buffer: %i\n",
       conn->out_buffer_ptr - conn->out_buffer);
 
-  tcp_socket_send(&conn->socket, conn->out_buffer,
-                  conn->out_buffer_ptr - conn->out_buffer);
+  int n = tcp_socket_send(&conn->socket, conn->out_buffer,
+                  conn->out_buffer_ptr - conn->out_buffer); 
+  DBG("MQTT - did tcp_socket_send %d -> %d\n", conn->out_buffer_ptr - conn->out_buffer, n);
+ 
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -311,11 +321,16 @@ write_bytes(struct mqtt_connection *conn, uint8_t *data, uint16_t len)
     MIN(&conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr,
         len - conn->out_write_pos);
 
+  if (conn->out_buffer_ptr + write_bytes > &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE])
+	  printf("-----Writing too many bytes (%d): %d - %d, %d - %d\n", write_bytes,
+		 (int) &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE],
+		 (int) conn->out_buffer_ptr, len, conn->out_write_pos);
+
   memcpy(conn->out_buffer_ptr, &data[conn->out_write_pos], write_bytes);
   conn->out_write_pos += write_bytes;
   conn->out_buffer_ptr += write_bytes;
 
-  DBG("MQTT - (write_bytes) len: %u write_pos: %lu\n", len,
+  DBG("MQTT - (write_bytes %u) len: %u write_pos: %lu\n", write_bytes, len,
       conn->out_write_pos);
 
   if(len - conn->out_write_pos == 0) {
@@ -454,6 +469,8 @@ PT_THREAD(connect_pt(struct pt *pt, struct mqtt_connection *conn))
 
   /* Wait for CONNACK */
   reset_packet(&conn->in_packet);
+  DBG("MQTT - Wait for CONNACK\n");
+
   PT_WAIT_UNTIL(pt, conn->out_packet.qos_state == MQTT_QOS_STATE_GOT_ACK ||
                 timer_expired(&conn->t));
   if(timer_expired(&conn->t)) {
@@ -623,11 +640,13 @@ PT_THREAD(unsubscribe_pt(struct pt *pt, struct mqtt_connection *conn))
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
+int publish_st = 0;
 static
 PT_THREAD(publish_pt(struct pt *pt, struct mqtt_connection *conn))
 {
   PT_BEGIN(pt);
 
+  publish_st = 1;
   DBG("MQTT - Sending publish message! topic %s topic_length %i\n",
       conn->out_packet.topic,
       conn->out_packet.topic_length);
@@ -652,60 +671,83 @@ PT_THREAD(publish_pt(struct pt *pt, struct mqtt_connection *conn))
   if(conn->out_packet.remaining_length_enc_bytes > 4) {
     call_event(conn, MQTT_EVENT_PROTOCOL_ERROR, NULL);
     PRINTF("MQTT - Error, remaining length > 4 bytes\n");
+  publish_st = 2;
     PT_EXIT(pt);
   }
 
+  publish_st = 3;
   /* Write Fixed Header */
   PT_MQTT_WRITE_BYTE(conn, conn->out_packet.fhdr);
+  publish_st = 4;
   PT_MQTT_WRITE_BYTES(conn, (uint8_t *)conn->out_packet.remaining_length_enc,
                       conn->out_packet.remaining_length_enc_bytes);
+  publish_st = 5;
   /* Write Variable Header */
   PT_MQTT_WRITE_BYTE(conn, (conn->out_packet.topic_length >> 8));
+  publish_st = 6;
   PT_MQTT_WRITE_BYTE(conn, (conn->out_packet.topic_length & 0x00FF));
+  publish_st = 7;
   PT_MQTT_WRITE_BYTES(conn, (uint8_t *)conn->out_packet.topic,
                       conn->out_packet.topic_length);
+  publish_st = 8;
   if(conn->out_packet.qos > MQTT_QOS_LEVEL_0) {
+  publish_st = 9;
     PT_MQTT_WRITE_BYTE(conn, (conn->out_packet.mid << 8));
+  publish_st = 10;
     PT_MQTT_WRITE_BYTE(conn, (conn->out_packet.mid & 0x00FF));
   }
+  publish_st = 11;
   /* Write Payload */
   PT_MQTT_WRITE_BYTES(conn,
                       conn->out_packet.payload,
                       conn->out_packet.payload_size);
-
+  publish_st = 12;
   send_out_buffer(conn);
+  publish_st = 13;
+  printf("PUBLISH - set time\n");
   timer_set(&conn->t, RESPONSE_WAIT_TIMEOUT);
-
+  printf("PUBLISH - timer set\n");
   /*
    * If QoS is zero then wait until the message has been sent, since there is
    * no ACK to wait for.
    *
    * Also notify the app will not be notified via PUBACK or PUBCOMP
    */
+  publish_st = 14;
   if(conn->out_packet.qos == 0) {
+    printf("PUBLISH process_post\n");
     process_post(conn->app_process, mqtt_update_event, NULL);
+  publish_st = 15;
   } else if(conn->out_packet.qos == 1) {
     /* Wait for PUBACK */
+    printf("PUBLISH wait for puback\n");
     reset_packet(&conn->in_packet);
+  publish_st = 16;
     PT_WAIT_UNTIL(pt, conn->out_packet.qos_state == MQTT_QOS_STATE_GOT_ACK ||
                   timer_expired(&conn->t));
+    printf("PUBLISH waited\n");
+  publish_st = 17;
     if(timer_expired(&conn->t)) {
+  publish_st = 18;
       DBG("Timeout waiting for PUBACK\n");
     }
     if(conn->in_packet.mid != conn->out_packet.mid) {
+  publish_st = 19;
       DBG("MQTT - Warning, got PUBACK with none matching MID. Currently there "
           "is no support for several concurrent PUBLISH messages.\n");
     }
   } else if(conn->out_packet.qos == 2) {
+  publish_st = 20;
     DBG("MQTT - QoS not implemented yet.\n");
     /* Should wait for PUBREC, send PUBREL and then wait for PUBCOMP */
   }
-
+  printf("PUBLISH -- here we are\n");
+  publish_st = 21;
   reset_packet(&conn->in_packet);
 
   /* This is clear after the entire transaction is complete */
   conn->out_queue_full = 0;
-
+    publish_st = 22;
   DBG("MQTT - Publish Enqueued\n");
 
   PT_END(pt);
@@ -1105,7 +1147,7 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
   case TCP_SOCKET_TIMEDOUT:
   case TCP_SOCKET_ABORTED: {
 
-    DBG("MQTT - Disconnected by tcp event %d\n", event);
+	  DBG("MQTT - Disconnected by tcp event %d in state %d -- auto_reconnect %d\n", event, conn->state, conn->auto_reconnect);
     process_post(&mqtt_process, mqtt_abort_now_event, conn);
     conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
     ctimer_stop(&conn->keep_alive_timer);
@@ -1119,6 +1161,7 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
     break;
   }
   case TCP_SOCKET_CONNECTED: {
+    DBG("MQTT - CONNECTED\n");
     conn->state = MQTT_CONN_STATE_TCP_CONNECTED;
     conn->out_buffer_sent = 1;
 
@@ -1126,7 +1169,7 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
     break;
   }
   case TCP_SOCKET_DATA_SENT: {
-    DBG("MQTT - Got TCP_DATA_SENT\n");
+    DBG("MQTT - Got TCP_DATA_SENT (%d, %d)\n", conn->socket.output_data_len, conn->out_buffer_sent);
 
     if(conn->socket.output_data_len == 0) {
       conn->out_buffer_sent = 1;
@@ -1144,14 +1187,20 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
   }
 }
 /*---------------------------------------------------------------------------*/
+unsigned int mqtt_wait_send=0;
+unsigned int mqtt_loop = 0;
+unsigned int mqtt_end_loop = 0;
+unsigned int mqtt_thread_loop = 0;
 PROCESS_THREAD(mqtt_process, ev, data)
 {
   static struct mqtt_connection *conn;
+  mqtt_thread_loop++;
 
   PROCESS_BEGIN();
 
   while(1) {
     PROCESS_WAIT_EVENT();
+    mqtt_loop++;
 
     if(ev == mqtt_abort_now_event) {
       DBG("MQTT - Abort\n");
@@ -1172,22 +1221,41 @@ PROCESS_THREAD(mqtt_process, ev, data)
 
       if(conn->out_buffer_sent == 1) {
         PT_INIT(&conn->out_proto_thread);
-        while(connect_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-              conn->state != MQTT_CONN_STATE_ABORT_IMMEDIATE) {
-          PT_MQTT_WAIT_SEND();
+
+	/* Need to change order between checking conn->state and calling the 
+	 * out_proto_thread. Check first and then call thread.
+	 * The reason is that PT_WAIT_SEND will clear (initialize) the proto_thread
+	 * when ABORT happens. Calling a protothread that has been cleared does
+	 * not return a value (see LC_RESUME). Hence, when state says ABORT, we
+	 * shouldn't call the protothread
+	 */
+        while(conn->state != MQTT_CONN_STATE_ABORT_IMMEDIATE &&
+	      connect_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
+		PT_MQTT_WAIT_SEND(); /*This will expand to PT_EXIT, which in turn
+				     * expands to return. THis means that When ABORT
+				     * happens, the current function (mqtt_process)
+				     * returns (rather than terminating 
+				     * out_proto_thread, which was probably the 
+				     * intention). Mqtt_process will thereafter
+				     * not run again, since there are no
+				     * pending events for it (need to verify this).
+				     * Yup, no pending events - return happens 
+				     * before mqtt_abort_now_event is re-posted.
+				     */
         }
+	printf("**Done with connect_pt\n");
       }
     }
     if(ev == mqtt_do_disconnect_mqtt_event) {
       conn = data;
-      DBG("MQTT - Got mqtt_do_disconnect_mqtt_event!\n");
+      DBG("MQTT - Got mqtt_do_disconnect_mqtt_event while in state %d!\n", conn->state);
 
       /* Send MQTT Disconnect if we are connected */
       if(conn->state == MQTT_CONN_STATE_SENDING_MQTT_DISCONNECT) {
         if(conn->out_buffer_sent == 1) {
           PT_INIT(&conn->out_proto_thread);
-          while(disconnect_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-                conn->state != MQTT_CONN_STATE_ABORT_IMMEDIATE) {
+          while(conn->state != MQTT_CONN_STATE_ABORT_IMMEDIATE &&
+		disconnect_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
             PT_MQTT_WAIT_SEND();
           }
           abort_connection(conn);
@@ -1204,8 +1272,8 @@ PROCESS_THREAD(mqtt_process, ev, data)
       if(conn->out_buffer_sent == 1 &&
          conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
         PT_INIT(&conn->out_proto_thread);
-        while(pingreq_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-              conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
+        while(conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER &&
+	      pingreq_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
           PT_MQTT_WAIT_SEND();
         }
       }
@@ -1217,8 +1285,8 @@ PROCESS_THREAD(mqtt_process, ev, data)
       if(conn->out_buffer_sent == 1 &&
          conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
         PT_INIT(&conn->out_proto_thread);
-        while(subscribe_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-              conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
+        while(conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER &&
+	      subscribe_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
           PT_MQTT_WAIT_SEND();
         }
       }
@@ -1230,8 +1298,8 @@ PROCESS_THREAD(mqtt_process, ev, data)
       if(conn->out_buffer_sent == 1 &&
          conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
         PT_INIT(&conn->out_proto_thread);
-        while(unsubscribe_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-              conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
+        while(conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER &&
+	      unsubscribe_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
           PT_MQTT_WAIT_SEND();
         }
       }
@@ -1243,12 +1311,14 @@ PROCESS_THREAD(mqtt_process, ev, data)
       if(conn->out_buffer_sent == 1 &&
          conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
         PT_INIT(&conn->out_proto_thread);
-        while(publish_pt(&conn->out_proto_thread, conn) < PT_EXITED &&
-              conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER) {
+        while(conn->state == MQTT_CONN_STATE_CONNECTED_TO_BROKER &&
+	      publish_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
+	  mqtt_wait_send++;
           PT_MQTT_WAIT_SEND();
         }
       }
     }
+    mqtt_end_loop++;
   }
   PROCESS_END();
 }
@@ -1273,6 +1343,8 @@ mqtt_init(void)
 
     mqtt_continue_send_event = process_alloc_event();
 
+    printf("MQTT MIN %d MAX %d CONTINUE %d\n",
+	   mqtt_event_min, mqtt_event_max, mqtt_continue_send_event);
     list_init(mqtt_conn_list);
     process_start(&mqtt_process, NULL);
     inited = 1;

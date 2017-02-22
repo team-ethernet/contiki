@@ -1724,7 +1724,6 @@ input(void)
       set_packet_attrs();
       callback->input_callback();
     }
-
     tcpip_input();
 #if SICSLOWPAN_CONF_FRAG
   }

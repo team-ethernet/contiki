@@ -51,6 +51,9 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
 #define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
 
+//#define RPL_CONF_DEFAULT_INSTANCE 0x1e
+#define RPL_CONF_DEFAULT_INSTANCE 0x1d
+
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
 

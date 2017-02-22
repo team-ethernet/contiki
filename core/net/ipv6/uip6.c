@@ -525,6 +525,7 @@ uip_connect(const uip_ipaddr_t *ripaddr, uint16_t rport)
   conn->rport = rport;
   uip_ipaddr_copy(&conn->ripaddr, ripaddr);
 
+  printf("\n*********** UIP CONNECT -> 0x%x\n", (unsigned) conn);
   return conn;
 }
 #endif /* UIP_TCP && UIP_ACTIVE_OPEN */
@@ -937,6 +938,10 @@ ext_hdr_options_process(void)
 
 
 /*---------------------------------------------------------------------------*/
+static uint16_t  prport(uint16_t port) {
+  uint8_t *p = (uint8_t *) & port;
+  return (p[0] * 256) + p[1];
+}
 void
 uip_process(uint8_t flag)
 {
@@ -946,6 +951,23 @@ uip_process(uint8_t flag)
   uint8_t opt;
   register struct uip_conn *uip_connr = uip_conn;
 #endif /* UIP_TCP */
+
+
+  static int npr = 0;
+  if (((unsigned) uip_connr < (unsigned) &uip_conns[0]) || ((unsigned) uip_connr > (unsigned) &uip_conns[UIP_CONNS-1])) {
+  printf("[%dUI:%u:%u-%d+%s%s]@0x%x",
+	 flag,
+	 prport(uip_connr->lport), prport(uip_connr->rport),
+	 uip_connr->tcpstateflags & UIP_TS_MASK, 
+	 uip_outstanding(uip_connr) ? "O" : "",
+	 (uip_connr->tcpstateflags & UIP_STOPPED) ? "S" : "",
+	 (unsigned int) uip_connr);
+    printf("OOR");
+    if (npr++ % 8 == 7)
+      printf("0x%x\n", (int) uip_connr);
+
+  }
+
 #if UIP_UDP
   if(flag == UIP_UDP_SEND_CONN) {
     goto udp_send;
@@ -1582,7 +1604,7 @@ uip_process(uint8_t flag)
 #if UIP_TCP
   /* TCP input processing. */
   tcp_input:
-
+  printf("<TI>");
   remove_ext_hdr();
   UIP_IP_BUF->proto = UIP_PROTO_TCP;
 
@@ -1594,14 +1616,14 @@ uip_process(uint8_t flag)
                                        checksum. */
     UIP_STAT(++uip_stat.tcp.drop);
     UIP_STAT(++uip_stat.tcp.chkerr);
-    PRINTF("tcp: bad checksum 0x%04x 0x%04x\n", UIP_TCP_BUF->tcpchksum,
+    printf("tcp: bad checksum 0x%04x 0x%04x\n", UIP_TCP_BUF->tcpchksum,
            uip_tcpchksum());
     goto drop;
   }
 
   /* Make sure that the TCP port number is not zero. */
   if(UIP_TCP_BUF->destport == 0 || UIP_TCP_BUF->srcport == 0) {
-    PRINTF("tcp: zero port.");
+    printf("tcp: zero port.");
     goto drop;
   }
 
@@ -1637,7 +1659,7 @@ uip_process(uint8_t flag)
   UIP_STAT(++uip_stat.tcp.synrst);
 
   reset:
-  PRINTF("In reset\n");
+  printf("In reset\n");
   /* We do not send resets in response to resets. */
   if(UIP_TCP_BUF->flags & TCP_RST) {
     goto drop;
@@ -1803,7 +1825,7 @@ uip_process(uint8_t flag)
 
   /* This label will be jumped to if we found an active connection. */
   found:
-  PRINTF("In found\n");
+  printf("In found\n");
   uip_conn = uip_connr;
   uip_flags = 0;
   /* We do a very naive form of TCP reset processing; we just accept
@@ -1813,6 +1835,7 @@ uip_process(uint8_t flag)
   if(UIP_TCP_BUF->flags & TCP_RST) {
     uip_connr->tcpstateflags = UIP_CLOSED;
     UIP_LOG("tcp: got reset, aborting connection.");
+    printf("tcp: got reset, aborting connection.");
     uip_flags = UIP_ABORT;
     UIP_APPCALL();
     goto drop;
@@ -1864,6 +1887,7 @@ uip_process(uint8_t flag)
        UIP_TCP_BUF->ackno[1] == uip_acc32[1] &&
        UIP_TCP_BUF->ackno[2] == uip_acc32[2] &&
        UIP_TCP_BUF->ackno[3] == uip_acc32[3]) {
+	    printf("<+UA>");
       /* Update sequence number. */
       uip_connr->snd_nxt[0] = uip_acc32[0];
       uip_connr->snd_nxt[1] = uip_acc32[1];
@@ -1893,8 +1917,12 @@ uip_process(uint8_t flag)
       /* Reset length of outstanding data. */
       uip_connr->len = 0;
     }
-
+    else
+	    printf("<-UA>");	    
   }
+  else if((UIP_TCP_BUF->flags & TCP_ACK) && !uip_outstanding(uip_connr)) {
+    printf("<NUA>");
+  }       
 
   /* Do different things depending on in what state the connection is. */
   switch(uip_connr->tcpstateflags & UIP_TS_MASK) {
@@ -1979,6 +2007,7 @@ uip_process(uint8_t flag)
       goto appsend;
     }
     /* Inform the application that the connection failed */
+    printf("Inform the application that the connection failed\n");
     uip_flags = UIP_ABORT;
     UIP_APPCALL();
     /* The connection is closed after we send the RST */
@@ -2242,7 +2271,7 @@ uip_process(uint8_t flag)
      headers before calculating the checksum and finally send the
      packet. */
   tcp_send:
-  PRINTF("In tcp_send\n");
+  printf("In tcp_send\n");
 
   UIP_TCP_BUF->ackno[0] = uip_connr->rcv_nxt[0];
   UIP_TCP_BUF->ackno[1] = uip_connr->rcv_nxt[1];
@@ -2296,7 +2325,7 @@ uip_process(uint8_t flag)
   UIP_IP_BUF->tcflow = 0x00;
   UIP_IP_BUF->flow = 0x00;
   send:
-  PRINTF("Sending packet with length %d (%d)\n", uip_len,
+  printf("Sending packet with length %d (%d)\n", uip_len,
       (UIP_IP_BUF->len[0] << 8) | UIP_IP_BUF->len[1]);
 
   UIP_STAT(++uip_stat.ip.sent);

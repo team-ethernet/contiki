@@ -202,7 +202,7 @@ static char sub_topic[BUFFER_SIZE];
  * The main MQTT buffers.
  * We will need to increase if we start publishing more data.
  */
-#define APP_BUFFER_SIZE 512
+#define APP_BUFFER_SIZE 768
 static struct mqtt_connection conn;
 static char app_buffer[APP_BUFFER_SIZE];
 /*---------------------------------------------------------------------------*/
@@ -217,7 +217,7 @@ static uint16_t seq_nr_value = 0;
 /* Parent RSSI functionality */
 static struct uip_icmp6_echo_reply_notification echo_reply_notification;
 static struct etimer echo_request_timer;
-static unsigned int def_rt_rssi = 0;
+static unsigned long def_rt_rssi = 0;
 /*---------------------------------------------------------------------------*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
@@ -522,7 +522,7 @@ publish(void)
   memset(def_rt_str, 0, sizeof(def_rt_str));
   ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-  len = snprintf(buf_ptr, remaining, ",\"Def Route\":\"%s\",\"RSSI (dBm)\":%d",
+  len = snprintf(buf_ptr, remaining, ",\"Def Route\":\"%s\",\"RSSI (dBm)\":%lu",
                  def_rt_str, def_rt_rssi);
 
   if(len < 0 || len >= remaining) {
@@ -649,7 +649,7 @@ publish(void)
   ll = (uint8_t *) &loc_fipaddr;
   ll = (uint8_t *) &linkaddr_node_addr.u8;
 
-  PUTFMT("[{\"bn\":\"urn:dev:mac:\"%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[8], ll[9], ll[10], ll[11], ll[12], ll[13], ll[14], ll[15]);
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[0], ll[1], ll[2], ll[3], ll[4], ll[5], ll[6], ll[7]);
   PUTFMT(",\"bt\":%lu}", clock_seconds());
   PUTFMT(",{\"n\":\"seq_no\", \"v\":%d}", seq_nr_value);
   PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
@@ -659,8 +659,8 @@ publish(void)
   memset(def_rt_str, 0, sizeof(def_rt_str));
   ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-  PUTFMT(",{\"n\":\"def_route\",\v\":%s}", def_rt_str);
-  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\v\":%d}", def_rt_rssi);
+  PUTFMT(",{\"n\":\"def_route\",\"v\":\"%s\"}", def_rt_str);
+  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
 #ifdef CO2
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
@@ -687,9 +687,10 @@ publish(void)
 	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);
   }
 
+//  PUTFMT(",{\"v\": \"And this is just a long string that takes up memory and needs a large buffer and gives mqtt a hard time\"}");
   PUTFMT("]");
 
-  printf("MQTT publish %d:\n", seq_nr_value);
+  printf("MQTT publish %d (message size %d):\n", seq_nr_value, strlen(app_buffer));
   printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
@@ -720,15 +721,20 @@ ping_parent(void)
                  ECHO_REQ_PAYLOAD_LEN);
 }
 /*---------------------------------------------------------------------------*/
+struct uip_conn *uipc = NULL;
+
 static void
 state_machine(void)
 {
+	if (uipc && uipc != conn.socket.c) {
+		printf("UIPC changed 0x%x -> 0x%x\n", (unsigned int) uipc, (unsigned int) conn.socket.c);
+	}
   switch(state) {
   case STATE_INIT:
     /* If we have just been configured register MQTT connection */
     mqtt_register(&conn, &mqtt_demo_process, client_id, mqtt_event,
                   MAX_TCP_SEGMENT_SIZE);
-
+    uipc = conn.socket.c;
     /*
      * If we are not using the quickstart service (thus we are an IBM
      * registered device), we need to provide user name and password
@@ -768,7 +774,7 @@ state_machine(void)
     leds_on(STATUS_LED);
     ctimer_set(&ct, CONNECTING_LED_DURATION, publish_led_off, NULL);
     /* Not connected yet. Wait */
-    DBG("Connecting (%u)\n", connect_attempt);
+    DBG("Connecting (%u), conn.state %d\n", connect_attempt, conn.state);
     break;
   case STATE_CONNECTED:
     /* Don't subscribe unless we are a registered device */
@@ -822,7 +828,7 @@ state_machine(void)
     }
     break;
   case STATE_DISCONNECTED:
-    DBG("Disconnected\n");
+    DBG("Disconnected, conn.state %d\n", conn.state);
     if(connect_attempt < RECONNECT_ATTEMPTS ||
        RECONNECT_ATTEMPTS == RETRY_FOREVER) {
       /* Disconnect and backoff */
@@ -866,6 +872,7 @@ state_machine(void)
   etimer_set(&publish_periodic_timer, STATE_MACHINE_PERIODIC);
 }
 /*---------------------------------------------------------------------------*/
+int mqtt_debug_count=0;
 PROCESS_THREAD(mqtt_demo_process, ev, data)
 {
 
@@ -889,9 +896,6 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
   printf("MQTT Demo Process\n");
 
-  rpl_set_mode(RPL_MODE_LEAF);
-  printf("RPL mode=%d\n", rpl_get_mode());
-
   if(init_config() != 1) {
     PROCESS_EXIT();
   }
@@ -908,6 +912,8 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
     PROCESS_YIELD();
 
+    mqtt_debug_count++;
+
     if(ev == sensors_event && data == PUBLISH_TRIGGER) {
       if(state == STATE_ERROR) {
         connect_attempt = 1;
@@ -918,6 +924,10 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
     if((ev == PROCESS_EVENT_TIMER && data == &publish_periodic_timer) ||
        ev == PROCESS_EVENT_POLL ||
        (ev == sensors_event && data == PUBLISH_TRIGGER)) {
+	    static int count = 0;
+	    if ((++count% 18) == 0) {
+		    printf("MQTT periodic state %d\n", state);
+	    }
       state_machine();
     }
 
@@ -970,8 +980,19 @@ void blinker() {
   }
 }
 
+#define WATCHDOG_INTERVAL 30
+#define STALE_PUBLISHING_WATCHDOG 10
+#define STALE_CONNECTING_WATCHDOG 20
+
+unsigned int mqtt_publishing_watchdog = 0;
+unsigned int mqtt_connecting_watchdog = 0;
+unsigned int mqtt_connection_closed = 0;
+
 PROCESS_THREAD(mqtt_checker_process, ev, data)
 {
+  static int checks = 0;
+  static uint16_t stale_publishing = 0, stale_connecting = 0;
+  static uint16_t seen_seq_nr_value = 0;
 
   PROCESS_BEGIN();
   etimer_set(&checktimer, CLOCK_SECOND*30);
@@ -983,7 +1004,41 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
     PROCESS_YIELD();
 
     if((ev == PROCESS_EVENT_TIMER) && (data == &checktimer)) {
-      printf("MQTT: state %d", state);
+      printf("MQTT: state %d conn.state %d", state, conn.state);
+      if (state == STATE_PUBLISHING) { 
+	stale_connecting = 0;
+	if (seq_nr_value > seen_seq_nr_value) {
+	  stale_publishing = 0;
+	}
+	else {
+	  stale_publishing++;
+	  if (stale_publishing > STALE_PUBLISHING_WATCHDOG) {
+	    /* In publishing state, but nothing published for a while. 
+	     * Milder reset -- call mqtt_disconnect() to trigger mqtt to restart the session
+	     */
+	    mqtt_disconnect(&conn);
+	    stale_publishing = 0;
+	    mqtt_publishing_watchdog++;
+	  }
+	}
+	seen_seq_nr_value = seq_nr_value;
+      }
+      else {
+	stale_connecting++;
+	if (stale_connecting > STALE_CONNECTING_WATCHDOG) {
+	  if(conn.state > MQTT_CONN_STATE_NOT_CONNECTED) {
+	    /* Waiting for mqtt connection, but nothing happened for a while.
+	     * Trigger communication error by closing TCP socket 
+	     */
+	    tcp_socket_close(&conn.socket);
+	    mqtt_connecting_watchdog++;
+	  }	  
+	  else
+	    mqtt_connection_closed++;
+	  stale_connecting = 0;
+	}
+      }
+
       if (state == STATE_PUBLISHING) { 
 	printf(" - PUBLISHING ");
 	if(mqtt_ready(&conn) && conn.out_buffer_sent) {
@@ -992,17 +1047,30 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
 	else {
 	  printf(" (not ready)\n");
 	}
-	etimer_reset(&checktimer);
+#if 1
+	checks++;
+
+	if ((checks % 10) == 6) {
+	  printf("\nDisconnecting - closing TCP\n");
+	  if(conn.state > MQTT_CONN_STATE_NOT_CONNECTED) {
+	    tcp_socket_close(&conn.socket);
+	  }
+	  else {
+	    printf("socket already closed\n");
+	  }
+	  mqtt_disconnect(&conn);
+	  printf("Restarting MQTT demo\n");
+	  process_exit(&mqtt_demo_process);
+	  process_start(&mqtt_demo_process, NULL);
+
+	  //printf("MQTT Disconnecting\n");
+	  //mqtt_disconnect(&conn);
+	  ;
+	}
+#endif	  
       }
-      else {
-	printf("\n");
-      }
+      etimer_reset(&checktimer);
     }
-#ifdef notdef
-    if((ev == PROCESS_EVENT_TIMER) && (data == &blinktimer)) {
-      blinker();
-    }
-#endif
   }
   PROCESS_END();
 }
