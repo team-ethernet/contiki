@@ -669,7 +669,7 @@ publish(void)
   memset(def_rt_str, 0, sizeof(def_rt_str));
   ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-  PUTFMT(",{\"n\":\"def_route\",\"v\":%s}", def_rt_str);
+  PUTFMT(",{\"n\":\"def_route\",\"v\":\"%s\"}", def_rt_str);
   PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
 #ifdef CO2
