@@ -77,14 +77,13 @@ const char *delim = " \t\r,";
 #define END_OF_FILE 26
 uint8_t eof = END_OF_FILE;
 uint8_t channel;
-static struct etimer periodic;
-
 
 #define READY_PRINT_INTERVAL (CLOCK_SECOND * 5)
 
+#if RPL_DIAG
 PROCESS(rpl_test, "RPL Node");
 AUTOSTART_PROCESSES(&rpl_test);
-
+#endif
 
 static const char *
 get_nbr_state_name(uint8_t state)
@@ -355,6 +354,9 @@ void handle_serial_input(const char *line)
     printf(COMMAND_PROMPT);
 }
 
+#ifdef RPL_DIAG
+
+static struct etimer periodic;
 
 PROCESS_THREAD(rpl_test, ev, data)
 {
@@ -379,3 +381,4 @@ PROCESS_THREAD(rpl_test, ev, data)
   PROCESS_END();
  }
 
+#endif
