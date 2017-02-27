@@ -54,7 +54,7 @@
 #else
 #define PMS_SERIAL_I2C 1
 #endif
-#define PMS_CONF_SERIAL_UART 1
+#define PMS_CONF_SERIAL_UART 0
 #ifdef PMS_CONF_SERIAL_UART
 #define PMS_SERIAL_UART PMS_CONF_SERIAL_UART
 #else

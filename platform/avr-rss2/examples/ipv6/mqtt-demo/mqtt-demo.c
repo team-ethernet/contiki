@@ -65,6 +65,9 @@
 #include "dev/pms5003/pms5003-sensor.h"
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
+#include "dev/serial-line.h"
+
+extern void handle_serial_input(const char *line);
 
 /*---------------------------------------------------------------------------*/
 /*
@@ -932,8 +935,11 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
       ping_parent();
       etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
     }
-  }
 
+    if (ev == serial_line_event_message && data != NULL) {
+      handle_serial_input((const char *) data);
+    }
+  }
   PROCESS_END();
 }
 
@@ -1012,3 +1018,4 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
  * @}
  * @}
  */
+
