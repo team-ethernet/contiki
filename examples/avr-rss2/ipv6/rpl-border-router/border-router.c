@@ -48,6 +48,7 @@
 #include "dev/button-sensor.h"
 #include "dev/slip.h"
 #include "dev/leds.h"
+#include "dev/serial-line.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +60,8 @@
 
 static uip_ipaddr_t prefix;
 static uint8_t prefix_set;
+
+extern void handle_serial_input(const char *line);
 
 PROCESS(border_router_process, "Border router process");
 
@@ -370,7 +373,7 @@ PROCESS_THREAD(border_router_process, ev, data)
   NETSTACK_MAC.off(1);
 
 /* Derived from link local (MAC) address */
-  uip_ip6addr(&ipaddr, 0xaaaa, 0, 0, 0, 0, 0, 0, 0);
+  uip_ip6addr(&ipaddr, 0xfd02, 0, 0, 0, 0, 0, 0, 0);
   set_prefix_64(&ipaddr);
   print_local_addresses();
 
@@ -380,6 +383,9 @@ PROCESS_THREAD(border_router_process, ev, data)
     if (ev == sensors_event && data == &button_sensor) {
       PRINTF("Initiating global repair\n");
       rpl_repair_root(RPL_DEFAULT_INSTANCE);
+    }
+    if (ev == serial_line_event_message && data != NULL) {
+      handle_serial_input((const char *) data);
     }
   }
 
