@@ -153,11 +153,25 @@ static uint8_t state;
 /* Payload length of ICMPv6 echo requests used to measure RSSI with def rt */
 #define ECHO_REQ_PAYLOAD_LEN   20
 /*---------------------------------------------------------------------------*/
-PROCESS_NAME(mqtt_demo_process);
-#define CHECKER
-#ifdef CHECKER
-PROCESS(mqtt_checker_process, "MQTT state checker for debug");
+#ifdef MQTT_WATCHDOG
+static struct etimer checktimer;
 
+#define WATCHDOG_INTERVAL (CLOCK_SECOND*30)
+/* Watchdogs in WATCHDOG_INTERVAL units: */
+#define STALE_PUBLISHING_WATCHDOG 10
+#define STALE_CONNECTING_WATCHDOG 20
+
+static struct {
+  unsigned int stale_publishing; 
+  unsigned int stale_connecting;
+  unsigned int closed_connection;
+} watchdog_stats = {0, 0, 0};
+#endif /* MQTT_WATCHDOG */
+/*---------------------------------------------------------------------------*/
+
+PROCESS_NAME(mqtt_demo_process);
+#ifdef MQTT_WATCHDOG
+PROCESS(mqtt_checker_process, "MQTT state checker for debug");
 AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process, &mqtt_checker_process);
 #else
 AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process);
@@ -425,6 +439,12 @@ if(len < 0 || len >= BUFFER_SIZE) {
 static void
 update_config(void)
 {
+  if(construct_node_id() == 0) {
+    /* Fatal error. Client ID larger than the buffer */
+    state = STATE_CONFIG_ERROR;
+    return;
+  }
+
   if(construct_client_id() == 0) {
     /* Fatal error. Client ID larger than the buffer */
     state = STATE_CONFIG_ERROR;
@@ -666,30 +686,19 @@ static void
 publish_sensors(void)
 {
   /* Publish MQTT topic in SenML format */
-  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
 
   int len;
   int remaining = APP_BUFFER_SIZE;
 
-  seq_nr_value++;
-
   buf_ptr = app_buffer;
 
-  uint8_t *ll; 
-  ll = (uint8_t *) &linkaddr_node_addr.u8;
+  seq_nr_value++;
 
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[0], ll[1], ll[2], ll[3], ll[4], ll[5], ll[6], ll[7]);
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
   PUTFMT(",\"bt\":%lu}", clock_seconds());
+
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
-  PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
-
-  /* Put our Default route's string representation in a buffer */
-  char def_rt_str[64];
-  memset(def_rt_str, 0, sizeof(def_rt_str));
-  ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
-
-  PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
-  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
 #ifdef CO2
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
@@ -703,12 +712,6 @@ publish_sensors(void)
   PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
   PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));  
 
-  extern uint32_t pms5003_valid_frames();
-  extern uint32_t pms5003_invalid_frames();
-
-  PUTFMT(",{\"n\":\"pms5003;valid_frames\",\"v\":%lu}", pms5003_valid_frames());
-  PUTFMT(",{\"n\":\"pms5003;invalid_frames\",\"v\":%lu}", pms5003_invalid_frames());
-
   if( i2c_probed & I2C_BME280 ) {
     PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
     PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
@@ -718,7 +721,7 @@ publish_sensors(void)
 
   PUTFMT("]");
 
-  printf("MQTT publish %d:\n", seq_nr_value);
+  printf("MQTT publish sensors %d:\n", seq_nr_value);
   printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
@@ -730,21 +733,21 @@ static void
 publish_stats(void)
 {
   /* Publish MQTT topic in SenML format */
-  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
 
   int len;
   int remaining = APP_BUFFER_SIZE;
 
-  seq_nr_value++;
-
   buf_ptr = app_buffer;
 
-  uint8_t *ll; 
-  ll = (uint8_t *) &linkaddr_node_addr.u8;
+  seq_nr_value++;
 
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[0], ll[1], ll[2], ll[3], ll[4], ll[5], ll[6], ll[7]);
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
+  PUTFMT(",\"bu\":\"count\"}");
   PUTFMT(",\"bt\":%lu}", clock_seconds());
+
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+
   PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
 
   /* Put our Default route's string representation in a buffer */
@@ -755,34 +758,26 @@ publish_stats(void)
   PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
   PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
-#ifdef CO2
-  PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
-#endif
-
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
-
-  PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
-  PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
-  PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));  
-
   extern uint32_t pms5003_valid_frames();
   extern uint32_t pms5003_invalid_frames();
 
   PUTFMT(",{\"n\":\"pms5003;valid_frames\",\"v\":%lu}", pms5003_valid_frames());
   PUTFMT(",{\"n\":\"pms5003;invalid_frames\",\"v\":%lu}", pms5003_invalid_frames());
 
-  if( i2c_probed & I2C_BME280 ) {
-    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
-    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_PRESSURE)/10,
-	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);
-  }
+  PUTFMT(",{\"n\":\"mqtt;connected\",\"v\":%u}", mqtt_stats.connected);
+  PUTFMT(",{\"n\":\"mqtt;disconnected\",\"v\":%u}", mqtt_stats.disconnected);
+  PUTFMT(",{\"n\":\"mqtt;published\",\"v\":%u}", mqtt_stats.published);
+  PUTFMT(",{\"n\":\"mqtt;pubacked\",\"v\":%u}", mqtt_stats.pubacked);
+
+#ifdef MQTT_WATCHDOG
+  PUTFMT(",{\"n\":\"mqtt;watchdog;stale_publishing\",\"v\":%u}", watchdog_stats.stale_publishing);
+  PUTFMT(",{\"n\":\"mqtt;watchdog;stale_connecting\",\"v\":%u}", watchdog_stats.stale_connecting);
+  PUTFMT(",{\"n\":\"mqtt;watchdog;closed_connection\",\"v\":%u}", watchdog_stats.closed_connection);
+#endif
 
   PUTFMT("]");
 
-  printf("MQTT publish %d:\n", seq_nr_value);
+  printf("MQTT publish stats %d:\n", seq_nr_value);
   printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
@@ -1020,19 +1015,7 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
   PROCESS_END();
 }
 
-#ifdef CHECKER
-static struct etimer checktimer;
-
-#define WATCHDOG_INTERVAL (CLOCK_SECOND*30)
-/* Watchdogs in WATCHDOG_INTERVAL units: */
-#define STALE_PUBLISHING_WATCHDOG 10
-#define STALE_CONNECTING_WATCHDOG 20
-
-static struct {
-  unsigned int stale_publishing; 
-  unsigned int stale_connecting;
-  unsigned int closed_connection;
-} watchdog_stats = {0, 0, 0};
+#ifdef MQTT_WATCHDOG
 
 PROCESS_THREAD(mqtt_checker_process, ev, data)
 {
@@ -1089,7 +1072,7 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
   PROCESS_END();
 }
 
-#endif /* CHECKER */
+#endif /* MQTT_WATCHDOG */
 /*---------------------------------------------------------------------------*/
 /**
  * @}

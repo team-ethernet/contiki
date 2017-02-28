@@ -44,6 +44,7 @@
 #define MQTT_DEMO_STATUS_LED      LEDS_YELLOW
 #define MQTT_DEMO_PUBLISH_TRIGGER &button_right_sensor
 
+#define MQTT_WATCHDOG
 #define MQTT_DEMO_TOPIC_BASE 	"KTH/rss-pms"
 
 /* If undefined, the demo will attempt to connect to IBM's quickstart */
