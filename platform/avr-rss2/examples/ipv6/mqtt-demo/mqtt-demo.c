@@ -65,9 +65,6 @@
 #include "dev/pms5003/pms5003-sensor.h"
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
-#include "dev/serial-line.h"
-
-extern void handle_serial_input(const char *line);
 
 /*---------------------------------------------------------------------------*/
 /*
@@ -200,6 +197,13 @@ typedef struct mqtt_client_config {
 static char client_id[BUFFER_SIZE];
 static char pub_topic[BUFFER_SIZE];
 static char sub_topic[BUFFER_SIZE];
+
+/*
+ * Node id string -- 8 bytes in hex plus null
+ */
+#define NODEID_SIZE 17
+static char node_id[NODEID_SIZE];
+
 /*---------------------------------------------------------------------------*/
 /*
  * The main MQTT buffers.
@@ -357,8 +361,7 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
 static int
 construct_pub_topic(void)
 {
-  int len = snprintf(pub_topic, BUFFER_SIZE, "iot-2/evt/%s/fmt/json",
-                     conf.event_type_id);
+int len = snprintf(pub_topic, BUFFER_SIZE, "%s/%s", MQTT_DEMO_TOPIC_BASE, node_id);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
   if(len < 0 || len >= BUFFER_SIZE) {
@@ -387,11 +390,8 @@ construct_sub_topic(void)
 static int
 construct_client_id(void)
 {
-  int len = snprintf(client_id, BUFFER_SIZE, "d:%s:%s:%02x%02x%02x%02x%02x%02x",
-                     conf.org_id, conf.type_id,
-                     linkaddr_node_addr.u8[0], linkaddr_node_addr.u8[1],
-                     linkaddr_node_addr.u8[2], linkaddr_node_addr.u8[5],
-                     linkaddr_node_addr.u8[6], linkaddr_node_addr.u8[7]);
+  int len = snprintf(client_id, BUFFER_SIZE, "d:%s:%s:%s",
+			     conf.org_id, conf.type_id, node_id);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
   if(len < 0 || len >= BUFFER_SIZE) {
@@ -401,6 +401,26 @@ construct_client_id(void)
 
   return 1;
 }
+
+/*---------------------------------------------------------------------------*/
+static int
+construct_node_id(void)
+{
+int len = snprintf(node_id, NODEID_SIZE, 
+			   "%02x%02x%02x%02x%02x%02x%02x%02x",
+			   linkaddr_node_addr.u8[0], linkaddr_node_addr.u8[1],
+			   linkaddr_node_addr.u8[2], linkaddr_node_addr.u8[3],
+			   linkaddr_node_addr.u8[4], linkaddr_node_addr.u8[5],
+			   linkaddr_node_addr.u8[6], linkaddr_node_addr.u8[7]);
+
+  /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
+if(len < 0 || len >= BUFFER_SIZE) {
+    printf("Node ID: %d, Buffer %d\n", len, BUFFER_SIZE);
+    return 0;
+  }
+  return 1;
+}
+
 /*---------------------------------------------------------------------------*/
 static void
 update_config(void)
@@ -643,7 +663,7 @@ publish(void)
 	}
 
 static void
-publish(void)
+publish_sensors(void)
 {
   /* Publish MQTT topic in SenML format */
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
@@ -655,16 +675,12 @@ publish(void)
 
   buf_ptr = app_buffer;
 
-  uip_ipaddr_t loc_fipaddr; /* Link local address - use 8 last bytes for ID */
   uint8_t *ll; 
-  uip_create_linklocal_prefix(&loc_fipaddr);
-  uip_ds6_set_addr_iid(&loc_fipaddr, &uip_lladdr);
-  ll = (uint8_t *) &loc_fipaddr;
   ll = (uint8_t *) &linkaddr_node_addr.u8;
 
   PUTFMT("[{\"bn\":\"urn:dev:mac:%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[0], ll[1], ll[2], ll[3], ll[4], ll[5], ll[6], ll[7]);
   PUTFMT(",\"bt\":%lu}", clock_seconds());
-  PUTFMT(",{\"n\":\"seq_no\", \"v\":%d}", seq_nr_value);
+  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
   PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
 
   /* Put our Default route's string representation in a buffer */
@@ -672,7 +688,71 @@ publish(void)
   memset(def_rt_str, 0, sizeof(def_rt_str));
   ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-  PUTFMT(",{\"n\":\"def_route\",\"v\":\"%s\"}", def_rt_str);
+  PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
+  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
+
+#ifdef CO2
+  PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
+#endif
+
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
+  PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
+
+  PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
+  PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
+  PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));  
+
+  extern uint32_t pms5003_valid_frames();
+  extern uint32_t pms5003_invalid_frames();
+
+  PUTFMT(",{\"n\":\"pms5003;valid_frames\",\"v\":%lu}", pms5003_valid_frames());
+  PUTFMT(",{\"n\":\"pms5003;invalid_frames\",\"v\":%lu}", pms5003_invalid_frames());
+
+  if( i2c_probed & I2C_BME280 ) {
+    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
+    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
+    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_PRESSURE)/10,
+	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);
+  }
+
+  PUTFMT("]");
+
+  printf("MQTT publish %d:\n", seq_nr_value);
+  printf("%s\n", app_buffer);
+  mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+
+  DBG("APP - Publish!\n");
+}
+
+static void
+publish_stats(void)
+{
+  /* Publish MQTT topic in SenML format */
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+
+  int len;
+  int remaining = APP_BUFFER_SIZE;
+
+  seq_nr_value++;
+
+  buf_ptr = app_buffer;
+
+  uint8_t *ll; 
+  ll = (uint8_t *) &linkaddr_node_addr.u8;
+
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%02x%02x%02x%02x%02x%02x%02x%02x;\"", ll[0], ll[1], ll[2], ll[3], ll[4], ll[5], ll[6], ll[7]);
+  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+  PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
+
+  /* Put our Default route's string representation in a buffer */
+  char def_rt_str[64];
+  memset(def_rt_str, 0, sizeof(def_rt_str));
+  ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
+
+  PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
   PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
 #ifdef CO2
@@ -808,7 +888,7 @@ state_machine(void)
       } else {
         leds_on(STATUS_LED);
         ctimer_set(&ct, PUBLISH_LED_ON_DURATION, publish_led_off, NULL);
-        publish();
+        publish_sensors();
       }
       etimer_set(&publish_periodic_timer, conf.pub_interval);
 
@@ -935,11 +1015,8 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
       ping_parent();
       etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
     }
-
-    if (ev == serial_line_event_message && data != NULL) {
-      handle_serial_input((const char *) data);
-    }
   }
+
   PROCESS_END();
 }
 
@@ -1018,4 +1095,3 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
  * @}
  * @}
  */
-

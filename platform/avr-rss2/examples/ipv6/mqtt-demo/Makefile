@@ -12,11 +12,8 @@ PRINTF_LIB_MIN  = -Wl,-u,vfprintf -lprintf_min
 PRINTF_LIB      = $(PRINTF_LIB_FLT)
 CLIBS           = $(PRINTF_LIB) 
 
-PROJECT_OBJECTFILES = commands.o
-
 #CFLAGS += -DPMS5003
 #CFLAGS += -DBME280
-
 
 MODULES += dev/bme280
 MODULES += dev/pms5003

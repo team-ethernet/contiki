@@ -44,6 +44,8 @@
 #define MQTT_DEMO_STATUS_LED      LEDS_YELLOW
 #define MQTT_DEMO_PUBLISH_TRIGGER &button_right_sensor
 
+#define MQTT_DEMO_TOPIC_BASE 	"KTH/rss-pms"
+
 /* If undefined, the demo will attempt to connect to IBM's quickstart */
 //#define MQTT_DEMO_BROKER_IP_ADDR "aaaa::1"
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
@@ -67,7 +69,6 @@
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
 
-#define RPL_CONF_STATS 1
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
