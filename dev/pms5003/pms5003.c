@@ -259,8 +259,9 @@ PROCESS_THREAD(pms5003_uart_process, ev, data)
 }
 #endif
 /*---------------------------------------------------------------------------*/
-/* Timer thread: check if end of idle period, and if so, wakeup. 
- * For I2C, read data, if it is time, and then enter idle period.
+/* Timer thread: duty cycle sensor. Toggle between idle and active mode.
+ *
+ * For I2C, also read data when it is due.
  */
 PROCESS_THREAD(pms5003_timer_process, ev, data)
 {
@@ -286,7 +287,7 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
       if (standbymode == STANDBY_MODE_OFF) {
 #if PMS_SERIAL_I2C
 	static uint8_t buf[PMSBUFFER];
-
+	/* Read data over I2C if it is time */
 	if (mode_secs >= PMS_STARTUP_INTERVAL) {
 	  if(pms5003_i2c_probe()) {
 	    leds_on(LEDS_RED);
