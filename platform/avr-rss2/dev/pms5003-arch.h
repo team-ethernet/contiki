@@ -44,9 +44,9 @@
  */
 
 /* AVR configuration for controlling dust sensor */
-#define SET_PMS_DDR  DDRD   /* Data Direction Register: Port B */
-#define SET_PMS_PORT PORTD  /* Serial Peripheral Interface */
-#define PMS_SET      6      /* PD6: OW2_PIN, Chip Select */
+#define SET_PMS_DDR  DDRB   /* Data Direction Register: Port B */
+#define SET_PMS_PORT PORTB  /* Serial Peripheral Interface */
+#define PMS_SET      2      /* PD1: OW2_PIN, Chip Select */
 
 /* Duty cycle mode */
 #define STANDBY_MODE_OFF	0
