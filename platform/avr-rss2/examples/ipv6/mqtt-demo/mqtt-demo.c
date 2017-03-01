@@ -171,6 +171,9 @@ static struct {
   unsigned int closed_connection;
 } watchdog_stats = {0, 0, 0};
 #endif /* MQTT_WATCHDOG */
+/* Publish statistics every N publication */
+#define PUBLISH_STATS_INTERVAL 8
+
 /*---------------------------------------------------------------------------*/
 extern int
 mqtt_rpl_pub(char *buf, int bufsize);
@@ -230,7 +233,7 @@ static char node_id[NODEID_SIZE];
  * The main MQTT buffers.
  * We will need to increase if we start publishing more data.
  */
-#define APP_BUFFER_SIZE 768
+#define APP_BUFFER_SIZE 1024
 static struct mqtt_connection conn;
 static char app_buffer[APP_BUFFER_SIZE];
 /*---------------------------------------------------------------------------*/
@@ -503,7 +506,11 @@ init_config()
   memcpy(conf.cmd_type, DEFAULT_SUBSCRIBE_CMD_TYPE, 1);
 
   conf.broker_port = DEFAULT_BROKER_PORT;
+#ifdef MQTT_CONF_PUBLISH_INTERVAL
+  conf.pub_interval = MQTT_CONF_PUBLISH_INTERVAL;
+#else
   conf.pub_interval = DEFAULT_PUBLISH_INTERVAL;
+#endif
   conf.def_rt_ping_interval = DEFAULT_RSSI_MEAS_INTERVAL;
 
   return 1;
@@ -549,20 +556,15 @@ publish_sensors(void)
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
   PUTFMT(",\"bt\":%lu}", clock_seconds());
 
-  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
-
 #ifdef CO2
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
 #endif
 
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
-  PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
-
-  PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
-  PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
-  PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));  
-
+  if( i2c_probed & I2C_PMS5003 ) {
+  PUTFMT(",{\"n\":\"pms5003;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
+  PUTFMT(",{\"n\":\"pms5003;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
+  PUTFMT(",{\"n\":\"pms5003;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
+  }
   if( i2c_probed & I2C_BME280 ) {
     PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
     PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
@@ -572,19 +574,27 @@ publish_sensors(void)
 
   PUTFMT("]");
 
-  printf("MQTT publish sensors %d:\n", seq_nr_value);
-  printf("%s\n", app_buffer);
+  printf("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  //printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
-  DBG("APP - Publish!\n");
+  DBG("APP - Publish (%d bytes)!\n", strlen(app_buffer));
 }
 
 static void
 publish_stats(void)
 {
   /* Publish MQTT topic in SenML format */
+  /* Circle through different statistics -- one for each publish */
+  enum {
+    STATS_DEVICE,
+    STATS_RPL,
+  };
+#define STARTSTATS STATS_DEVICE
+#define ENDSTATS STATS_RPL
 
+  int stats = STARTSTATS;
   int len;
   int remaining = APP_BUFFER_SIZE;
 
@@ -598,43 +608,50 @@ publish_stats(void)
   PUTFMT(",\"bt\":%lu}", clock_seconds());
 
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+  switch (stats) {
+  case STATS_DEVICE:
 
-  PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
+    PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
 
-  /* Put our Default route's string representation in a buffer */
-  char def_rt_str[64];
-  memset(def_rt_str, 0, sizeof(def_rt_str));
-  ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
+    /* Put our Default route's string representation in a buffer */
+    char def_rt_str[64];
+    memset(def_rt_str, 0, sizeof(def_rt_str));
+    ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-  PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
-  PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
+    PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
-  extern uint32_t pms5003_valid_frames();
-  extern uint32_t pms5003_invalid_frames();
+    extern uint32_t pms5003_valid_frames();
+    extern uint32_t pms5003_invalid_frames();
 
-  PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
-  PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
+    PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
+    PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
+    break;
 
-  PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
-  PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
-  PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
-  PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
+    /*case STATS_MQTT:*/
+     
+    PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
+    PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
+    PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
+    PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
 
 #ifdef MQTT_WATCHDOG
-  PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
-  PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
-  PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
+    PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
+    PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
+    PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
 #endif
-
-  PUTFMT(",");
-  len = mqtt_rpl_pub(buf_ptr, remaining);
-  if (len < 0 || len >= remaining) { 
-    printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
-    return;
+    break;
+  case STATS_RPL:
+    PUTFMT(",");
+    len = mqtt_rpl_pub(buf_ptr, remaining);
+    if (len < 0 || len >= remaining) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+      return;
+    }
+    remaining -= len;
+    buf_ptr += len;
+    break;
   }
-  remaining -= len;
-  buf_ptr += len;
-
   PUTFMT("]");
 
   printf("MQTT publish stats %d:\n", seq_nr_value);
@@ -648,7 +665,7 @@ publish_stats(void)
 static void
 publish(void)
 {
-  if (seq_nr_value % 2)
+  if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
     publish_stats();
   else
     //publish_stats();
