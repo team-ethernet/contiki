@@ -65,6 +65,9 @@
 #include "dev/pms5003/pms5003-sensor.h"
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
+#include "dev/serial-line.h"
+
+extern void handle_serial_input(const char *line);
 
 /*---------------------------------------------------------------------------*/
 /*
@@ -146,6 +149,7 @@ static uint8_t state;
 #define DEFAULT_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
 #define DEFAULT_KEEP_ALIVE_TIMER    60
 #define DEFAULT_RSSI_MEAS_INTERVAL  (CLOCK_SECOND * 30)
+
 /*---------------------------------------------------------------------------*/
 /* Take a sensor reading on button press */
 #define PUBLISH_TRIGGER &button_sensor
@@ -167,7 +171,6 @@ static struct {
   unsigned int closed_connection;
 } watchdog_stats = {0, 0, 0};
 #endif /* MQTT_WATCHDOG */
-
 /*---------------------------------------------------------------------------*/
 extern int
 mqtt_rpl_pub(char *buf, int bufsize);
@@ -650,6 +653,7 @@ publish(void)
   else
     //publish_stats();
     publish_sensors();
+  mqtt_stats.published++;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -874,6 +878,10 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
     if(ev == PROCESS_EVENT_TIMER && data == &echo_request_timer) {
       ping_parent();
       etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
+    }
+
+    if (ev == serial_line_event_message && data != NULL) {
+      handle_serial_input((const char *) data);
     }
   }
 

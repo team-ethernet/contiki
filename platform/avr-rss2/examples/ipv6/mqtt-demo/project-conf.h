@@ -70,6 +70,7 @@
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
 
+#define RPL_CONF_STATS 1
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
