@@ -45,7 +45,7 @@
 #define MQTT_DEMO_PUBLISH_TRIGGER &button_right_sensor
 
 #define MQTT_WATCHDOG
-#define MQTT_DEMO_TOPIC_BASE 	"KTH/rss-pms"
+#define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
 
 /* If undefined, the demo will attempt to connect to IBM's quickstart */
 //#define MQTT_DEMO_BROKER_IP_ADDR "aaaa::1"
@@ -53,6 +53,7 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
 #define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
+#define MQTT_CONF_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
 
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
@@ -71,6 +72,10 @@
 #define CHANNEL_CONF_802_15_4 25
 
 #define RPL_CONF_STATS 1
+
+/* PMSx003 sensors -- I2C and/or UART*/
+#define PMS_CONF_SERIAL_I2C 1
+#define PMS_CONF_SERIAL_UART 0
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
