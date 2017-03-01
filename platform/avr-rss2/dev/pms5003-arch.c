@@ -26,7 +26,10 @@ pms5003_i2c_probe(void) {
   watchdog_periodic();
   if(!i2c_start(I2C_PMS5003_ADDR)) {
     i2c_stop();
+    i2c_probed |= I2C_PMS5003;
     return 1;
+
   }
+  i2c_probed &= ~I2C_PMS5003;
   return 0;
 }
