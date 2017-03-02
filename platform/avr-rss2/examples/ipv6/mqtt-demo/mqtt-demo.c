@@ -173,6 +173,7 @@ static struct {
 #endif /* MQTT_WATCHDOG */
 /* Publish statistics every N publication */
 #define PUBLISH_STATS_INTERVAL 8
+#define PUBLISH_STATS_INTERVAL 3
 
 /*---------------------------------------------------------------------------*/
 extern int
@@ -626,9 +627,9 @@ publish_stats(void)
 
     PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
     PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
-    break;
 
-    /*case STATS_MQTT:*/
+    
+     /* case STATS_MQTT:*/
      
     PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
     PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
@@ -640,6 +641,14 @@ publish_stats(void)
     PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
     PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
 #endif
+    PUTFMT(",");
+    len = mqtt_i2c_pub(buf_ptr, remaining);
+    if (len < 0 || len >= remaining) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+      return;
+    }
+    remaining -= len;
+    buf_ptr += len;
     break;
   case STATS_RPL:
     PUTFMT(",");
@@ -654,12 +663,17 @@ publish_stats(void)
   }
   PUTFMT("]");
 
-  printf("MQTT publish stats %d:\n", seq_nr_value);
+  printf("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
   printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
   DBG("APP - Publish!\n");
+
+  stats++;
+  if (stats > ENDSTATS)
+    stats = STARTSTATS;
+  
 }
 
 static void

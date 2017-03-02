@@ -13,7 +13,7 @@ PRINTF_LIB      = $(PRINTF_LIB_FLT)
 CLIBS           = $(PRINTF_LIB) 
 
 
-PROJECT_OBJECTFILES += mqtt-rpl-pub.o commands.o
+PROJECT_OBJECTFILES += mqtt-rpl-pub.o mqtt-i2c-pub.o commands.o
 #CFLAGS += -DPMS5003
 #CFLAGS += -DBME280
 
