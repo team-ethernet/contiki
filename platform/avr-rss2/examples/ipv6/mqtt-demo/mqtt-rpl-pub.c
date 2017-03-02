@@ -41,7 +41,7 @@ mqtt_rpl_pub(char *buf, int bufsize)  {
   if(inst != NULL && inst->current_dag != NULL &&
       inst->of != NULL) {
 
-    PUTFMT("{\"n\":\"rpl;inst\", \"vj\":{inst:%d, mop:%d, ocp:%d}}",
+    PUTFMT("{\"n\":\"rpl;inst\", \"vj\":{\"inst\":%d, \"mop\":%d, \"ocp\":%d}}",
 	   inst->instance_id, inst->mop, inst->of->ocp);
 
     for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; ++i) {

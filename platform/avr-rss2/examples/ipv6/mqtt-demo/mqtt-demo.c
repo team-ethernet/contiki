@@ -173,7 +173,6 @@ static struct {
 #endif /* MQTT_WATCHDOG */
 /* Publish statistics every N publication */
 #define PUBLISH_STATS_INTERVAL 8
-#define PUBLISH_STATS_INTERVAL 3
 
 /*---------------------------------------------------------------------------*/
 extern int
@@ -595,7 +594,7 @@ publish_stats(void)
 #define STARTSTATS STATS_DEVICE
 #define ENDSTATS STATS_RPL
 
-  int stats = STARTSTATS;
+  static int stats = STARTSTATS;
   int len;
   int remaining = APP_BUFFER_SIZE;
 
