@@ -44,7 +44,7 @@
  *         Robert Olsson    <roolss@kth.se> 
  */
 
-#define VERSION "0.9-2017-02-16\n"
+#define VERSION "0.9-2017-02-27\n"
 
 #if CONTIKI_TARGET_AVR_RSS2
 #define radio_set_txpower rf230_set_txpower
@@ -58,10 +58,12 @@
 #include "net/rpl/rpl.h"
 #include "net/rpl/rpl-private.h"
 #include "net/mac/framer-802154.h"
+#include "net/link-stats.h"
 #include <string.h>
 #include <stdlib.h>
 #include "net/packetbuf.h"
 #include "dev/serial-line.h"
+#include "dev/i2c.h"
 #include "sys/process.h"
 
 #define DEBUG DEBUG_PRINT
@@ -160,10 +162,25 @@ show_dag(void)
   } else {
     printf("No DAG joined\n");
   }
-  
-  rpl_print_neighbor_list();
+    rpl_print_neighbor_list();
 }
 
+
+void
+show_rpl_stats(voiD) 
+{
+#ifdef RPL_CONF_STATS
+ printf("rpl.mem_overflows=%-u\n", rpl_stats.mem_overflows);
+  printf("rpl.local_repairs=%-u\n", rpl_stats.local_repairs);
+  printf("rpl.global_repairs=%-u\n", rpl_stats.global_repairs);
+  printf("rpl.malformed_msgs=%-u\n", rpl_stats.malformed_msgs);
+  printf("rpl.resets=%-u\n", rpl_stats.resets);
+  printf("rpl.parent_switch=%-u\n", rpl_stats.parent_switch);
+  printf("rpl.forward_errors=%-u\n", rpl_stats.forward_errors);
+  printf("rpl.loop_errors=%-u\n", rpl_stats.loop_errors);
+  printf("rpl.root_repairs=%-u\n", rpl_stats.root_repairs);
+#endif
+}
 
 void
 show_routes(void)
@@ -214,10 +231,11 @@ show_neighbors(void)
   const uip_lladdr_t *lladdr;
   rpl_parent_t *p;
   uint16_t rank;
+  struct link_stats *ls;
 
   def_instance = rpl_get_default_instance();
   
-  printf("Neighbors IPv6         \t  sec  state       rank      RPL flg\n");
+  printf("Neighbors IPv6         \t  Sec  State       Rank      RPL Flg   ETX  RSSI Freshness\n");
   for(nbr = nbr_table_head(ds6_neighbors);
       nbr != NULL;
       nbr = nbr_table_next(ds6_neighbors, nbr)) {
@@ -225,12 +243,12 @@ show_neighbors(void)
     lladdr = uip_ds6_nbr_get_ll(nbr);
     p = nbr_table_get_from_lladdr(rpl_parents, (const linkaddr_t*)lladdr);
     rank = p != NULL ? p->rank : 0;
-#if UIP_ND6_SEND_NA || UIP_ND6_SEND_RA
+#if UIP_ND6_SEND_NS || UIP_ND6_SEND_RA
     if(stimer_expired(&nbr->reachable)) {
       printf("\t %5c ", '-');
-  } else {
+    } else {
       printf("\t %5lu ", stimer_remaining(&nbr->reachable));
-  }
+    }
 #else
     printf("\t  N/A  ");
 #endif
@@ -249,11 +267,14 @@ show_neighbors(void)
     } else {
     printf("   ");
     }
+    lladdr = uip_ds6_nbr_get_ll(nbr);
+    ls = link_stats_from_lladdr(lladdr);
+    printf("     %-4u  %-2u    %-u", ls->etx, ls->rssi, ls->freshness);
     printf("\n");
   }
     printf("\n");
 }
-        
+
 void
 show_net_all(void)
 {
@@ -268,9 +289,12 @@ static void print_help(void)
     printf("show dag     - - DODAG info\n");
     printf("show neighbor -- neighbor list\n");
     printf("show routes\n");
+    printf("show stats\n");
     printf("show channel\n");
     printf("show version\n");
     printf("set channel  -- set [11-26] channel\n");
+    printf("set debug  -- select debug info\n");
+    printf("i2c       -- probe i2c bus\n");
     printf("help         -- this menu\n");
     printf("repair       -- global dag repair\n");
     printf("upgr         -- reboot via bootloader\n");
@@ -300,6 +324,12 @@ static int cmd_chan(uint8_t verbose)
     return 1;
 }
 
+void
+debug_cmd(char *p)
+{
+  printf("To be added\n");
+}
+
 void handle_serial_input(const char *line)
 {
     char *p;
@@ -311,11 +341,15 @@ void handle_serial_input(const char *line)
 
     printf("\n");
     
+    /* Show commands */
     if (!strcmp(p, "sh") || !strcmp(p, "sho") || !strcmp(p, "show")) {
       p = strtok(NULL, (const char *) delim);
       if(p) {
 	if (!strcmp(p, "d") || !strcmp(p, "da") || !strcmp(p, "dag")) {
 	  show_dag();
+	}
+	else if (!strcmp(p, "s") || !strcmp(p, "stat") || !strcmp(p, "stats")) {
+	  show_rpl_stats();
 	}
 	else if (!strcmp(p, "r") || !strcmp(p, "ro") || !strcmp(p, "route")) {
 	  show_routes();
@@ -323,7 +357,6 @@ void handle_serial_input(const char *line)
 	else if (!strcmp(p, "n") || !strcmp(p, "ne") || !strcmp(p, "neigh")) {
 	  show_neighbors();
 	}
-      
 	else if (!strcmp(p, "ch") || !strcmp(p, "chan")) {
 	  cmd_chan(1);
 	}
@@ -332,9 +365,25 @@ void handle_serial_input(const char *line)
 	}
       }
     }
+    /* Set commands */
+    else if (!strcmp(p, "sh") || !strcmp(p, "sho") || !strcmp(p, "show")) {
+      p = strtok(NULL, (const char *) delim);
+      if(p) {      
+	if (!strcmp(p, "de") || !strcmp(p, "debug")) {
+	  debug_cmd(p);
+	}
+      }
+    }
+    /* Misc commands */
+    else if (!strcmp(p, "i2c")) {
+      printf("I2C: ");
+      i2c_probed = i2c_probe();
+      printf("\n");
+    }
     else if (!strcmp(p, "li") || !strcmp(p, "lisy")) {
         show_net_all();
     }
+
 #ifdef CONTIKI_TARGET_AVR_RSS2
     else if (!strcmp(p, "upgr") || !strcmp(p, "upgrade")) {
         printf("OK\n");

@@ -243,7 +243,7 @@ show_neighbors(void)
     lladdr = uip_ds6_nbr_get_ll(nbr);
     p = nbr_table_get_from_lladdr(rpl_parents, (const linkaddr_t*)lladdr);
     rank = p != NULL ? p->rank : 0;
-#if UIP_ND6_SEND_NA || UIP_ND6_SEND_RA
+#if UIP_ND6_SEND_NS || UIP_ND6_SEND_RA
     if(stimer_expired(&nbr->reachable)) {
       printf("\t %5c ", '-');
     } else {
