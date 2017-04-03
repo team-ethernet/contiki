@@ -5,6 +5,7 @@ CONTIKI_WITH_IPV6 = 1
 
 APPS += mqtt
 APPS += ping6
+APPS += cli
 
 # We use floating vars. Add library.
 PRINTF_LIB_FLT  = -Wl,-u,vfprintf -lprintf_flt -lm
@@ -13,7 +14,7 @@ PRINTF_LIB      = $(PRINTF_LIB_FLT)
 CLIBS           = $(PRINTF_LIB) 
 
 
-PROJECT_OBJECTFILES += mqtt-rpl-pub.o mqtt-i2c-pub.o commands.o
+PROJECT_OBJECTFILES += mqtt-rpl-pub.o mqtt-i2c-pub.o
 #CFLAGS += -DPMS5003
 #CFLAGS += -DBME280
 

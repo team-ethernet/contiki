@@ -79,6 +79,11 @@
 #define PMS_CONF_SERIAL_I2C 1
 #define PMS_CONF_SERIAL_UART 0
 
+/* cli config */
+#define CLI_CONF_COMMAND_PROMPT  "KTH-MQTT> "
+#define CLI_CONF_PROJECT  "GreenIoT V1.0 2017-03-13"
+
+
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
 /*---------------------------------------------------------------------------*/
