@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, Swedish Institute of Computer Science
+ * Copyright (c) 2017, Peter Sjödin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,9 +31,9 @@
  */
 /**
  * \file
- * Generic serial I/O process header filer
+ * Raw serial I/O process header filer
  * \author
- * Adam Dunkels
+ * Peter Sjödin
  *
  */
 #ifndef SERIAL_RAW_H_

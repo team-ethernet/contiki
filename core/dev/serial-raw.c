@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, Swedish Institute of Computer Science
+ * Copyright (c) 2017, Peter Sjödin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@ int
 serial_raw_input_byte(unsigned char c)
 {
   /* Add char to buffer. Unlike serial line input, ignore buffer overflow */
-  (void) ringbuf_put(&rxbuf, c);
+  (void)ringbuf_put(&rxbuf, c);
   /* Wake up consumer process */
   process_poll(&serial_raw_process);
   return 1;
@@ -68,21 +68,20 @@ PROCESS_THREAD(serial_raw_process, ev, data)
   static uint8_t buf[1];
 
   PROCESS_BEGIN();
-  
+
   while(1) {
     int c = ringbuf_get(&rxbuf);
-    if (c == -1) {
+    if(c == -1) {
       PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    }
-    else {
+    } else {
       buf[0] = c;
       /* Broadcast event */
       process_post(PROCESS_BROADCAST, serial_raw_event_message, buf);
 
       /* Wait until all processes have handled the serial line event */
       if(PROCESS_ERR_OK ==
-	 process_post(PROCESS_CURRENT(), PROCESS_EVENT_CONTINUE, NULL)) {
-	PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+         process_post(PROCESS_CURRENT(), PROCESS_EVENT_CONTINUE, NULL)) {
+        PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_CONTINUE);
       }
     }
   }
