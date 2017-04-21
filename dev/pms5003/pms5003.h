@@ -37,23 +37,39 @@
 #define PMS5003_H
 
 /* How often sensor process runs (secs) */
+#ifdef PMS5003_CONF_PROCESS_PERIOD
+#define PMS_PROCESS_PERIOD	PMS5003_CONF_PROCESS_PERIOD
+#else
 #define PMS_PROCESS_PERIOD	15
-/* How often sensor data is collected (secs) */
-#define PMS_SAMPLE_PERIOD       30
-/* Warmup time before sensor data can be read (secs) */
-#define PMS_STARTUP_INTERVAL    10
+#endif /* PMS5003_CONF_PROCESS_PERIOD */
 
+/* How often sensor data is collected (secs) */
+#ifdef PMS5003_CONF_SAMPLE_PERIOD
+#define PMS_SAMPLE_PERIOD       PMS5003_CONF_SAMPLE_PERIOD
+#else
+#define PMS_SAMPLE_PERIOD       30
+#endif /* PMS5003_CONF_SAMPLE_PERIOD */
+
+/* Warmup time before sensor data can be read (secs) */
+#ifdef PMS5003_STARTUP_INTERVAL
+#define PMS_STARTUP_INTERVAL    PMS5003_STARTUP_INTERVAL
+#else
+#define PMS_STARTUP_INTERVAL    10
+#endif /* PMS5003_STARTUP_INTERVAL */
+
+/* Use I2C interface? */
 #ifdef PMS_CONF_SERIAL_I2C
 #define PMS_SERIAL_I2C PMS_CONF_SERIAL_I2C
 #else
 #define PMS_SERIAL_I2C 1
-#endif
+#endif /* PMS_CONF_SERIAL_I2C */
 
+/* Use uart interface? */
 #ifdef PMS_CONF_SERIAL_UART
 #define PMS_SERIAL_UART PMS_CONF_SERIAL_UART
 #else
 #define PMS_SERIAL_UART 1
-#endif
+#endif /* PMS_CONF_SERIAL_UART */
 
 /* Event to signal presense of new data */
 process_event_t pms5003_event;

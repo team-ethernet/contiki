@@ -5,7 +5,10 @@
 #include "pms5003-arch.h"
 
 static uint8_t standbymode;
-
+/*---------------------------------------------------------------------------*/
+/* 
+ * Configure low power standby mode (PIN3, SET)
+ */
 void
 pms5003_set_standby_mode(uint8_t mode) {
   SET_PMS_DDR |= (1 << PMS_SET);
@@ -15,12 +18,18 @@ pms5003_set_standby_mode(uint8_t mode) {
     SET_PMS_PORT &= ~(1 << PMS_SET);
   standbymode = mode;
 }
-
+/*---------------------------------------------------------------------------*/
+/*
+ * Return current standby mode
+ */
 uint8_t
 pms5003_get_standby_mode(void) {
   return standbymode;
 }
-
+/*---------------------------------------------------------------------------*/
+/*
+ * Probe I2C bus for PMS5003 device 
+ */
 uint8_t
 pms5003_i2c_probe(void) {
   watchdog_periodic();
@@ -33,3 +42,4 @@ pms5003_i2c_probe(void) {
   i2c_probed &= ~I2C_PMS5003;
   return 0;
 }
+/*---------------------------------------------------------------------------*/

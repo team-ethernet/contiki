@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB  
+ * Copyright (c) 2017, Peter Sjodin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,17 +29,18 @@
  * This file is part of the Contiki operating system.
  *
  *
- * Author  : Robert Olsson robert@radio-sensors.com
- * Created : 2015-11-22
+ * Author  : Peter Sjodin, KTH Royal Institute of Technology
+ * Created : 2017-04-21
  */
 
 /**
  * \file
- *         A simple application showing sensor reading on RSS2 mote
+ *         Driver for Planttower PMSX003 dust sensors
  */
 
 #include "contiki.h"
 #include "sys/etimer.h"
+#include "sys/pt.h"
 #include <stdio.h>
 #include "i2c.h"
 #include "watchdog.h"
@@ -50,6 +51,7 @@
 #include "dev/pms5003-arch.h"
 #include "pms5003.h"
 
+#include "lib/ringbuf.h"
 /*
  * Definitions for frames from PMSX003 sensors 
  */
@@ -66,34 +68,52 @@
 
 /* When sensor entered current power save mode, in clock_seconds()*/
 static unsigned long when_mode; 
-/* Sensor configured to be on */
+/* Sensor configured on? */
 static uint8_t configured_on = 0;
 
 /* Last readings of sensor data */
 static uint16_t PM1, PM2_5, PM10;
 static uint16_t PM1_ATM, PM2_5_ATM, PM10_ATM;
+/* Frame assembly statistics */
 static uint32_t invalid_frames, valid_frames;
+
+#if PMS_SERIAL_UART 
+#ifdef PMS5003_CONF_UART_BUFSIZE
+#define BUFSIZE PMS5003_CONF_UART_BUFSIZE
+#else /* PMS5003_CONF_UART_BUFSIZE */
+#define BUFSIZE 128
+#endif /* PMS5003_CONF_UART_BUFSIZE */
+
+#if (BUFSIZE & (BUFSIZE - 1)) != 0
+#error PMS5003_CONF_UART_BUFSIZE must be a power of two (i.e., 1, 2, 4, 8, 16, 32, 64, ...).
+#error Change PMS5003_CONF_UART_BUFSIZE in contiki-conf.h.
+#endif /* BUFSIZE */
+
+/* Ring buffer for storing input from uart */
+static struct ringbuf rxbuf;
+static uint8_t rxbuf_data[BUFSIZE];
+
+static int pms5003_input_byte(unsigned char);
+#endif /* PMS_SERIAL_UART */
+  
 /*---------------------------------------------------------------------------*/
 #if PMS_SERIAL_UART 
 PROCESS(pms5003_uart_process, "PMS5003/UART dust sensor process");
-#endif
+#endif /* PMS_SERIAL_UART */
 PROCESS(pms5003_timer_process, "PMS5003 periodic dust sensor process");
 /*---------------------------------------------------------------------------*/
 void
 pms5003_init() {
   pms5003_event = process_alloc_event();
-#if PMS_SERIAL_UART 
-  rs232_set_input(RS232_PORT_0, serial_raw_input_byte);
-  serial_raw_init();
-#endif
-
-  configured_on = 1;
   process_start(&pms5003_timer_process, NULL);
 
 #if PMS_SERIAL_UART 
+  ringbuf_init(&rxbuf, rxbuf_data, sizeof(rxbuf_data));
+  rs232_set_input(RS232_PORT_0, pms5003_input_byte);
   process_start(&pms5003_uart_process, NULL);
-#endif
-  return;
+#endif /* PMS_SERIAL_UART */
+
+  configured_on = 1;
 }
 /*---------------------------------------------------------------------------*/
 void pms5003_off() {
@@ -132,9 +152,10 @@ uint32_t pms5003_valid_frames() {
 uint32_t pms5003_invalid_frames() {
   return invalid_frames;
 }
-
 /*---------------------------------------------------------------------------*/
-/* Validate frame by checking length field and checksum */
+/* Validate frame by checking preamble, length field and checksum 
+ * Return 0 if invalid frame, otherwise 1
+ */
 static int
 check_pmsframe(uint8_t *buf) {
   int sum, pmssum;
@@ -155,6 +176,16 @@ check_pmsframe(uint8_t *buf) {
   }
   /* Compare with received checksum last in frame*/
   pmssum = (buf[len+2] << 8) + buf[len+3];
+
+  if (pmssum != sum) {
+    printf("\n");
+    for (i = 0; i < len+2; i++) {
+      printf("%d ", buf[i]);
+    }
+    printf("%d %d (len %d)", buf[len+2], buf[len+3], len);
+    printf(" -- mysum %d pmssum %d\n", sum, pmssum);
+  }
+
   return (pmssum == sum);
 }
 /*---------------------------------------------------------------------------*/
@@ -180,87 +211,108 @@ pmsframe(uint8_t *buf) {
     return 0;
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 printpm() {
-    printf("PMS frames: valid %lu, invalid %lu\n", valid_frames, invalid_frames);
+    printf("PMS frames: valid %lu, invalid %lu\n",
+           valid_frames, invalid_frames);
     printf("PM1 = %04d, PM2.5 = %04d, PM10 = %04d\n", PM1, PM2_5, PM10);
-    printf("PM1_ATM = %04d, PM2.5_ATM = %04d, PM10_ATM = %04d\n", PM1_ATM, PM2_5_ATM, PM10_ATM);	
+    printf("PM1_ATM = %04d, PM2.5_ATM = %04d, PM10_ATM = %04d\n",
+           PM1_ATM, PM2_5_ATM, PM10_ATM);	
 }
 /*---------------------------------------------------------------------------*/
 #if PMS_SERIAL_UART
-extern process_event_t serial_raw_event_message;
 
-PROCESS_THREAD(pms5003_uart_process, ev, data)
-{
+/* pms5003_uart_fsm_pt: state machine for receiving PMS5003 frame
+ * from uart. Use protothread for state machine.
+ */
+static
+PT_THREAD(pms5003_uart_fsm_pt(struct pt *pt, uint8_t data)) {
   static uint8_t buf[PMSBUFFER], *bufp;
   static int remain;
   static unsigned long mode_secs;
 
-  PROCESS_BEGIN();
+  PT_BEGIN(pt);
+  bufp = buf;
+  if (data != PRE1)
+    PT_RESTART(pt);
+  *bufp++ = data;
+  PT_YIELD(pt);
+  if (data != PRE2)
+    PT_RESTART(pt);
+  *bufp++ = data;
+  /* Found preamble. Then get length (two bytes) */
+  PT_YIELD(pt);  
+  *bufp++ = data;
+  PT_YIELD(pt);  
+  *bufp++ = data;
 
-  while(1) {
-    /* First check for two bytes of fixed preamble  */
-    do {
-      PROCESS_WAIT_EVENT();
-      leds_on(LEDS_RED);
-    } while (ev != serial_raw_event_message);
-    if (!configured_on)
-      continue;
- 
-    bufp = buf;
-    if (*((uint8_t *) data) != PRE1)
-      continue;
-    *bufp++ = *((uint8_t *) data);
-    do {
-      PROCESS_WAIT_EVENT();
-    } while (ev != serial_raw_event_message);
-    if (*((uint8_t *) data) != PRE2)
-      continue;
-    *bufp++ = *((uint8_t *) data);
-
-    /* Found preamble. Then get length (two bytes) */
-    do {
-      PROCESS_WAIT_EVENT();
-    } while (ev != serial_raw_event_message);
-    *bufp++ = *((uint8_t *) data);
-    do {
-      PROCESS_WAIT_EVENT();
-    } while (ev != serial_raw_event_message); 
-    *bufp++ = *((uint8_t *) data);
-    /* Get body length -- no of bytes that remain to get */
-    remain = (buf[2] << 8) + buf[3];
-    if (remain < PMSMINBODYLEN || remain > PMSMAXBODYLEN) {
-      invalid_frames++;
+  /* Get body length -- no of bytes that remain */
+  remain = (buf[2] << 8) + buf[3];
+  if (remain < PMSMINBODYLEN || remain > PMSMAXBODYLEN) {
+    invalid_frames++;
+  }
+  else {
+    while (remain--) {
+      PT_YIELD(pt);  
+      *bufp++ = data;
     }
-    else {
-      while (remain--) {
-	do {
-	  PROCESS_WAIT_EVENT();
-	} while (ev != serial_raw_event_message);
-	*bufp++ = *((uint8_t *) data);
-      }		   
-      mode_secs = clock_seconds() - when_mode;
-      if ((pms5003_get_standby_mode() == STANDBY_MODE_OFF) &&
-	  (mode_secs >= PMS_STARTUP_INTERVAL)) {
-	if (pmsframe(buf)) {
-	  printpm();
-	  /* Tell other processes there is new data */
-	  if (process_post(PROCESS_BROADCAST, pms5003_event, NULL) == PROCESS_ERR_OK) {
-	    PROCESS_WAIT_EVENT_UNTIL(ev == pms5003_event);
-	  }
-	  pms5003_set_standby_mode(STANDBY_MODE_ON);
-	  when_mode = clock_seconds();
-	}
+    /* We have a frame! */
+    mode_secs = clock_seconds() - when_mode;
+    /* Frames received while sensor is starting up are ignored */
+    if ((pms5003_get_standby_mode() == STANDBY_MODE_OFF) &&
+        (mode_secs >= PMS_STARTUP_INTERVAL)) {
+      /* Check frame and update sensor readings */
+      if (pmsframe(buf)) {
+        printpm();
+        /* Tell other processes there is new data */
+        (void) process_post(PROCESS_BROADCAST, pms5003_event, NULL);
+        pms5003_set_standby_mode(STANDBY_MODE_ON);
+        when_mode = clock_seconds();
       }
+    }
+  }
+  PT_RESTART(pt);
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
+static int
+pms5003_input_byte(unsigned char c)
+{
+
+  /* Add char to buffer. Unlike serial line input, ignore buffer overflow */
+  (void)ringbuf_put(&rxbuf, c);
+  /* Wake up consumer process */
+  process_poll(&pms5003_uart_process);
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+static  struct pt uart_pt;
+/*
+ * Consumer thread for UART process. Pick up data from input buffer and
+ * dispatch to FSM for frame assembly 
+ */ 
+PROCESS_THREAD(pms5003_uart_process, ev, data)
+{
+  
+  PROCESS_BEGIN();
+  PT_INIT(&uart_pt);
+  while(1) {
+    int c = ringbuf_get(&rxbuf);
+    if(c == -1) {
+      PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
+    }
+    else if (configured_on) {
+      pms5003_uart_fsm_pt(&uart_pt, c);
     }
   }
   PROCESS_END();
 }
-#endif
+#endif /* PMS_SERIAL_UART */  
 /*---------------------------------------------------------------------------*/
-/* Timer thread: duty cycle sensor. Toggle between idle and active mode.
- *
+/* 
+ * Timer thread: duty cycle sensor. Toggle between idle and active mode.
  * For I2C, also read data when it is due.
  */
 PROCESS_THREAD(pms5003_timer_process, ev, data)
@@ -292,6 +344,7 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
 	  if(pms5003_i2c_probe()) {
 	    leds_on(LEDS_RED);
 	    i2c_read_mem(I2C_PMS5003_ADDR, 0, buf, PMSBUFFER);
+            /* Check frame and update sensor readings */
 	    if (pmsframe(buf)) {
 	      printpm();
 	      /* Tell other processes there is new data */
@@ -319,5 +372,4 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
   }
   PROCESS_END();
 }
-
-
+/*---------------------------------------------------------------------------*/
