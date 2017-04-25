@@ -650,6 +650,17 @@ publish_stats(void)
     buf_ptr += len;
     break;
   case STATS_RPL:
+#if RPL_CONF_STATS
+    PUTFMT(",{\"n\":\"rpl;mem_overflows\",\"v\":%u}", rpl_stats.mem_overflows);
+    PUTFMT(",{\"n\":\"rpl;local_repairs\",\"v\":%u}", rpl_stats.local_repairs);
+    PUTFMT(",{\"n\":\"rpl;global_repairs\",\"v\":%u}", rpl_stats.global_repairs);
+    PUTFMT(",{\"n\":\"rpl;malformed_msgs\",\"v\":%u}", rpl_stats.malformed_msgs);
+    PUTFMT(",{\"n\":\"rpl;resets\",\"v\":%u}", rpl_stats.resets);
+    PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
+    PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
+    PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
+    PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
+#endif
     PUTFMT(",");
     len = mqtt_rpl_pub(buf_ptr, remaining);
     if (len < 0 || len >= remaining) { 
