@@ -66,6 +66,9 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+#if RF230_DEBUG
+#include "radio/rf230bb/rf230bb.h"
+#endif
 
 extern void handle_serial_input(const char *line);
 
@@ -627,6 +630,10 @@ publish_stats(void)
     PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
     PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
 
+#if RF230_DEBUG
+    PUTFMT(",{\"n\":\"rf230;no_ack\",\"v\":%u}", count_no_ack);
+    PUTFMT(",{\"n\":\"rf230;cca_fail\",\"v\":%u}", count_cca_fail);
+#endif
     
      /* case STATS_MQTT:*/
      

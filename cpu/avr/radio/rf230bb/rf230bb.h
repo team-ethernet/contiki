@@ -229,6 +229,11 @@ uint8_t rf230_get_raw_rssi(void);
 
 #define rf230_rssi	rf230_get_raw_rssi
 
+#if RF230_DEBUG
+extern uint16_t count_no_ack;
+extern uint16_t count_cca_fail;
+#endif
+
 #endif /* RF230BB_H_ */
 /** @} */
 /*EOF*/

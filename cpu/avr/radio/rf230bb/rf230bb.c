@@ -238,6 +238,11 @@ typedef enum{
     TIME_TRX_OFF_TO_PLL_ACTIVE       = 180, /**<  Transition time from TRX_OFF to: RX_ON, PLL_ON, TX_ARET_ON and RX_AACK_ON. */
     TIME_STATE_TRANSITION_PLL_ACTIVE = 1,   /**<  Transition time from PLL active state to another. */
 }radio_trx_timing_t;
+
+#if RF230_DEBUG
+uint16_t count_no_ack;
+uint16_t count_cca_fail;
+#endif
 /*---------------------------------------------------------------------------*/
 PROCESS(rf230_process, "RF230 driver");
 /*---------------------------------------------------------------------------*/
@@ -1292,11 +1297,19 @@ rf230_transmit(unsigned short payload_len)
   } else if (tx_result==3) {        //CSMA channel access failure
     DEBUGFLOW('m');
     RIMESTATS_ADD(contentiondrop);
+#if RF230_DEBUG
+    count_cca_fail++;
+    PRINTF("Aggregated count of CHANNEL_ACCESS_FAILURE: %u\n",count_cca_fail);
+#endif
     PRINTF("rf230_transmit: Transmission never started\n");
     tx_result = RADIO_TX_COLLISION;
   } else if (tx_result==5) {        //Expected ACK, none received
     DEBUGFLOW('n');
     tx_result = RADIO_TX_NOACK;
+#if RF230_DEBUG
+    count_no_ack++;
+    PRINTF("Aggregated count of NO_ACK: %u\n",count_no_ack);
+#endif
     PRINTF("rf230_transmit: ACK not received\n");
     RIMESTATS_ADD(badackrx);		//ack was requested but not received
   } else if (tx_result==7) {        //Invalid (Can't happen since waited for idle above?)
