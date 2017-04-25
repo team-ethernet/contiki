@@ -224,6 +224,7 @@ show_rpl_stats(voiD)
   printf("rpl.parent_switch=%-u\n", rpl_stats.parent_switch);
   printf("rpl.forward_errors=%-u\n", rpl_stats.forward_errors);
   printf("rpl.loop_errors=%-u\n", rpl_stats.loop_errors);
+  printf("rpl.loop_warnings=%-u\n", rpl_stats.loop_warnings);
   printf("rpl.root_repairs=%-u\n", rpl_stats.root_repairs);
 #endif
 }

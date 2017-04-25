@@ -659,6 +659,7 @@ publish_stats(void)
     PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
     PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
     PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
+    PUTFMT(",{\"n\":\"rpl;loop_warnings\",\"v\":%u}", rpl_stats.loop_warnings);
     PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
 #endif
     PUTFMT(",");
