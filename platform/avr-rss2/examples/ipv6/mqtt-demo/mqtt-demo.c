@@ -236,7 +236,12 @@ static char node_id[NODEID_SIZE];
  * The main MQTT buffers.
  * We will need to increase if we start publishing more data.
  */
+#if RF230_DEBUG || RPL_CONF_STATS 
+/* increase buffer size when debug/statistics is enabled */
+#define APP_BUFFER_SIZE 2048
+#else
 #define APP_BUFFER_SIZE 1024
+#endif
 static struct mqtt_connection conn;
 static char app_buffer[APP_BUFFER_SIZE];
 /*---------------------------------------------------------------------------*/
