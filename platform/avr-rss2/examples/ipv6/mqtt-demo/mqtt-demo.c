@@ -890,7 +890,11 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
   if( i2c_probed & I2C_BME280 ) {
     SENSORS_ACTIVATE(bme280_sensor);
   }
-  
+
+#if RF230_DEBUG
+  printf("RF230_CONF_FRAME_RETRIES: %d\n", RF230_CONF_FRAME_RETRIES);
+  printf("RF230_CONF_CMSA_RETRIES: %d\n", RF230_CONF_CSMA_RETRIES);
+#endif  
   /* The data sink runs with a 100% duty cycle in order to ensure high 
      packet reception rates. */
   //NETSTACK_MAC.off(1);
