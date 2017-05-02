@@ -563,7 +563,7 @@ publish_sensors(void)
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
 #endif
 
-  PUTFMT(",{\"n\":\"no2\",\"u\":\"ppm\",\"v\":%-4.2f}", adc_read_a2());
+  PUTFMT(",{\"n\":\"no2;ADC\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
 
   if( i2c_probed & I2C_PMS5003 ) {
   PUTFMT(",{\"n\":\"pms5003;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
