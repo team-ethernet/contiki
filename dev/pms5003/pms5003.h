@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB  
+ * Copyright (c) 2017, Peter Sjodin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,8 +29,8 @@
  * This file is part of the Contiki operating system.
  *
  *
- * Author  : Robert Olsson robert@radio-sensors.com
- * Created : 2015-11-22
+ * Author  : Peter Sjodin, KTH Royal Institute of Technology
+ * Created : 2017-04-21
  */
 
 #ifndef PMS5003_H
@@ -64,7 +64,7 @@
 #define PMS_SERIAL_I2C 1
 #endif /* PMS_CONF_SERIAL_I2C */
 
-/* Use uart interface? */
+/* Use UART interface? */
 #ifdef PMS_CONF_SERIAL_UART
 #define PMS_SERIAL_UART PMS_CONF_SERIAL_UART
 #else
@@ -83,5 +83,6 @@ uint16_t pms5003_pm10();
 uint16_t pms5003_pm1_atm();
 uint16_t pms5003_pm2_5_atm();
 uint16_t pms5003_pm10_atm();
+uint32_t pms5003_timestamp();
 
 #endif /* PMS5003_H */

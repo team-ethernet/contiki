@@ -28,12 +28,11 @@
  *
  * This file is part of the Contiki operating system.
  *
- *
  * Author  : Peter Sjodin, KTH Royal Institute of Technology
  * Created : 2017-04-21
  */
 
-/**
+/* 
  * \file
  *         Driver for Planttower PMSX003 dust sensors
  */
@@ -47,11 +46,11 @@
 #include "dev/leds.h"
 #include "dev/rs232.h"
 #include "dev/serial-line.h"
-#include "dev/serial-raw.h"
 #include "dev/pms5003-arch.h"
 #include "pms5003.h"
 
 #include "lib/ringbuf.h"
+#define DEBUG
 /*
  * Definitions for frames from PMSX003 sensors 
  */
@@ -66,16 +65,19 @@
  * and length field (two bytes) */
 #define PMSBUFFER (PMSMAXBODYLEN+4)
 
-/* When sensor entered current power save mode, in clock_seconds()*/
-static unsigned long when_mode; 
+/* Frame assembly statistics */
+static uint32_t invalid_frames, valid_frames;
+
 /* Sensor configured on? */
 static uint8_t configured_on = 0;
+/* When sensor entered current power save mode, in clock_seconds()*/
+static unsigned long when_mode; 
 
 /* Last readings of sensor data */
 static uint16_t PM1, PM2_5, PM10;
 static uint16_t PM1_ATM, PM2_5_ATM, PM10_ATM;
-/* Frame assembly statistics */
-static uint32_t invalid_frames, valid_frames;
+/* Time when last sensor data was read (in clock_seconds())*/
+static unsigned long timestamp = 0;
 
 #if PMS_SERIAL_UART 
 #ifdef PMS5003_CONF_UART_BUFSIZE
@@ -86,7 +88,6 @@ static uint32_t invalid_frames, valid_frames;
 
 #if (BUFSIZE & (BUFSIZE - 1)) != 0
 #error PMS5003_CONF_UART_BUFSIZE must be a power of two (i.e., 1, 2, 4, 8, 16, 32, 64, ...).
-#error Change PMS5003_CONF_UART_BUFSIZE in contiki-conf.h.
 #endif /* BUFSIZE */
 
 /* Ring buffer for storing input from uart */
@@ -102,6 +103,11 @@ PROCESS(pms5003_uart_process, "PMS5003/UART dust sensor process");
 #endif /* PMS_SERIAL_UART */
 PROCESS(pms5003_timer_process, "PMS5003 periodic dust sensor process");
 /*---------------------------------------------------------------------------*/
+/**
+ * Initialize. Create event, and start timer-driven process. 
+ * If UART enabled, also install UART callback function and
+ * start PMS frame assembly process.
+ */
 void
 pms5003_init() {
   pms5003_event = process_alloc_event();
@@ -116,6 +122,10 @@ pms5003_init() {
   configured_on = 1;
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * Sensor API for PMS5003
+ */
+
 void pms5003_off() {
   pms5003_set_standby_mode(STANDBY_MODE_ON);
   configured_on = 0;
@@ -145,6 +155,9 @@ uint16_t pms5003_pm10_atm() {
   return PM10_ATM;
 }
 
+uint32_t pms5003_timestamp() {
+  return timestamp;
+}
 uint32_t pms5003_valid_frames() {
   return valid_frames;
 }
@@ -153,8 +166,9 @@ uint32_t pms5003_invalid_frames() {
   return invalid_frames;
 }
 /*---------------------------------------------------------------------------*/
-/* Validate frame by checking preamble, length field and checksum 
- * Return 0 if invalid frame, otherwise 1
+/**
+ * Validate frame by checking preamble, length field and checksum.
+ * Return 0 if invalid frame, otherwise 1.
  */
 static int
 check_pmsframe(uint8_t *buf) {
@@ -189,29 +203,6 @@ check_pmsframe(uint8_t *buf) {
   return (pmssum == sum);
 }
 /*---------------------------------------------------------------------------*/
-/* Frame received from PMS sensor. Validate and update sensor data. 
- * Return 1 if valid frame, otherwise 0 
- */
-static int
-pmsframe(uint8_t *buf) {
-
-  if (check_pmsframe(buf)) {
-    valid_frames++;
-    /* Update sensor readings */
-    PM1 = (buf[4] << 8) | buf[5];
-    PM2_5 = (buf[6] << 8) | buf[7];
-    PM10 = (buf[8] << 8) | buf[9];      
-    PM1_ATM = (buf[10] << 8) | buf[11];
-    PM2_5_ATM = (buf[12] << 8) | buf[13];
-    PM10_ATM = (buf[14] << 8) | buf[15];      
-    return 1;
-  }
-  else {
-    invalid_frames++;
-    return 0;
-  }
-}
-/*---------------------------------------------------------------------------*/
 static void
 printpm() {
     printf("PMS frames: valid %lu, invalid %lu\n",
@@ -221,9 +212,41 @@ printpm() {
            PM1_ATM, PM2_5_ATM, PM10_ATM);	
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * Frame received from PMS sensor. Validate and update sensor data. 
+ * Return 1 if valid frame, otherwise 0 
+ */
+static int
+pmsframe(uint8_t *buf) {
+
+  if (check_pmsframe(buf)) {
+    timestamp = clock_seconds();
+    valid_frames++;
+    /* Update sensor readings */
+    PM1 = (buf[4] << 8) | buf[5];
+    PM2_5 = (buf[6] << 8) | buf[7];
+    PM10 = (buf[8] << 8) | buf[9];      
+    PM1_ATM = (buf[10] << 8) | buf[11];
+    PM2_5_ATM = (buf[12] << 8) | buf[13];
+    PM10_ATM = (buf[14] << 8) | buf[15];      
+#ifdef DEBUG
+    printpm();
+#endif /* DEBUG */
+    return 1;
+  }
+  else {
+    invalid_frames++;
+#ifdef DEBUG
+    printf("Invalid PMS fram\n");
+#endif /* DEBUG */
+    return 0;
+  }
+}
+/*---------------------------------------------------------------------------*/
 #if PMS_SERIAL_UART
 
-/* pms5003_uart_fsm_pt: state machine for receiving PMS5003 frame
+/**
+ * State machine for receiving PMS5003 frame
  * from uart. Use protothread for state machine.
  */
 static
@@ -267,6 +290,7 @@ PT_THREAD(pms5003_uart_fsm_pt(struct pt *pt, uint8_t data)) {
         printpm();
         /* Tell other processes there is new data */
         (void) process_post(PROCESS_BROADCAST, pms5003_event, NULL);
+        /* Enter standby mode */
         pms5003_set_standby_mode(STANDBY_MODE_ON);
         when_mode = clock_seconds();
       }
@@ -277,6 +301,9 @@ PT_THREAD(pms5003_uart_fsm_pt(struct pt *pt, uint8_t data)) {
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * UART callback function. 
+ */
 static int
 pms5003_input_byte(unsigned char c)
 {
@@ -289,9 +316,9 @@ pms5003_input_byte(unsigned char c)
 }
 /*---------------------------------------------------------------------------*/
 static  struct pt uart_pt;
-/*
+/**
  * Consumer thread for UART process. Pick up data from input buffer and
- * dispatch to FSM for frame assembly 
+ * dispatch to FSM for frame assembly.
  */ 
 PROCESS_THREAD(pms5003_uart_process, ev, data)
 {
@@ -311,8 +338,8 @@ PROCESS_THREAD(pms5003_uart_process, ev, data)
 }
 #endif /* PMS_SERIAL_UART */  
 /*---------------------------------------------------------------------------*/
-/* 
- * Timer thread: duty cycle sensor. Toggle between idle and active mode.
+/** 
+ * Timer thread: duty-cycle sensor. Toggle between idle and active mode.
  * For I2C, also read data when it is due.
  */
 PROCESS_THREAD(pms5003_timer_process, ev, data)
@@ -346,7 +373,6 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
 	    i2c_read_mem(I2C_PMS5003_ADDR, 0, buf, PMSBUFFER);
             /* Check frame and update sensor readings */
 	    if (pmsframe(buf)) {
-	      printpm();
 	      /* Tell other processes there is new data */
 	      if (process_post(PROCESS_BROADCAST, pms5003_event, NULL) == PROCESS_ERR_OK) {
 		PROCESS_WAIT_EVENT_UNTIL(ev == pms5003_event);
@@ -357,9 +383,8 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
 	  }
 	}
 #else
-	/* do nothing */;
-#endif 	
-	
+	/* Do nothing -- UART process puts sensor in standby */;
+#endif /* PMS_SERIAL_I2C */
       }
       else if (standbymode == STANDBY_MODE_ON) {
 	if (mode_secs >= PMS_SAMPLE_PERIOD) {
