@@ -230,5 +230,11 @@ i2c_probe(void)
     probed |= I2C_BME280;
     print_delim(p++, "BME280", del);
   }
+  watchdog_periodic();
+  if(!i2c_start(I2C_SC16_ADDR)) {
+    i2c_stop();
+    probed |= I2C_SC16;
+    print_delim(p++, "SC16", del);
+  }
   return probed;
 }
