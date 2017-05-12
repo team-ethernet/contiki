@@ -177,6 +177,8 @@ static struct {
 /*---------------------------------------------------------------------------*/
 extern int
 mqtt_rpl_pub(char *buf, int bufsize);
+extern int
+mqtt_i2c_pub(char *buf, int bufsize);
 /*---------------------------------------------------------------------------*/
 
 PROCESS_NAME(mqtt_demo_process);
@@ -560,10 +562,13 @@ publish_sensors(void)
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
 #endif
 
-  if( i2c_probed & I2C_PMS5003 ) {
-  PUTFMT(",{\"n\":\"pms5003;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
-  PUTFMT(",{\"n\":\"pms5003;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
-  PUTFMT(",{\"n\":\"pms5003;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
+  if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
+    PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
+    PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
+    PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
+    PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
+    PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
+    PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));
   }
   if( i2c_probed & I2C_BME280 ) {
     PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
@@ -574,12 +579,10 @@ publish_sensors(void)
 
   PUTFMT("]");
 
-  printf("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-
-  DBG("APP - Publish (%d bytes)!\n", strlen(app_buffer));
 }
 
 static void
@@ -662,15 +665,12 @@ publish_stats(void)
   }
   PUTFMT("]");
 
-  printf("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
-  printf("%s\n", app_buffer);
+  DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
+  //printf("%s\n", app_buffer);
   mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
-  DBG("APP - Publish!\n");
-
-  stats++;
-  if (stats > ENDSTATS)
+  if (++stats > ENDSTATS)
     stats = STARTSTATS;
   
 }
