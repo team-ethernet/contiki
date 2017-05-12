@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson
+ * Copyright (c) 2017, Peter Sjodin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,8 +39,6 @@
 /**
  * \file
  *	Architecture-specific definitions for the Plantower PMS X003 dust sensors for avr-rss2
- * \author
- * 	Peter Sjodin, KTH
  */
 
 /* AVR configuration for controlling dust sensor */
@@ -48,11 +46,11 @@
 #define SET_PMS_PORT PORTB  /* Serial Peripheral Interface */
 #define PMS_SET      2      /* PD1: OW2_PIN, Chip Select */
 
-/* Duty cycle mode */
+/* Duty cycle mode -- STANDBY_MODE_OFF means device is active, etc. */
 #define STANDBY_MODE_OFF	0
 #define STANDBY_MODE_ON		1
 
 extern void pms5003_set_standby_mode(uint8_t mode);
 extern uint8_t pms5003_get_standby_mode(void);
 extern uint8_t pms5003_i2c_probe(void);
-#endif
+#endif /* PMS5003_ARCH_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, Swedish Institute of Computer Science.
+ * Copyright (c) 2017, Peter Sjodin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,8 @@
  *
  * -----------------------------------------------------------------
  *
- * Author  : Adam Dunkels, Joakim Eriksson, Niclas Finne
- * Created : 2010-01-08
- * Updated : $Date: 2010/01/15 08:51:21 $
- *           $Revision: 1.2 $
+ * Author  : Peter Sjodin, KTH Royal Institute of Technology
+ * Created : 2017-04-21
  */
 
 #ifndef PMS5003_SENSOR_H_
@@ -49,5 +47,6 @@ extern const struct sensors_sensor pms5003_sensor;
 #define PMS5003_SENSOR_PM1_ATM       3
 #define PMS5003_SENSOR_PM2_5_ATM     4
 #define PMS5003_SENSOR_PM10_ATM      5
+#define PMS5003_SENSOR_TIMESTAMP     6
 
 #endif /* PMS5003_SENSOR_H_ */

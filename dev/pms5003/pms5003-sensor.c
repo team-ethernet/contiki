@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, Swedish Institute of Computer Science
+ * Copyright (c) 2017, Peter Sjodin, KTH Royal Institute of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,16 +28,14 @@
  *
  * This file is part of the Contiki operating system.
  *
+ * Author  : Peter Sjodin, KTH Royal Institute of Technology
+ * Created : 2017-04-21
  */
 
 #include <stdlib.h>
 
 #include "contiki.h"
 #include "lib/sensors.h"
-/*
-#include "dev/sht11/sht11.h"
-#include "dev/sht11/sht11-sensor.h"
-*/
 #include "pms5003.h"
 #include "pms5003-sensor.h"
 
@@ -67,7 +65,9 @@ value(int type)
     return pms5003_pm2_5_atm();
   case PMS5003_SENSOR_PM10_ATM:
     return pms5003_pm10_atm();
-}
+  case PMS5003_SENSOR_TIMESTAMP:
+    return pms5003_timestamp();
+  }
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -77,11 +77,10 @@ status(int type)
   switch(type) {
   case SENSORS_ACTIVE:
   case SENSORS_READY:
-    return (state == ON);
+    return state == ON;
   }
   return 0;
 }
-
 /*---------------------------------------------------------------------------*/
 static int
 configure(int type, int c)
@@ -90,10 +89,9 @@ configure(int type, int c)
   case SENSORS_ACTIVE:
     if(c) {
       if(!status(SENSORS_ACTIVE)) {
-	pms5003_init();
-	process_start(&pms5003_sensor_process, NULL);
+        pms5003_init();
+        process_start(&pms5003_sensor_process, NULL);
         state = ON;
-
       }
     } else {
       pms5003_off();
@@ -102,19 +100,18 @@ configure(int type, int c)
   }
   return 0;
 }
-
 /*---------------------------------------------------------------------------*/
 SENSORS_SENSOR(pms5003_sensor, "pms5003",
-	       value, configure, status);
+               value, configure, status);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(pms5003_sensor_process, ev, data)
 {
-  
+
   PROCESS_BEGIN();
   while(1) {
     do {
       PROCESS_WAIT_EVENT();
-    } while (ev != pms5003_event);
+    } while(ev != pms5003_event);
     sensors_changed(&pms5003_sensor);
   }
   PROCESS_END();
