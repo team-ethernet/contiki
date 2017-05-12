@@ -67,7 +67,7 @@ value(int type)
     return pms5003_pm10_atm();
   case PMS5003_SENSOR_TIMESTAMP:
     return pms5003_timestamp();
-}
+  }
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -77,7 +77,7 @@ status(int type)
   switch(type) {
   case SENSORS_ACTIVE:
   case SENSORS_READY:
-    return (state == ON);
+    return state == ON;
   }
   return 0;
 }
@@ -89,10 +89,9 @@ configure(int type, int c)
   case SENSORS_ACTIVE:
     if(c) {
       if(!status(SENSORS_ACTIVE)) {
-	pms5003_init();
-	process_start(&pms5003_sensor_process, NULL);
+        pms5003_init();
+        process_start(&pms5003_sensor_process, NULL);
         state = ON;
-
       }
     } else {
       pms5003_off();
@@ -103,16 +102,16 @@ configure(int type, int c)
 }
 /*---------------------------------------------------------------------------*/
 SENSORS_SENSOR(pms5003_sensor, "pms5003",
-	       value, configure, status);
+               value, configure, status);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(pms5003_sensor_process, ev, data)
 {
-  
+
   PROCESS_BEGIN();
   while(1) {
     do {
       PROCESS_WAIT_EVENT();
-    } while (ev != pms5003_event);
+    } while(ev != pms5003_event);
     sensors_changed(&pms5003_sensor);
   }
   PROCESS_END();

@@ -46,7 +46,7 @@
 #define SET_PMS_PORT PORTB  /* Serial Peripheral Interface */
 #define PMS_SET      2      /* PD1: OW2_PIN, Chip Select */
 
-/* Duty cycle mode */
+/* Duty cycle mode -- STANDBY_MODE_OFF means device is active, etc. */
 #define STANDBY_MODE_OFF	0
 #define STANDBY_MODE_ON		1
 

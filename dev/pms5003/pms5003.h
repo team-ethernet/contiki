@@ -36,11 +36,13 @@
 #ifndef PMS5003_H
 #define PMS5003_H
 
-/* How often sensor process runs (secs) */
+/* How often sensor process runs (secs) -- defines resolution
+ * of warmup time and sample period
+ */
 #ifdef PMS5003_CONF_PROCESS_PERIOD
-#define PMS_PROCESS_PERIOD	PMS5003_CONF_PROCESS_PERIOD
+#define PMS_PROCESS_PERIOD  PMS5003_CONF_PROCESS_PERIOD
 #else
-#define PMS_PROCESS_PERIOD	15
+#define PMS_PROCESS_PERIOD  5
 #endif /* PMS5003_CONF_PROCESS_PERIOD */
 
 /* How often sensor data is collected (secs) */
@@ -51,27 +53,43 @@
 #endif /* PMS5003_CONF_SAMPLE_PERIOD */
 
 /* Warmup time before sensor data can be read (secs) */
-#ifdef PMS5003_STARTUP_INTERVAL
-#define PMS_STARTUP_INTERVAL    PMS5003_STARTUP_INTERVAL
+#ifdef PMS5003_CONF_STARTUP_INTERVAL
+#define PMS_STARTUP_INTERVAL    PMS5003_CONF_STARTUP_INTERVAL
 #else
 #define PMS_STARTUP_INTERVAL    10
 #endif /* PMS5003_STARTUP_INTERVAL */
 
 /* Use I2C interface? */
-#ifdef PMS_CONF_SERIAL_I2C
-#define PMS_SERIAL_I2C PMS_CONF_SERIAL_I2C
+#ifdef PMS5003_CONF_SERIAL_I2C
+#define PMS_SERIAL_I2C          PMS5003_CONF_SERIAL_I2C
 #else
-#define PMS_SERIAL_I2C 1
+#define PMS_SERIAL_I2C          1
 #endif /* PMS_CONF_SERIAL_I2C */
 
 /* Use UART interface? */
-#ifdef PMS_CONF_SERIAL_UART
-#define PMS_SERIAL_UART PMS_CONF_SERIAL_UART
+#ifdef PMS5003_CONF_SERIAL_UART
+#define PMS_SERIAL_UART         PMS5003_CONF_SERIAL_UART
 #else
-#define PMS_SERIAL_UART 1
+#define PMS_SERIAL_UART         1
 #endif /* PMS_CONF_SERIAL_UART */
 
-/* Event to signal presense of new data */
+#if PMS_SERIAL_UART
+/* What buffer size to use */
+#ifdef PMS5003_CONF_UART_BUFSIZE
+#define PMS_BUFSIZE             PMS5003_CONF_UART_BUFSIZE
+#else /* PMS5003_CONF_UART_BUFSIZE */
+#define PMS_BUFSIZE             128
+#endif /* PMS5003_CONF_UART_BUFSIZE */
+
+/* What UART port to use */
+#ifdef PMS5003_CONF_UART_PORT
+#define PMS_UART_PORT           PMS5003_CONF_UART_PORT
+#else
+#define PMS_UART_PORT           RS232_PORT_0
+#endif /* PMS_CONF_UART_RS232_PORT */
+#endif /* PMS_SERIAL_UART */
+
+/* Event to signal presence of new sensor data */
 process_event_t pms5003_event;
 
 void pms5003_init();
