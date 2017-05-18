@@ -26,13 +26,24 @@ sc16is_tx(uint8_t *buf, int len)
 }
 
 void
+sc16is_echo_test(void)
+{
+  uint8_t val;
+
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_RHR<<3, &val, 1);  
+
+  for( ; val; ) {
+    i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, val);
+    i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_RHR<<3, &val, 1);  
+  }
+}
+
+void
 uart_speed(uint32_t baud)
 {
   uint32_t div ;
   uint8_t lcr, val, prescale = 0;
 
-  //baud = 38400;
-  //baud = 115200;
 
   div = 14745600/(uint32_t) baud;
   div = div/16;
@@ -44,7 +55,7 @@ uart_speed(uint32_t baud)
   }
 
   if(debug) 
-    printf("prescle=%d div=%lu %lu %lu\n", prescale, div, div/256, div % 256);
+    printf("prescale=%d div=%lu %lu %lu\n", prescale, div, div/256, div % 256);
 
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LCR<<3, &lcr, 1);
 
@@ -137,12 +148,8 @@ sc16is_init(uint8_t mode)
   //i2c_read_mem(SC16IS_ADDR, uint8_t reg, uint8_t buf[], uint8_t bytes)
 
   uart_speed(115200);
-  printf("GPIO IN=0x%02X\n", sc16is_gpio_in());
-  sc16is_tx(&buf, 4);
-
-  return 1;
+   return 1;
 }
-
 
 void
 sc16is_status(void)
@@ -164,7 +171,8 @@ sc16is_status(void)
   printf(" RHR=0x%02X %c", val, val);
 
   printf("\n");
-  sc16is_tx(&buf, 4);
+  //sc16is_tx(&buf, 4);
+  sc16is_echo_test();
 
 }
       
