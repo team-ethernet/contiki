@@ -21,8 +21,11 @@ sc16is_tx(uint8_t *buf, int len)
   int i;
   for(i= 0; i <len; i++) {
     i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, buf[i]);
+    if(buf[i] == 0) {
+      i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, '\n');
+      break;
+    }
   }
-  i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, '\n');
 }
 
 void
@@ -30,11 +33,12 @@ sc16is_echo_test(void)
 {
   uint8_t val;
 
-  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_RHR<<3, &val, 1);  
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LSR<<3, &val, 1);  
 
-  for( ; val; ) {
-    i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, val);
+  while(val & SC16IS_LSR_DR_BIT) {
     i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_RHR<<3, &val, 1);  
+    i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_THR<<3, val);
+    i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LSR<<3, &val, 1);
   }
 }
 
@@ -43,7 +47,6 @@ uart_speed(uint32_t baud)
 {
   uint32_t div ;
   uint8_t lcr, val, prescale = 0;
-
 
   div = 14745600/(uint32_t) baud;
   div = div/16;
@@ -164,14 +167,17 @@ sc16is_status(void)
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_MCR<<3, &val, 1);
   printf(" MCR=0x%02X", val);
 
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_IER<<3, &val, 1);
+  printf(" IER=0x%02X", val);
+
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_IIR<<3, &val, 1);
   printf(" IIR=0x%02X", val);
 
-  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_RHR<<3, &val, 1);
-  printf(" RHR=0x%02X %c", val, val);
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LSR<<3, &val, 1);
+  printf(" LSR=0x%02X %c", val, val);
 
   printf("\n");
-  //sc16is_tx(&buf, 4);
+  //sc16is_tx(&buf, sizeof(buf));
   sc16is_echo_test();
 
 }

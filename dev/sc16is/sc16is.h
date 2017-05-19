@@ -144,4 +144,20 @@
 #define SC16IS_TCR_RX_HALT(words)	((((words) / 4) & 0x0f) << 0)
 #define SC16IS_TCR_RX_RESUME(words)	((((words) / 4) & 0x0f) << 4)
 
+
+
+/* LSR bits */
+#define SC16IS_LSR_DR_BIT		(1 << 0) /* Receiver data ready */
+#define SC16IS_LSR_OE_BIT		(1 << 1) /* Overrun Error */
+#define SC16IS_LSR_PE_BIT		(1 << 2) /* Parity Error */
+#define SC16IS_LSR_FE_BIT		(1 << 3) /* Frame Error */
+#define SC16IS_LSR_BI_BIT		(1 << 4) /* Break Interrupt */
+#define SC16IS_LSR_BRK_ERROR_MASK	0x1E     /* BI, FE, PE, OE bits */
+#define SC16IS_LSR_THRE_BIT		(1 << 5) /* TX holding register empty */
+#define SC16IS_LSR_TEMT_BIT		(1 << 6) /* Transmitter empty */
+#define SC16IS_LSR_FIFOE_BIT		(1 << 7) /* Fifo Error */
+
+
+
+
 #endif /* SC16IS_H */
