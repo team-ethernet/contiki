@@ -69,6 +69,7 @@
 #if RF230_DEBUG
 #include "radio/rf230bb/rf230bb.h"
 #endif
+#define RF230_DEBUG 0
 
 extern void handle_serial_input(const char *line);
 
@@ -215,7 +216,7 @@ typedef struct mqtt_client_config {
 #define STATUS_LED LEDS_YELLOW
 /*---------------------------------------------------------------------------*/
 /*
- * Buffers for Client ID and Topic.
+ * Buffers for Client ID
  * Make sure they are large enough to hold the entire respective string
  *
  * d:quickstart:status:EUI64 is 32 bytes long
@@ -224,8 +225,6 @@ typedef struct mqtt_client_config {
  */
 #define BUFFER_SIZE 64
 static char client_id[BUFFER_SIZE];
-static char pub_topic[BUFFER_SIZE];
-static char sub_topic[BUFFER_SIZE];
 
 /*
  * Node id string -- 8 bytes in hex plus null
@@ -233,6 +232,9 @@ static char sub_topic[BUFFER_SIZE];
 #define NODEID_SIZE 17
 static char node_id[NODEID_SIZE];
 
+/* Message for immediate publishing, without waiting for timer */
+static char *pub_now_message = NULL;
+static char *pub_now_topic;
 /*---------------------------------------------------------------------------*/
 /*
  * The main MQTT buffers.
@@ -255,10 +257,16 @@ static struct ctimer ct;
 static char *buf_ptr;
 static uint16_t seq_nr_value = 0;
 /*---------------------------------------------------------------------------*/
+#ifdef MQTT_CLI
+extern char *mqtt_cli_input(const char *);
+#endif /* MQTT_CLI */
+/*---------------------------------------------------------------------------*/
 /* Parent RSSI functionality */
 static struct uip_icmp6_echo_reply_notification echo_reply_notification;
 static struct etimer echo_request_timer;
 static unsigned long def_rt_rssi = 0;
+/*---------------------------------------------------------------------------*/
+static char *construct_topic(char *suffix);
 /*---------------------------------------------------------------------------*/
 static mqtt_client_config_t conf;
 /*---------------------------------------------------------------------------*/
@@ -308,29 +316,43 @@ static void
 pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
             uint16_t chunk_len)
 {
+  
+  char *cmd_topic, *reply_topic;
+
   DBG("Pub Handler: topic='%s' (len=%u), chunk_len=%u\n", topic, topic_len,
       chunk_len);
 
   /* If we don't like the length, ignore */
-  if(topic_len != 23 || chunk_len != 1) {
-    printf("Incorrect topic or chunk len. Ignored\n");
+  if(topic_len != strlen(topic)) {
+    printf("Incorrect topic length (%d). Ignored\n", topic_len);
+
     return;
   }
 
-  /* If the format != json, ignore */
-  if(strncmp(&topic[topic_len - 4], "json", 4) != 0) {
-    printf("Incorrect format\n");
+  if (chunk[chunk_len-1] != 0 && chunk[chunk_len] != 0) {
+    printf("MQTT chunk not null terminated\n");  
+    return;
   }
 
-  if(strncmp(&topic[10], "leds", 4) == 0) {
-    if(chunk[0] == '1') {
-      leds_on(LEDS_RED);
-    } else if(chunk[0] == '0') {
-      leds_off(LEDS_RED);
+#ifdef MQTT_CLI
+  cmd_topic = construct_topic("cli/cmd");
+  if (strcmp(cmd_topic, topic) == 0) {
+    reply_topic = construct_topic("cli/reply");
+    if (reply_topic) {
+      /* This will oerwrite any pending reply with current --
+       * last command gets priority. I think this is what
+       * we want?
+       */
+      pub_now_message = mqtt_cli_input((char *) chunk);
+      pub_now_topic = reply_topic;
     }
-    return;
   }
-}
+  else {
+    printf("Ignoring pub. topic %s\n", topic);
+  }
+#endif /* MQTT_CLI */
+} 
+
 static struct mqtt_app_statistics {
   unsigned int connected;
   unsigned int disconnected;
@@ -392,50 +414,34 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
   }
 }
 /*---------------------------------------------------------------------------*/
-static int
-construct_pub_topic(void)
+static char *
+construct_topic(char *suffix)
 {
-int len = snprintf(pub_topic, BUFFER_SIZE, "%s/%s", MQTT_DEMO_TOPIC_BASE, node_id);
+  static char buf[BUFFER_SIZE];
+  
+  int len = snprintf(buf, sizeof(buf), "%s/%s/%s", MQTT_DEMO_TOPIC_BASE, node_id, suffix);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
-  if(len < 0 || len >= BUFFER_SIZE) {
-    printf("Pub Topic: %d, Buffer %d\n", len, BUFFER_SIZE);
-    return 0;
+  if(len < 0 || len >= sizeof(buf)) {
+    printf("Topic buffer too small: %d -- %d\n", len, BUFFER_SIZE);
+    return NULL;
   }
-
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-static int
-construct_sub_topic(void)
-{
-  int len = snprintf(sub_topic, BUFFER_SIZE, "iot-2/cmd/%s/fmt/json",
-                     conf.cmd_type);
-
-  /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
-  if(len < 0 || len >= BUFFER_SIZE) {
-    printf("Sub Topic: %d, Buffer %d\n", len, BUFFER_SIZE);
-    return 0;
-  }
-
-  return 1;
+  return buf;
 }
 /*---------------------------------------------------------------------------*/
 static int
 construct_client_id(void)
 {
-  int len = snprintf(client_id, BUFFER_SIZE, "d:%s:%s:%s",
-			     conf.org_id, conf.type_id, node_id);
+  int len = snprintf(client_id, BUFFER_SIZE, "%s:%s", conf.type_id, node_id);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
   if(len < 0 || len >= BUFFER_SIZE) {
-    printf("Client ID: %d, Buffer %d\n", len, BUFFER_SIZE);
+    printf("Client id: %d -- %d\n", len, BUFFER_SIZE);
     return 0;
   }
 
   return 1;
 }
-
 /*---------------------------------------------------------------------------*/
 static int
 construct_node_id(void)
@@ -449,7 +455,7 @@ int len = snprintf(node_id, NODEID_SIZE,
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
 if(len < 0 || len >= BUFFER_SIZE) {
-    printf("Node ID: %d, Buffer %d\n", len, BUFFER_SIZE);
+    printf("Node id: %d -- %d\n", len, BUFFER_SIZE);
     return 0;
   }
   return 1;
@@ -467,18 +473,6 @@ update_config(void)
 
   if(construct_client_id() == 0) {
     /* Fatal error. Client ID larger than the buffer */
-    state = STATE_CONFIG_ERROR;
-    return;
-  }
-
-  if(construct_sub_topic() == 0) {
-    /* Fatal error. Topic larger than the buffer */
-    state = STATE_CONFIG_ERROR;
-    return;
-  }
-
-  if(construct_pub_topic() == 0) {
-    /* Fatal error. Topic larger than the buffer */
     state = STATE_CONFIG_ERROR;
     return;
   }
@@ -531,13 +525,21 @@ subscribe(void)
 {
   /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
-
-  status = mqtt_subscribe(&conn, NULL, sub_topic, MQTT_QOS_LEVEL_0);
-
-  DBG("APP - Subscribing!\n");
-  if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
-    DBG("APP - Tried to subscribe but command queue was full!\n");
+  char *topic;
+  
+#ifdef MQTT_CLI
+  topic = construct_topic("cli/cmd");
+  if (topic) {
+    status = mqtt_subscribe(&conn, NULL, topic, MQTT_QOS_LEVEL_0);
+    DBG("APP - Subscribing to %s!\n", topic);
+    if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
+      DBG("APP - Tried to subscribe but command queue was full!\n");
+    }
   }
+  else {
+        state = STATE_CONFIG_ERROR;
+  }
+#endif /* MQTT_CLI */
 }
 /*---------------------------------------------------------------------------*/
 #define PUTFMT(...) { \
@@ -557,7 +559,7 @@ publish_sensors(void)
 
   int len;
   int remaining = APP_BUFFER_SIZE;
-
+  char *topic;
   buf_ptr = app_buffer;
 
   seq_nr_value++;
@@ -591,7 +593,8 @@ publish_sensors(void)
 
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
-  mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+  topic = construct_topic("sensors");
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }
 
@@ -610,7 +613,8 @@ publish_stats(void)
   static int stats = STARTSTATS;
   int len;
   int remaining = APP_BUFFER_SIZE;
-
+  char *topic;
+  
   buf_ptr = app_buffer;
 
   seq_nr_value++;
@@ -693,7 +697,8 @@ publish_stats(void)
 
   DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
-  mqtt_publish(&conn, NULL, pub_topic, (uint8_t *)app_buffer,
+  topic = construct_topic("status");
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
   if (++stats > ENDSTATS)
@@ -702,9 +707,26 @@ publish_stats(void)
 }
 
 static void
+publish_now(void)
+{
+  /* Publish MQTT topic in SenML format */
+
+
+  printf("-----Publish now to %s: \n%s\n", pub_now_topic, pub_now_message);
+  if (pub_now_message) {
+    mqtt_publish(&conn, NULL, pub_now_topic, (uint8_t *)pub_now_message,
+                 strlen(pub_now_message), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+    pub_now_message = NULL;
+    pub_now_topic = NULL;
+  }
+}
+
+static void
 publish(void)
 {
-  if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
+  if (pub_now_message)
+    publish_now();
+  else if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
     publish_stats();
   else
     //publish_stats();
@@ -931,7 +953,8 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
     if((ev == PROCESS_EVENT_TIMER && data == &publish_periodic_timer) ||
        ev == PROCESS_EVENT_POLL ||
-       (ev == sensors_event && data == PUBLISH_TRIGGER)) {
+       (ev == sensors_event && data == PUBLISH_TRIGGER) ||
+       pub_now_message != NULL) {
       state_machine();
     }
 

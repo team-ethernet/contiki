@@ -84,6 +84,8 @@
 #define CLI_CONF_COMMAND_PROMPT  "KTH-MQTT> "
 #define CLI_CONF_PROJECT  "GreenIoT V1.0 2017-03-13"
 
+/* Use MQTT CLI? */
+#define MQTT_CLI	1
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
