@@ -84,10 +84,10 @@
 #define CLI_PROJECT  ""
 #endif
 
-const char *delim = " \t\r,";
+static const char *delim = " \t\r,";
 #define END_OF_FILE 26
-uint8_t eof = END_OF_FILE;
-uint8_t channel;
+static uint8_t eof = END_OF_FILE;
+static uint8_t channel;
 
 #define READY_PRINT_INTERVAL (CLOCK_SECOND * 5)
 
@@ -155,7 +155,7 @@ get_nbr_state_name(uint8_t state)
     return "unknown";
   }
 }
-void
+static void
 show_dag(void)
 {
   rpl_dag_t *dag;
@@ -212,7 +212,7 @@ show_dag(void)
   }
   rpl_print_neighbor_list();
 }
-void
+static void
 show_rpl_stats(voiD)
 {
 #if RPL_CONF_STATS
@@ -228,7 +228,7 @@ show_rpl_stats(voiD)
   printf("rpl.root_repairs=%-u\n", rpl_stats.root_repairs);
 #endif
 }
-void
+static void
 show_routes(void)
 {
   uip_ds6_route_t *r;
@@ -268,7 +268,7 @@ show_routes(void)
   }
   printf("\n");
 }
-void
+static void
 show_neighbors(void)
 {
   uip_ds6_nbr_t *nbr;
@@ -319,7 +319,7 @@ show_neighbors(void)
   }
   printf("\n");
 }
-void
+static void
 show_net_all(void)
 {
   show_dag();
@@ -347,7 +347,7 @@ cmd_chan(uint8_t verbose)
   }
   return 1;
 }
-void
+static void
 debug_cmd(char *p)
 {
   printf("To be added\n");

@@ -6,13 +6,13 @@ static char mqttbuf[BUFSIZE];
 static int remaining;
 
 void
-handle_serial_input(const char *line);
+mc_handle_serial_input(const char *line);
 
 char *
 mqtt_cli_input(const char *line) {
   remaining = BUFSIZE;
   mqttbuf[0] = 0;
-  handle_serial_input(line);
+  mc_handle_serial_input(line);
   return mqttbuf;
 }
 
@@ -89,5 +89,6 @@ uip_debug_ipaddr_print(const uip_ipaddr_t *addr)
 /*---------------------------------------------------------------------------*/
 
 
+#define handle_serial_input mc_handle_serial_input 
 #define printf(...) mcprintf(__VA_ARGS__)
 #include "apps/cli/cli.c"
