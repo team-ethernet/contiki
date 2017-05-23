@@ -186,9 +186,10 @@ mqtt_i2c_pub(char *buf, int bufsize);
 /*---------------------------------------------------------------------------*/
 
 PROCESS_NAME(mqtt_demo_process);
+PROCESS(serial_in, "cli input process");
 #ifdef MQTT_WATCHDOG
 PROCESS(mqtt_checker_process, "MQTT state checker for debug");
-AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process, &mqtt_checker_process);
+AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process, &mqtt_checker_process, &serial_in);
 #else
 AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process);
 #endif
@@ -972,12 +973,19 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
       ping_parent();
       etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
     }
-
-    if (ev == serial_line_event_message && data != NULL) {
-      handle_serial_input((const char *) data);
-    }
   }
 
+  PROCESS_END();
+}
+
+PROCESS_THREAD(serial_in, ev, data)
+{
+  PROCESS_BEGIN();
+
+  while(1) {
+    PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message && data != NULL);
+    handle_serial_input((const char *) data);
+  }
   PROCESS_END();
 }
 
