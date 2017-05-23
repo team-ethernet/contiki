@@ -75,6 +75,7 @@ static unsigned long when_mode;
 /* Last readings of sensor data */
 static uint16_t PM1, PM2_5, PM10;
 static uint16_t PM1_ATM, PM2_5_ATM, PM10_ATM;
+static uint16_t DB0_3, DB0_5, DB1, DB2_5, DB5, DB10;
 /* Time when last sensor data was read, in clock_seconds()*/
 static unsigned long timestamp = 0;
 
@@ -161,6 +162,36 @@ pms5003_pm10_atm()
 {
   return PM10_ATM;
 }
+uint16_t
+pms5003_db0_3()
+{
+  return DB0_3;
+}
+uint16_t
+pms5003_db0_5()
+{
+  return DB0_5;
+}
+uint16_t
+pms5003_db1()
+{
+  return DB1;
+}
+uint16_t
+pms5003_db2_5()
+{
+  return DB2_5;
+}
+uint16_t
+pms5003_db5()
+{
+  return DB5;
+}
+uint16_t
+pms5003_db10()
+{
+  return DB10;
+}
 uint32_t
 pms5003_timestamp()
 {
@@ -234,6 +265,13 @@ pmsframe(uint8_t *buf)
     PM1_ATM = (buf[10] << 8) | buf[11];
     PM2_5_ATM = (buf[12] << 8) | buf[13];
     PM10_ATM = (buf[14] << 8) | buf[15];
+    DB0_3 = (buf[16] << 8) | buf[17];
+    DB0_5 = (buf[18] << 8) | buf[19];
+    DB1 = (buf[20] << 8) | buf[21];
+    DB2_5 = (buf[22] << 8) | buf[23];
+    DB5 = (buf[24] << 8) | buf[25];
+    DB10 = (buf[26] << 8) | buf[27];
+
 #ifdef DEBUG
     printpm();
 #endif /* DEBUG */
