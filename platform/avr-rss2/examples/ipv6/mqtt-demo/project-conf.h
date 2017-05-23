@@ -45,14 +45,12 @@
 #define MQTT_DEMO_PUBLISH_TRIGGER &button_right_sensor
 
 #define MQTT_WATCHDOG
-#define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
 
 /* If undefined, the demo will attempt to connect to IBM's quickstart */
 //#define MQTT_DEMO_BROKER_IP_ADDR "aaaa::1"
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
-#define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
 #define MQTT_CONF_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
 
 #define NETSTACK_CONF_RDC nullrdc_driver
@@ -68,11 +66,26 @@
 #define RS232_BAUDRATE USART_BAUD_9600
 
 #define RPL_CONF_ACCEPT_DEFAULT_INSTANCE_ONLY 1
+#define NULLRDC_CONF_802154_AUTOACK_HW  1
+
+//#define TESTBED_UPWIS_CONF 1
+/* uncomment the line above to use UPWIS configuration */
+#ifdef TESTBED_UPWIS_CONF /* UPWIS configuration */
+#define MQTT_DEMO_TOPIC_BASE 	"greeniot/KTH/avr-rss2"
+#define MQTT_DEMO_BROKER_IP_ADDR "bbbb::1"
+#define RPL_CONF_DEFAULT_INSTANCE 0x1e
+#define IEEE802154_CONF_PANID 0x5EE9
+#define CHANNEL_CONF_802_15_4 20
+#else	/* KTH configuration: this is a default configuration */
+#define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
+#define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
-#define NULLRDC_CONF_802154_AUTOACK_HW  1
+#define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
+#endif /* TESTBED_UPWIS_CONF */
 
+//#define NO2 1 /* uncomment this to publish NO2 */
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
 
