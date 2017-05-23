@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson KTH Stockholm
+ * Copyright (c) 2017, Copyright Robert Olsson
+ * KTH Royal Institute of Technology NSLAB KISTA STOCHOLM
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,11 +68,6 @@ uint8_t buf[PMSBUFFER];
 /* Frame assembly statistics */
 static uint32_t invalid_frames, valid_frames;
 
-/* Sensor configured on? */
-static uint8_t configured_on = 0;
-/* When sensor entered current power save mode, in clock_seconds()*/
-static unsigned long when_mode;
-
 /* Last readings of sensor data */
 struct {
   uint16_t s1, s2_5, s10;
@@ -112,7 +108,7 @@ check_pmsframe(uint8_t *buf)
 static void
 printpm()
 {
-  printf("%5d", pm.ts);
+  printf("%5ld", pm.ts);
   printf(" valid=%-lu/%-lu",
          valid_frames, invalid_frames);
 

@@ -1,4 +1,40 @@
-/* Robert Olsson 2017-05-21 KTH */
+/*
+ * Copyright (c) 2017, Copyright Robert Olsson
+ * KTH Royal Institute of Technology NSLAB KISTA STOCHOLM
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * This file is part of the Contiki operating system.
+ *
+ * Implementation for NXP SC16IS7XX chip for bridge I2C/SPI to USRT/GPIO 
+ * I2C support only
+ *
+ * Author  : Robert Olsson roolss@kth.se
+ * Created : 2017-05-22
+ */
 
 #include "contiki.h"
 #include <stdio.h>
@@ -6,8 +42,7 @@
 #include <dev/i2c.h>
 #include "sc16is.h"
 
-static int debug = 1;
-uint32_t sc16is_xtal = 14745600ul;
+uint32_t sc16is_xtal = SC16IS_XTAL;
 
 uint8_t
 sc16is_gpio_get(void)
@@ -21,6 +56,35 @@ sc16is_gpio_set(uint8_t set)
 {
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IOSTATE, set);
   return;
+}
+void
+sc16is_gpio_set_dir(uint8_t set)
+{
+
+  /* 0 input */
+  i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IODIR, set);
+  return;
+}
+uint8_t
+sc16is_gpio_get_dir(void)
+{
+  uint8_t val;
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_IODIR, &val, 1);
+  return val;
+}
+void
+sc16is_gpio_set_irq(uint8_t set)
+{
+  /* 1 gives irq */
+  i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IOINTENA, set);
+  return;
+}
+uint8_t
+sc16is_gpio_get_irq(void)
+{
+  uint8_t val;
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_IOINTENA, &val, 1);
+  return val;
 }
 uint8_t
 sc16is_tx(uint8_t *buf, int len)
@@ -100,7 +164,7 @@ sc16is_uart_set_speed(uint32_t baud)
   /* Restore mode */
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, lcr);
 }
-static uint8_t
+uint8_t
 sc16is_tx_fifo(void)
 {
   uint8_t maxtx;
@@ -141,8 +205,10 @@ sc16is_init(void)
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_EFCR, &val, 1);
   val &= ~(SC16IS_EFCR_RXDISABLE_BIT | SC16IS_EFCR_TXDISABLE_BIT);
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFCR, val);
+#ifdef SC66IS_CONF_INTERRUPT
   /* Enable RX, TX, CTS change interrupts */
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IER, (SC16IS_IER_RDI_BIT | SC16IS_IER_THRI_BIT | SC16IS_IER_CTSI_BIT));
+#endif
   sc16is_gpio_set(0);
   return 1;
 }
