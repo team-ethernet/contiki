@@ -85,6 +85,7 @@
 #define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
 #endif /* TESTBED_UPWIS_CONF */
 
+//#define NO2 1 /* uncomment this to publish NO2 */
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
 
