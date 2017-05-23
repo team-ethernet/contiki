@@ -8,6 +8,10 @@
 #endif
 
 extern void sc16is_uart_set_speed(uint32_t baud);
+extern uint8_t sc16is_rx(uint8_t *buf, uint8_t maxlen);
+extern uint8_t sc16is_tx(uint8_t *buf, int len);
+extern uint8_t sc16is_gpio_get(void);
+extern void sc16is_gpio_set(uint8_t set);
 
 #define RG(x) (x << 3)
 
