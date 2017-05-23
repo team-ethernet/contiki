@@ -7,6 +7,8 @@
 #define I2C_SC16IS_ADDR     (0x9A) /* A0 & A1 to GND */
 #endif
 
+extern void sc16is_uart_set_speed(uint32_t baud);
+
 #define RG(x) (x << 3)
 
 #define SC16IS_RHR    RG(0x00) /* RX FIFO */

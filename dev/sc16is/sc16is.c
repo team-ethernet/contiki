@@ -67,7 +67,7 @@ sc16is_echo_test(void)
   len = sc16is_rx(buf, sizeof(buf));
   len = sc16is_tx(buf, len);
 }
-static void
+void
 sc16is_uart_set_speed(uint32_t baud)
 {
   uint32_t div;
@@ -101,13 +101,18 @@ sc16is_uart_set_speed(uint32_t baud)
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, lcr);
 }
 static uint8_t
-tx_empty(void)
+sc16is_tx_fifo(void)
 {
-  uint8_t lvl, lsr;
+  uint8_t maxtx;
 
+  i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_TXLVL, &maxtx, 1);
+  return maxtx;
+#if 0
+  uint8_t lvl, lsr;
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_TXLVL, &lvl, 1);
   i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LSR, &lsr, 1);
   return (lsr & SC16IS_LSR_THRE_BIT) && !lvl;
+#endif
 }
 int
 sc16is_init(void)
@@ -138,7 +143,7 @@ sc16is_init(void)
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFCR, val);
   /* Enable RX, TX, CTS change interrupts */
   i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IER, (SC16IS_IER_RDI_BIT | SC16IS_IER_THRI_BIT | SC16IS_IER_CTSI_BIT));
-  sc16is_uart_set_speed(115200);
+  sc16is_gpio_set(0);
   return 1;
 }
 void

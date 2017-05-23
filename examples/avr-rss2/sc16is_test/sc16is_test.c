@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include "i2c.h"
 #include "dev/leds.h"
+#include "dev/sc16is/sc16is.h"
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_process, "I2C UART/GPIO process");
 AUTOSTART_PROCESSES(&sc16is_process);
@@ -56,7 +57,8 @@ PROCESS_THREAD(sc16is_process, ev, data)
   PROCESS_BEGIN();
 
   if( i2c_probed & I2C_SC16IS ) {
-    sc16is_init(1);
+    sc16is_init();
+    sc16is_uart_set_speed(9600);
   }
 
   leds_init();
