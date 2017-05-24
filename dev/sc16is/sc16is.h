@@ -11,13 +11,15 @@ extern int sc16is_init(void);
 extern void sc16is_uart_set_speed(uint32_t baud);
 extern uint8_t sc16is_rx(uint8_t *buf, uint8_t maxlen);
 extern uint8_t sc16is_tx(uint8_t *buf, int len);
+extern uint8_t sc16is_tx_fifo(void);
 extern uint8_t sc16is_gpio_get(void);
 extern void sc16is_gpio_set(uint8_t set);
 extern void sc16is_gpio_set_dir(uint8_t set);
 extern uint8_t sc16is_gpio_get_dir(void);
 extern void sc16is_gpio_set_irq(uint8_t set);
 extern uint8_t sc16is_gpio_get_irq(void);
-extern uint8_t sc16is_tx_fifo(void);
+extern void sc16is_sleep_mode(uint8_t sleep);
+extern void sc16is_echo_test(void);
 
 #ifdef SC66IS_CONF_XTAL
 #define SC16IS_XTAL SC16IS_CONF_XTAL
