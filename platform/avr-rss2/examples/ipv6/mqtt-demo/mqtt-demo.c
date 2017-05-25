@@ -56,6 +56,7 @@
 #include "dev/temp-sensor.h"
 #include "dev/battery-sensor.h"
 #include <string.h>
+#include <math.h> /* NO2 */
 #ifdef CO2
 #include "dev/co2_sa_kxx-sensor.h"
 #endif
@@ -178,6 +179,14 @@ static struct {
 /* Publish statistics every N publication */
 #define PUBLISH_STATS_INTERVAL 8
 
+#ifdef NO2
+/*---------------------------------------------------------------------------*/
+/* NO2 settings */
+#define MIC2714_M  0.9986
+#define MIC2714_A  0.163
+double m = MIC2714_M;
+double a = MIC2714_A;
+#endif
 /*---------------------------------------------------------------------------*/
 extern int
 mqtt_rpl_pub(char *buf, int bufsize);
@@ -553,6 +562,22 @@ subscribe(void)
 		buf_ptr += len; \
 	}
 
+
+#ifdef NO2
+/* Converts to NO2 ppm according to MIC2714 NO2 curve 
+   We assume pure NO2 */
+
+double mics2714(double vcc, double v0, double corr)
+{
+  double no2, rsr0;
+  /* Voltage divider */
+  rsr0 = (vcc - v0)/v0;
+  /* Transfer function */
+  no2 = a * pow(rsr0, m);
+  return no2 + corr;
+}
+#endif
+
 static void
 publish_sensors(void)
 {
@@ -574,7 +599,8 @@ publish_sensors(void)
 #endif
 
 #ifdef NO2
-  PUTFMT(",{\"n\":\"no2\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
+  /* Assume 5V VCC and 0 correection */
+  PUTFMT(",{\"n\":\"no2\",\"u\":\"ppm\",\"v\":%-4.2f}", mics2714(5, adc_read_a2(), 0));
 #endif
 
   if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
