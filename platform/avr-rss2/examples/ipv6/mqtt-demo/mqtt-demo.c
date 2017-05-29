@@ -186,6 +186,17 @@ static struct {
 #define MIC2714_A  0.163
 double m = MIC2714_M;
 double a = MIC2714_A;
+
+/*
+  EC  20C 1013mB  NO2 1 ppb= 1.9125 μg/m**3 
+  WHO 25C 1013mB  NO2 1 ppb= 1.88   μg/m**3 
+
+  https://uk-air.defra.gov.uk/assets/documents/reports/cat06/0502160851_Conversion_Factors_Between_ppb_and.pdf
+
+*/
+
+#define NO2_CONV_EC  1.9125
+#define NO2_CONV_WHO 1.88
 #endif
 /*---------------------------------------------------------------------------*/
 extern int
@@ -600,7 +611,7 @@ publish_sensors(void)
 
 #ifdef NO2
   /* Assume 5V VCC and 0 correection */
-  PUTFMT(",{\"n\":\"no2\",\"u\":\"ppm\",\"v\":%-4.2f}", mics2714(5, adc_read_a2(), 0));
+  PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, 0));
 #endif
 
   if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
