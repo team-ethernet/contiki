@@ -48,8 +48,6 @@
 #define CLI_VERSION "0.9-2017-03-13\n"
 
 #if CONTIKI_TARGET_AVR_RSS2
-#define radio_set_txpower rf230_set_txpower
-#define radio_get_txpower rf230_get_txpower
 #define radio_get_rssi    rf230_rssi
 #endif
 
@@ -101,20 +99,43 @@ print_help(void)
 {
   printf("%s\n", CLI_PROJECT);
   printf("cli: version=%s", CLI_VERSION);
-  printf("show dag     - - DODAG info\n");
+  printf("show dag      -- DODAG info\n");
   printf("show neighbor -- neighbor list\n");
   printf("show routes\n");
   printf("show stats\n");
   printf("show channel\n");
+  printf("show txpower\n");
   printf("show version\n");
-  printf("set channel  -- set [11-26] channel\n");
-  printf("set debug  -- select debug info\n");
-  printf("i2c       -- probe i2c bus\n");
-  printf("help         -- this menu\n");
-  printf("repair       -- global dag repair\n");
-  printf("upgr         -- reboot via bootloader\n");
+  printf("set channel   -- set [11-26] channel\n");
+  printf("set debug     -- select debug info\n");
+  printf("txpower       -- set [0-15] TX power\n");
+  printf("i2c           -- probe i2c bus\n");
+  printf("help          -- this menu\n");
+  printf("repair        -- global dag repair\n");
+  printf("upgr          -- reboot via bootloader\n");
 
   printf("Uptime %lu sec\n", clock_seconds());
+}
+static uint8_t
+radio_get_txpower(void)
+{
+  int txpower;
+  if(NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER, &txpower) ==
+     RADIO_RESULT_OK) {
+    return txpower;
+  }
+  printf("Err get_txpower\n");
+  return -1;
+}
+static void
+radio_set_txpower(int txpower)
+{
+  if(NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, txpower) ==
+     RADIO_RESULT_OK) {
+    printf("SET TX_PWR=%d\n", txpower);
+  } else {
+    printf("Err set_txpower=%d\n", txpower);
+  }
 }
 static uint8_t
 radio_get_channel(void)
@@ -409,6 +430,8 @@ handle_serial_input(const char *line)
         show_neighbors();
       } else if(!strcmp(p, "ch") || !strcmp(p, "chan")) {
         cmd_chan(1);
+      } else if(!strcmp(p, "tx") || !strcmp(p, "txp") || !strcmp(p, "txpower")) {
+        printf("TX_PWR: %d\n", radio_get_txpower());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
         printf("%s", CLI_VERSION);
       }
@@ -439,6 +462,12 @@ handle_serial_input(const char *line)
     cli();
     wdt_enable(WDTO_15MS);
     while(1) ;
+  } else if(!strcmp(p, "tx") || !strcmp(p, "txp") || !strcmp(p, "txpower")) {
+    p = strtok(NULL, (const char *)delim);
+    if(p) {
+	int txpower = atoi(p);
+        radio_set_txpower(txpower);
+    }
   }
 #endif
   else if(!strcmp(p, "rep") || !strcmp(p, "repair")) {
