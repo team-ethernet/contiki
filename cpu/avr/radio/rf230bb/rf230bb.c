@@ -94,6 +94,8 @@
 static bool is_promiscuous;
 #endif
 
+bool rf230_blackhole_rx = 0;
+
 /* Poll mode disabled by default */
 uint8_t poll_mode = 0;
 
@@ -1722,6 +1724,14 @@ rf230_read(void *buf, unsigned short bufsize)
     //PRINTF("len - AUX_LEN > bufsize\n");
     flushrx();
     RIMESTATS_ADD(toolong);
+    return 0;
+  }
+
+  if(rf230_blackhole_rx) {
+    DEBUGFLOW('v');
+    //PRINTF("blackhole RX\n");
+    flushrx();
+    RIMESTATS_ADD(badsynch);
     return 0;
   }
 

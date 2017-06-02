@@ -327,6 +327,49 @@ echo_reply_handler(uip_ipaddr_t *source, uint8_t ttl, uint8_t *data,
   }
 }
 /*---------------------------------------------------------------------------*/
+
+#define CCA_TRY 100
+uint8_t cca[16];
+static radio_value_t
+get_chan(void)
+{
+  radio_value_t chan;
+  if(NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &chan) ==
+     RADIO_RESULT_OK) {
+    return chan;
+  }
+  return 0;
+}
+static void
+set_chan(uint8_t chan)
+{
+  if(NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, chan) ==
+     RADIO_RESULT_OK) {
+  }
+}
+
+extern bool rf230_blackhole_rx;
+
+void 
+do_all_chan_cca(uint8_t *cca)
+{
+  int i, j;
+  uint8_t old_chan = get_chan;
+  rf230_blackhole_rx = 1;
+  for(j = 0; j < 16; j++) {
+    set_chan(j+11);
+    cca[j] = 0;
+#ifdef CONTIKI_TARGET_AVR_RSS2
+    watchdog_periodic();
+#endif
+    for(i = 0; i < CCA_TRY; i++) {
+      cca[j] += NETSTACK_RADIO.channel_clear();
+    }
+  }
+  set_chan(old_chan);
+  rf230_blackhole_rx = 0;
+}
+/*---------------------------------------------------------------------------*/
 static void
 publish_led_off(void *d)
 {
@@ -644,6 +687,17 @@ publish_sensors(void)
   topic = construct_topic("sensors");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+
+  {
+    int i; 
+    do_all_chan_cca(cca);
+    printf(" CCA: ");
+    for(i = 0; i < 16; i++) {
+      printf(" %3d", 100-cca[i]);
+    }
+    printf("\n");
+  }
+
 }
 
 static void
