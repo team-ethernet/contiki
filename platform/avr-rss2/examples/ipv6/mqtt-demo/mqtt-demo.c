@@ -354,7 +354,10 @@ void
 do_all_chan_cca(uint8_t *cca)
 {
   int i, j;
-  uint8_t old_chan = get_chan;
+  uint8_t old_chan;
+  uint8_t sreg = SREG;
+  cli();
+  old_chan = get_chan();
   rf230_blackhole_rx = 1;
   for(j = 0; j < 16; j++) {
     set_chan(j+11);
@@ -368,6 +371,7 @@ do_all_chan_cca(uint8_t *cca)
   }
   set_chan(old_chan);
   rf230_blackhole_rx = 0;
+  SREG = sreg;
 }
 /*---------------------------------------------------------------------------*/
 static void
