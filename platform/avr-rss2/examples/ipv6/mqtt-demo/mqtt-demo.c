@@ -577,6 +577,7 @@ init_node_local_config()
   unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e };
   unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa };
   unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 };
+  unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 };
 
   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
 
@@ -594,6 +595,11 @@ init_node_local_config()
     lc.dustbin = 0;
     lc.cca_test = 1;
     lc.no2_corr = 10; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n8554, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 1;
   }
   else {
     lc.dustbin = 0;
@@ -738,7 +744,7 @@ publish_sensors(void)
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
-
+/*
   if(lc.cca_test) {
     int i; 
     do_all_chan_cca(cca);
@@ -748,7 +754,7 @@ publish_sensors(void)
     }
     printf("\n");
   }
-
+*/
 }
 
 static void
@@ -875,12 +881,44 @@ publish_now(void)
 }
 
 static void
+publish_cca_test(void)
+{
+
+  int len;
+  int i;
+  int remaining = APP_BUFFER_SIZE;
+  char *topic;
+  buf_ptr = app_buffer;
+
+  seq_nr_value++;
+
+  /* Publish MQTT topic not in SenML format */
+
+    PUTFMT("%d", 100-cca[0]);
+  for(i = 1; i < 16; i++) {
+    PUTFMT(" %d", 100-cca[i]);
+  }
+
+  //DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  printf("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  topic = construct_topic("cca_test");
+  printf("TOPIC: %s\n", topic);
+  printf("PAYLOAD: %s\n", app_buffer);
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+}
+
+static void
 publish(void)
 {
   if (pub_now_message)
     publish_now();
   else if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
     publish_stats();
+  else if (((seq_nr_value % PUBLISH_STATS_INTERVAL) == 6) && (lc.cca_test)) {
+    do_all_chan_cca(cca);
+    publish_cca_test();
+  }
   else
     //publish_stats();
     publish_sensors();
