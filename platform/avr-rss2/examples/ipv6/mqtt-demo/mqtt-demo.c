@@ -566,7 +566,7 @@ update_config(void)
 struct {
   uint8_t dustbin;
   uint8_t cca_test;
-  int no2_scale;
+  double no2_corr;
 } lc;
 
 /*---------------------------------------------------------------------------*/
@@ -583,24 +583,24 @@ init_node_local_config()
   if(memcmp(node_mac, n837e, 8) == 0) {
     lc.dustbin = 0;
     lc.cca_test = 1;
-    lc.no2_scale = 0;
+    lc.no2_corr = 1;
   }
   else if(memcmp(node_mac, n06aa, 8) == 0) {
     lc.dustbin = 0;
     lc.cca_test = 1;
-    lc.no2_scale = 15; /* According to SLB Hornsgatan */
+    lc.no2_corr = 19; /* Comparing SLB urban background sthlm with Kista */
   }
   else if(memcmp(node_mac, n63a7, 8) == 0) {
     lc.dustbin = 0;
     lc.cca_test = 1;
-    lc.no2_scale = 4; /* According to SLB Hornsgatan */
+    lc.no2_corr = 10; /* Comparing SLB urban background sthlm with Kista */
   }
   else {
     lc.dustbin = 0;
     lc.cca_test = 0;
-    lc.no2_scale = 1;
+    lc.no2_corr = 1;
   }
-  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_SCALE=%d\n", lc.dustbin, lc.cca_test, lc.no2_scale);
+  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%d\n", lc.dustbin, lc.cca_test, lc.no2_corr);
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -671,9 +671,10 @@ double mics2714(double vcc, double v0, double corr)
   double no2, rsr0;
   /* Voltage divider */
   rsr0 = (vcc - v0)/v0;
+  rsr0 = rsr0 * corr;
   /* Transfer function */
   no2 = a * pow(rsr0, m);
-  return no2 + corr;
+  return no2;
 }
 #endif
 
@@ -698,9 +699,9 @@ publish_sensors(void)
 #endif
 
 #ifdef NO2
-    if(lc.no2_scale) {
+    if(lc.no2_corr) {
       /* Assume 5V VCC and 0 correection */
-      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC*lc.no2_scale, 0));
+      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC*lc.no2_corr, lc.no2_corr));
     }
 #endif
 
