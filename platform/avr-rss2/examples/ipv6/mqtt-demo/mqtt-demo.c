@@ -600,7 +600,7 @@ init_node_local_config()
     lc.cca_test = 0;
     lc.no2_corr = 1;
   }
-  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%d\n", lc.dustbin, lc.cca_test, lc.no2_corr);
+  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -701,7 +701,7 @@ publish_sensors(void)
 #ifdef NO2
     if(lc.no2_corr) {
       /* Assume 5V VCC and 0 correection */
-      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC*lc.no2_corr, lc.no2_corr));
+      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, lc.no2_corr));
     }
 #endif
 
