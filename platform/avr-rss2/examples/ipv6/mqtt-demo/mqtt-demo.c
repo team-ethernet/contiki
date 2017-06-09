@@ -67,10 +67,13 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+#ifndef RF230_DEBUG
+#define RF230_DEBUG 0
+#else
 #if RF230_DEBUG
 #include "radio/rf230bb/rf230bb.h"
-#endif
-#define RF230_DEBUG 0
+#endif /* #if RF230_DEBUG */
+#endif /* #ifndef RF230_DEBUG */
 
 extern void handle_serial_input(const char *line);
 
