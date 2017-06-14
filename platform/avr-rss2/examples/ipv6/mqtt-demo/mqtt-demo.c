@@ -592,7 +592,7 @@ init_node_local_config()
   else if(memcmp(node_mac, n06aa, 8) == 0) {
     lc.dustbin = 0;
     lc.cca_test = 1;
-    lc.no2_corr = 19; /* Comparing SLB urban background sthlm with Kista */
+    lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
   }
   else if(memcmp(node_mac, n63a7, 8) == 0) {
     lc.dustbin = 0;
