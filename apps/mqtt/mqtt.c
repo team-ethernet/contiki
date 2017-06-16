@@ -63,16 +63,13 @@
 #include <stdio.h>
 #include <string.h>
 /*---------------------------------------------------------------------------*/
-#define DEBUG 1
+#define DEBUG 0
 #if DEBUG
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
 #define PRINTF(...)
 #endif
-#define DBG printf
-#define DEBUG_MQTT 1
 
-#define TD printf("%s:%d: Timer start %lul interval %lu\n", __FILE__, __LINE__, conn->keep_alive_timer.etimer.timer.start, conn->keep_alive_timer.etimer.timer.interval);
 
 /*---------------------------------------------------------------------------*/
 typedef enum {
@@ -224,7 +221,6 @@ reset_defaults(struct mqtt_connection *conn)
 static void
 abort_connection(struct mqtt_connection *conn)
 {
-  TD;
   conn->out_buffer_ptr = conn->out_buffer;
   conn->out_queue_full = 0;
 
@@ -237,7 +233,6 @@ abort_connection(struct mqtt_connection *conn)
   memset(&conn->socket, 0, sizeof(conn->socket));
 
   conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
-  TD;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -260,7 +255,6 @@ connect_tcp(struct mqtt_connection *conn)
 static void
 disconnect_tcp(struct mqtt_connection *conn)
 {
-  TD;
   conn->state = MQTT_CONN_STATE_DISCONNECTING;
   tcp_socket_close(&(conn->socket));
 }
@@ -299,9 +293,9 @@ string_to_mqtt_string(struct mqtt_string *mqtt_string, char *string)
 static int
 write_byte(struct mqtt_connection *conn, uint8_t data)
 {
-  //DBG("MQTT - (write_byte) buff_size: %i write: '%02X'\n",
-  //  &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr,
-  //  data);
+  DBG("MQTT - (write_byte) buff_size: %i write: '%02X'\n",
+      &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr,
+      data);
 
   if(&conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr == 0) {
     send_out_buffer(conn);
@@ -325,8 +319,8 @@ write_bytes(struct mqtt_connection *conn, uint8_t *data, uint16_t len)
   conn->out_write_pos += write_bytes;
   conn->out_buffer_ptr += write_bytes;
 
-  //DBG("MQTT - (write_bytes) len: %u write_pos: %lu\n", len,
-  //  conn->out_write_pos);
+  DBG("MQTT - (write_bytes) len: %u write_pos: %lu\n", len,
+      conn->out_write_pos);
 
   if(len - conn->out_write_pos == 0) {
     conn->out_write_pos = 0;
@@ -367,18 +361,15 @@ keep_alive_callback(void *ptr)
   struct mqtt_connection *conn = ptr;
 
   DBG("MQTT - (keep_alive_callback) Called!\n");
-  TD;
 
   /* The flag is set when the PINGREQ has been sent */
   if(conn->waiting_for_pingresp) {
     PRINTF("MQTT - Disconnect due to no PINGRESP from broker.\n");
-    printf("MQTT - Disconnect due to no PINGRESP from broker.\n");
     disconnect_tcp(conn);
     return;
   }
 
   process_post(&mqtt_process, mqtt_do_pingreq_event, conn);
-  TD;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -772,7 +763,6 @@ handle_connack(struct mqtt_connection *conn)
 
   ctimer_set(&conn->keep_alive_timer, conn->keep_alive * CLOCK_SECOND,
              keep_alive_callback, conn);
-  printf("START KATIMER keep_alive %d, CLOCK_SECOND %d ", conn->keep_alive, CLOCK_SECOND); TD;
 
   /* Always reset packet before callback since it might be used directly */
   conn->state = MQTT_CONN_STATE_CONNECTED_TO_BROKER;
@@ -783,9 +773,7 @@ static void
 handle_pingresp(struct mqtt_connection *conn)
 {
   DBG("MQTT - Got RINGRESP\n");
-  printf("MQTT - Got RINGRESP---"); TD;
   ctimer_restart(&conn->keep_alive_timer);
-  TD;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1125,7 +1113,6 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
   case TCP_SOCKET_ABORTED: {
 
     DBG("MQTT - Disconnected by tcp event %d\n", event);
-    TD;
     process_post(&mqtt_process, mqtt_abort_now_event, conn);
     conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
     ctimer_stop(&conn->keep_alive_timer);
@@ -1228,7 +1215,6 @@ PROCESS_THREAD(mqtt_process, ev, data)
 	      pingreq_pt(&conn->out_proto_thread, conn) < PT_EXITED) {
           PT_MQTT_WAIT_SEND();
         }
-        printf("Done pt_pingreq pt p t p  t\n");
       }
     }
     if(ev == mqtt_do_subscribe_event) {
@@ -1345,7 +1331,6 @@ mqtt_connect(struct mqtt_connection *conn, char *host, uint16_t port,
   }
 
   conn->server_host = host;
-  printf("MQTT_CONNECT--------keep alive %d\n", keep_alive);
   conn->keep_alive = keep_alive;
   conn->server_port = port;
   conn->out_buffer_ptr = conn->out_buffer;
