@@ -94,6 +94,8 @@
 static bool is_promiscuous;
 #endif
 
+bool rf230_blackhole_rx = 0;
+
 /* Poll mode disabled by default */
 uint8_t poll_mode = 0;
 
@@ -432,7 +434,7 @@ set_value(radio_param_t param, radio_value_t value)
     return RADIO_RESULT_OK;
 
   case RADIO_PARAM_TXPOWER:
-    if(value < TX_PWR_MIN || value > TX_PWR_MAX) {
+    if(value > TX_PWR_MIN || value < TX_PWR_MAX) {
       return RADIO_RESULT_INVALID_VALUE;
     }
     rf230_set_txpower(value);
@@ -1722,6 +1724,14 @@ rf230_read(void *buf, unsigned short bufsize)
     //PRINTF("len - AUX_LEN > bufsize\n");
     flushrx();
     RIMESTATS_ADD(toolong);
+    return 0;
+  }
+
+  if(rf230_blackhole_rx) {
+    DEBUGFLOW('v');
+    //PRINTF("blackhole RX\n");
+    flushrx();
+    RIMESTATS_ADD(badsynch);
     return 0;
   }
 

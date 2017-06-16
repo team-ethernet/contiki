@@ -67,10 +67,13 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+#ifndef RF230_DEBUG
+#define RF230_DEBUG 0
+#else
 #if RF230_DEBUG
 #include "radio/rf230bb/rf230bb.h"
-#endif
-#define RF230_DEBUG 0
+#endif /* #if RF230_DEBUG */
+#endif /* #ifndef RF230_DEBUG */
 
 extern void handle_serial_input(const char *line);
 
@@ -186,6 +189,17 @@ static struct {
 #define MIC2714_A  0.163
 double m = MIC2714_M;
 double a = MIC2714_A;
+
+/*
+  EC  20C 1013mB  NO2 1 ppb= 1.9125 μg/m**3 
+  WHO 25C 1013mB  NO2 1 ppb= 1.88   μg/m**3 
+
+  https://uk-air.defra.gov.uk/assets/documents/reports/cat06/0502160851_Conversion_Factors_Between_ppb_and.pdf
+
+*/
+
+#define NO2_CONV_EC  1.9125
+#define NO2_CONV_WHO 1.88
 #endif
 /*---------------------------------------------------------------------------*/
 extern int
@@ -315,6 +329,53 @@ echo_reply_handler(uip_ipaddr_t *source, uint8_t ttl, uint8_t *data,
   if(uip_ip6addr_cmp(source, uip_ds6_defrt_choose())) {
     def_rt_rssi = sicslowpan_get_last_rssi();
   }
+}
+/*---------------------------------------------------------------------------*/
+
+#define CCA_TRY 100
+uint8_t cca[16];
+static radio_value_t
+get_chan(void)
+{
+  radio_value_t chan;
+  if(NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &chan) ==
+     RADIO_RESULT_OK) {
+    return chan;
+  }
+  return 0;
+}
+static void
+set_chan(uint8_t chan)
+{
+  if(NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, chan) ==
+     RADIO_RESULT_OK) {
+  }
+}
+
+extern bool rf230_blackhole_rx;
+
+void 
+do_all_chan_cca(uint8_t *cca)
+{
+  int i, j;
+  uint8_t old_chan;
+  uint8_t sreg = SREG;
+  cli();
+  old_chan = get_chan();
+  rf230_blackhole_rx = 1;
+  for(j = 0; j < 16; j++) {
+    set_chan(j+11);
+    cca[j] = 0;
+#ifdef CONTIKI_TARGET_AVR_RSS2
+    watchdog_periodic();
+#endif
+    for(i = 0; i < CCA_TRY; i++) {
+      cca[j] += NETSTACK_RADIO.channel_clear();
+    }
+  }
+  set_chan(old_chan);
+  rf230_blackhole_rx = 0;
+  SREG = sreg;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -506,6 +567,52 @@ update_config(void)
 
   return;
 }
+
+struct {
+  uint8_t dustbin;
+  uint8_t cca_test;
+  double no2_corr;
+} lc;
+
+/*---------------------------------------------------------------------------*/
+static void
+init_node_local_config()
+{
+  unsigned char node_mac[8];
+  unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e };
+  unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa };
+  unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 };
+  unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 };
+
+  memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
+
+  if(memcmp(node_mac, n837e, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 1;
+  }
+  else if(memcmp(node_mac, n06aa, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n63a7, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 10; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n8554, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 1;
+  }
+  else {
+    lc.dustbin = 0;
+    lc.cca_test = 0;
+    lc.no2_corr = 1;
+  }
+  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
+}
 /*---------------------------------------------------------------------------*/
 static int
 init_config()
@@ -534,6 +641,7 @@ init_config()
 #endif /* MQTT_CONF_KEEP_ALIVE_TIMER */ 
   conf.def_rt_ping_interval = DEFAULT_RSSI_MEAS_INTERVAL;
 
+  init_node_local_config();
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -579,9 +687,10 @@ double mics2714(double vcc, double v0, double corr)
   double no2, rsr0;
   /* Voltage divider */
   rsr0 = (vcc - v0)/v0;
+  rsr0 = rsr0 * corr;
   /* Transfer function */
   no2 = a * pow(rsr0, m);
-  return no2 + corr;
+  return no2;
 }
 #endif
 
@@ -606,8 +715,10 @@ publish_sensors(void)
 #endif
 
 #ifdef NO2
-  /* Assume 5V VCC and 0 correection */
-  PUTFMT(",{\"n\":\"no2\",\"u\":\"ppm\",\"v\":%-4.2f}", mics2714(5, adc_read_a2(), 0));
+    if(lc.no2_corr) {
+      /* Assume 5V VCC and 0 correection */
+      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, lc.no2_corr));
+    }
 #endif
 
   if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
@@ -618,12 +729,14 @@ publish_sensors(void)
     PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
     PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));
 
-    PUTFMT(",{\"n\":\"pms5003;db;0_3\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_3));
-    PUTFMT(",{\"n\":\"pms5003;db;0_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_5));
-    PUTFMT(",{\"n\":\"pms5003;db;1\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB1));
-    PUTFMT(",{\"n\":\"pms5003;db;2_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB2_5));
-    PUTFMT(",{\"n\":\"pms5003;db:5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
-    PUTFMT(",{\"n\":\"pms5003;db;10\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB10));
+    if(lc.dustbin) {
+      PUTFMT(",{\"n\":\"pms5003;db;0_3\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_3));
+      PUTFMT(",{\"n\":\"pms5003;db;0_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_5));
+      PUTFMT(",{\"n\":\"pms5003;db;1\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB1));
+      PUTFMT(",{\"n\":\"pms5003;db;2_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB2_5));
+      PUTFMT(",{\"n\":\"pms5003;db:5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
+      PUTFMT(",{\"n\":\"pms5003;db;10\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB10));
+    }
 
   }
   if( i2c_probed & I2C_BME280 ) {
@@ -640,6 +753,18 @@ publish_sensors(void)
   topic = construct_topic("sensors");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+
+/*
+  if(lc.cca_test) {
+    int i; 
+    do_all_chan_cca(cca);
+    printf(" CCA: ");
+    for(i = 0; i < 16; i++) {
+      printf(" %3d", 100-cca[i]);
+    }
+    printf("\n");
+  }
+*/
 }
 
 static void
@@ -766,12 +891,44 @@ publish_now(void)
 }
 
 static void
+publish_cca_test(void)
+{
+
+  int len;
+  int i;
+  int remaining = APP_BUFFER_SIZE;
+  char *topic;
+  buf_ptr = app_buffer;
+
+  seq_nr_value++;
+
+  /* Publish MQTT topic not in SenML format */
+
+    PUTFMT("%d", 100-cca[0]);
+  for(i = 1; i < 16; i++) {
+    PUTFMT(" %d", 100-cca[i]);
+  }
+
+  //DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  printf("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  topic = construct_topic("cca_test");
+  printf("TOPIC: %s\n", topic);
+  printf("PAYLOAD: %s\n", app_buffer);
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+}
+
+static void
 publish(void)
 {
   if (pub_now_message)
     publish_now();
   else if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
     publish_stats();
+  else if (((seq_nr_value % PUBLISH_STATS_INTERVAL) == 6) && (lc.cca_test)) {
+    do_all_chan_cca(cca);
+    publish_cca_test();
+  }
   else
     //publish_stats();
     publish_sensors();

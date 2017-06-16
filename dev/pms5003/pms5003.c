@@ -245,6 +245,8 @@ printpm()
   printf("PM1 = %04d, PM2.5 = %04d, PM10 = %04d\n", PM1, PM2_5, PM10);
   printf("PM1_ATM = %04d, PM2.5_ATM = %04d, PM10_ATM = %04d\n",
          PM1_ATM, PM2_5_ATM, PM10_ATM);
+  printf(" DB0_3 = %04d, DB0_5 = %04d, DB1 = %04d, DB2_5 = %04d, DB5 = %04d, DB10 = %04d\n",
+         DB0_3, DB0_5, DB1, DB2_5, DB5, DB10);
 }
 /*---------------------------------------------------------------------------*/
 /**
