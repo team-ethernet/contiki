@@ -323,7 +323,7 @@ struct mqtt_connection {
   uint8_t connect_vhdr_flags;
   uint8_t auto_reconnect;
 
-  uint16_t keep_alive;
+  clock_time_t keep_alive;
   struct ctimer keep_alive_timer;
   uint8_t waiting_for_pingresp;
 
