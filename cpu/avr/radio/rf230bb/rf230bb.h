@@ -229,6 +229,11 @@ uint8_t rf230_get_raw_rssi(void);
 
 #define rf230_rssi	rf230_get_raw_rssi
 
+void rf230_set_frame_retries(uint8_t frame_retries);
+uint8_t rf230_get_frame_retries(void);
+void rf230_set_csma_retries(uint8_t csma_retries);
+uint8_t rf230_get_csma_retries(void);
+
 #if RF230_DEBUG
 extern uint16_t count_no_ack;
 extern uint16_t count_cca_fail;
