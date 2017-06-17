@@ -49,6 +49,7 @@
 
 #if CONTIKI_TARGET_AVR_RSS2
 #define radio_get_rssi    rf230_rssi
+#include "radio/rf230bb/rf230bb.h"
 #endif
 
 #include "contiki.h"
@@ -105,16 +106,62 @@ print_help(void)
   printf("show stats\n");
   printf("show channel\n");
   printf("show txpower\n");
+  printf("show frame_retries -- see 1+MAX_FRAME_RETRIES\n");
+  printf("show csma_retries  -- see MAX_CSMA_RETRIES\n");
   printf("show version\n");
   printf("set channel   -- set [11-26] channel\n");
   printf("set debug     -- select debug info\n");
   printf("txpower       -- set [0-15] TX power\n");
+  printf("frame_retries -- set 1+MAX_FRAME_RETRIES\n");
+  printf("csma_retries  -- set MAX_CSMA_RETRIES\n");
   printf("i2c           -- probe i2c bus\n");
   printf("help          -- this menu\n");
   printf("repair        -- global dag repair\n");
   printf("upgr          -- reboot via bootloader\n");
 
   printf("Uptime %lu sec\n", clock_seconds());
+}
+static void
+radio_get_frame_retries(void)
+{
+  static uint8_t frame_retries;
+  frame_retries = rf230_get_frame_retries();
+  if (frame_retries == 16)
+    printf("cannot read value\n");
+  else
+    printf("1+MAX_FRAME_RETRIES: %u\n", frame_retries+1);
+}
+static void
+radio_set_frame_retries(uint8_t frame_retries)
+{
+  if ((frame_retries >= 0) && (frame_retries <= 16)) {
+    rf230_set_frame_retries(frame_retries);
+    printf("set 1+MAX_FRAME_RETRIES = %u\n", frame_retries);
+  }
+  else
+    printf("Invalid value: MAX_FRAME_RETRIES must be 0-16\n");
+}
+static void
+radio_get_csma_retries(void)
+{
+  static uint8_t csma_retries;
+  csma_retries = rf230_get_csma_retries();
+  if (csma_retries == 6)
+    printf("cannot read value\n");
+  else
+    printf("MAX_CSMA_RETRIES: %u\n", csma_retries);
+}
+static void
+radio_set_csma_retries(uint8_t csma_retries)
+{
+  if (csma_retries == 6) 
+    printf("Invalid value: 6 is reseved and cannot be used\n");
+  else if ((csma_retries >= 0) && (csma_retries <= 7)) {
+    rf230_set_csma_retries(csma_retries);
+    printf("set MAX_CSMA_RETRIES = %u\n", csma_retries);
+  }
+  else
+    printf("Invalid value: MAX_CSMA_RETRIES must be 0-7\n");
 }
 static uint8_t
 radio_get_txpower(void)
@@ -432,6 +479,10 @@ handle_serial_input(const char *line)
         cmd_chan(1);
       } else if(!strcmp(p, "tx") || !strcmp(p, "txp") || !strcmp(p, "txpower")) {
         printf("TX_PWR: %d\n", radio_get_txpower());
+      } else if(!strcmp(p, "fr") || !strcmp(p, "frame") || !strcmp(p, "frame_retries")) {
+	radio_get_frame_retries();
+      } else if(!strcmp(p, "cs") || !strcmp(p, "csma") || !strcmp(p, "csma_retries")) {
+	radio_get_csma_retries();
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
         printf("%s", CLI_VERSION);
       }
@@ -467,6 +518,18 @@ handle_serial_input(const char *line)
     if(p) {
 	int txpower = atoi(p);
         radio_set_txpower(txpower);
+    }
+  } else if(!strcmp(p, "fr") || !strcmp(p, "frame") || !strcmp(p, "frame_retries")) {
+    p = strtok(NULL, (const char *)delim);
+    if(p) {
+	int frame_retries = atoi(p);
+        radio_set_frame_retries((uint8_t) frame_retries);
+    }
+  } else if(!strcmp(p, "cs") || !strcmp(p, "csma") || !strcmp(p, "csma_retries")) {
+    p = strtok(NULL, (const char *)delim);
+    if(p) {
+	int csma_retries = atoi(p);
+        radio_set_csma_retries((uint8_t) csma_retries);
     }
   }
 #endif
