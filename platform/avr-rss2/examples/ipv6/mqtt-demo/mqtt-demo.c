@@ -229,7 +229,8 @@ typedef struct mqtt_client_config {
   char event_type_id[CONFIG_EVENT_TYPE_ID_LEN];
   char broker_ip[CONFIG_IP_ADDR_STR_LEN];
   char cmd_type[CONFIG_CMD_TYPE_LEN];
-  clock_time_t pub_interval;
+  clock_time_t pub_interval; /* in ticks */
+  uint16_t keep_alive_timer; /* in secs */
   int def_rt_ping_interval;
   uint16_t broker_port;
 } mqtt_client_config_t;
@@ -429,7 +430,8 @@ static struct mqtt_app_statistics {
   unsigned int disconnected;
   unsigned int published;
   unsigned int pubacked;
-} mqtt_stats = {0, 0, 0, 0};
+  unsigned int subscribed;
+} mqtt_stats = {0, 0, 0, 0, 0};
 
 /*---------------------------------------------------------------------------*/
 static void
@@ -461,7 +463,7 @@ mqtt_event(struct mqtt_connection *m, mqtt_event_t event, void *data)
           "size is %i bytes. Content:\n\n",
           msg_ptr->topic, msg_ptr->payload_length);
     }
-
+    mqtt_stats.subscribed++;
     pub_handler(msg_ptr->topic, strlen(msg_ptr->topic), msg_ptr->payload_chunk,
                 msg_ptr->payload_length);
     break;
@@ -631,7 +633,12 @@ init_config()
   conf.pub_interval = MQTT_CONF_PUBLISH_INTERVAL;
 #else
   conf.pub_interval = DEFAULT_PUBLISH_INTERVAL;
-#endif
+#endif /* MQTT_CONF_PUBLISH_INTERVAL */
+#ifdef MQTT_CONF_KEEP_ALIVE_TIMER
+  conf.keep_alive_timer = MQTT_CONF_KEEP_ALIVE_TIMER;
+#else
+  conf.keep_alive_timer = DEFAULT_KEEP_ALIVE_TIMER;
+#endif /* MQTT_CONF_KEEP_ALIVE_TIMER */ 
   conf.def_rt_ping_interval = DEFAULT_RSSI_MEAS_INTERVAL;
 
   init_node_local_config();
@@ -933,7 +940,7 @@ connect_to_broker(void)
 {
   /* Connect to MQTT server */
   mqtt_connect(&conn, conf.broker_ip, conf.broker_port,
-               conf.pub_interval * 3);
+               conf.keep_alive_timer);
 
   state = STATE_CONNECTING;
 }
@@ -1045,7 +1052,7 @@ state_machine(void)
       DBG("Publishing... (MQTT state=%d, q=%u)\n", conn.state,
           conn.out_queue_full);
 #else
-      DBG("Publishing... (MQTT state=%d, q=%u) mqtt_ready %d out_buffer_sent %d\n", conn.state,
+      DBG("Publishing... (MQTT state %d conn.state=%d, q=%u) mqtt_ready %d out_buffer_sent %d\n", state, conn.state,
           conn.out_queue_full, mqtt_ready(&conn), conn.out_buffer_sent);
 #endif      
     }

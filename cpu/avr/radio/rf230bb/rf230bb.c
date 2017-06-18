@@ -104,9 +104,13 @@ uint8_t poll_mode = 0;
 #ifndef RF230_CONF_FRAME_RETRIES
 #ifdef RF230_CONF_AUTORETRIES /* Support legacy definition. */
 #define RF230_CONF_FRAME_RETRIES RF230_CONF_AUTORETRIES
+  uint8_t rf230_frame_retries = RF230_CONF_FRAME_RETRIES;
 #else
 #define RF230_CONF_FRAME_RETRIES 0 /* Extended mode disabled by default. */
+  uint8_t rf230_frame_retries = 0;
 #endif
+#else
+  uint8_t rf230_frame_retries = RF230_CONF_FRAME_RETRIES;
 #endif
 
 /* In extended mode (FRAME_RETRIES>0) the tx routine waits for hardware
@@ -133,7 +137,9 @@ uint8_t ack_pending,ack_seqnum;
  * over several channel check periods! */
 /* Used only if RF230_CONF_FRAME_RETRIES > 0. */
 #ifndef RF230_CONF_CSMA_RETRIES
-#define RF230_CONF_CSMA_RETRIES 5
+  uint8_t rf230_csma_retries = 5;
+#else
+  uint8_t rf230_csma_retries = RF230_CONF_CSMA_RETRIES;
 #endif
 
 //Automatic and manual CRC both append 2 bytes to packets 
@@ -1058,16 +1064,17 @@ void rf230_warm_reset(void) {
   PORTB &= ~(1<<7);
   DDRB  &= ~(1<<7);
 #endif
-  
+
   hal_subregister_write(SR_IRQ_MASK, RF230_SUPPORTED_INTERRUPT_MASK);
 
   /* Set up number of automatic retries 0-15
    * (0 implies PLL_ON sends instead of the extended TX_ARET mode */
   hal_subregister_write(SR_MAX_FRAME_RETRIES,
-      (RF230_CONF_FRAME_RETRIES > 0) ? (RF230_CONF_FRAME_RETRIES - 1) : 0 );
+      (rf230_frame_retries > 0) ? (rf230_frame_retries - 1) : 0 );
+//      (RF230_CONF_FRAME_RETRIES > 0) ? (RF230_CONF_FRAME_RETRIES - 1) : 0 );
  
  /* Set up carrier sense/clear channel assesment parameters for extended operating mode */
-  hal_subregister_write(SR_MAX_CSMA_RETRIES, RF230_CONF_CSMA_RETRIES );//highest allowed retries
+  hal_subregister_write(SR_MAX_CSMA_RETRIES, rf230_csma_retries );//highest allowed retries
   hal_register_write(RG_CSMA_BE, 0x80);       //min backoff exponent 0, max 8 (highest allowed)
   hal_register_write(RG_CSMA_SEED_0,hal_register_read(RG_PHY_RSSI) );//upper two RSSI reg bits RND_VALUE are random in rf231
  // hal_register_write(CSMA_SEED_1,42 );
@@ -1838,6 +1845,53 @@ rf230_get_txpower(void)
 		power = hal_subregister_read(SR_TX_PWR);
 	}
 	return power;
+}
+
+/*---------------------------------------------------------------------------*/
+void
+rf230_set_frame_retries(uint8_t frame_retries)
+{
+  if ((frame_retries >= 0) && (frame_retries <= 16)) {
+    rf230_frame_retries = frame_retries;
+    rf230_warm_reset();
+  }
+  else
+    PRINTF("ERROR: MAX_FRAME_RETRIES must be 0-16\n");
+}
+/*---------------------------------------------------------------------------*/
+uint8_t
+rf230_get_frame_retries(void)
+{
+  uint8_t  frame_retries = 16;
+  if (hal_get_slptr()) {
+    PRINTF("rf230_get_frame_retries:Sleeping");
+  } else {
+    frame_retries = hal_subregister_read(SR_MAX_FRAME_RETRIES);
+  }
+  return frame_retries;
+}
+/*---------------------------------------------------------------------------*/
+void
+rf230_set_csma_retries(uint8_t csma_retries)
+{
+  if ((csma_retries >= 0) && (csma_retries <= 7)) {
+    rf230_csma_retries = csma_retries;
+    rf230_warm_reset();
+  }
+  else
+    PRINTF("ERROR: MAX_CSMA_RETRIES must be 0-7\n");
+}
+/*---------------------------------------------------------------------------*/
+uint8_t
+rf230_get_csma_retries(void)
+{
+  uint8_t  csma_retries = 6;
+  if (hal_get_slptr()) {
+    PRINTF("rf230_get_csma_retries:Sleeping");
+  } else {
+    csma_retries = hal_subregister_read(SR_MAX_CSMA_RETRIES);
+  }
+  return csma_retries;
 }
 
 /*---------------------------------------------------------------------------*/

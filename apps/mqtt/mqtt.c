@@ -69,6 +69,8 @@
 #else
 #define PRINTF(...)
 #endif
+
+
 /*---------------------------------------------------------------------------*/
 typedef enum {
   MQTT_FHDR_MSG_TYPE_CONNECT       = 0x10,
@@ -255,9 +257,6 @@ disconnect_tcp(struct mqtt_connection *conn)
 {
   conn->state = MQTT_CONN_STATE_DISCONNECTING;
   tcp_socket_close(&(conn->socket));
-  tcp_socket_unregister(&conn->socket);
-
-  memset(&conn->socket, 0, sizeof(conn->socket));
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -774,6 +773,7 @@ static void
 handle_pingresp(struct mqtt_connection *conn)
 {
   DBG("MQTT - Got RINGRESP\n");
+  ctimer_restart(&conn->keep_alive_timer);
 }
 /*---------------------------------------------------------------------------*/
 static void
