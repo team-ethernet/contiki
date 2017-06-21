@@ -63,4 +63,8 @@
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define NULLRDC_CONF_802154_AUTOACK_HW	1
 
+/* cli config */
+#define CLI_CONF_COMMAND_PROMPT  "KTH-GW> "
+#define CLI_CONF_PROJECT  "GreenIoT V1.0 2017-06-21"
+
 #endif /* PROJECT_ROUTER_CONF_H_ */

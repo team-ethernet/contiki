@@ -10,9 +10,9 @@ CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 PROJECT_SOURCEFILES += eth-bridge.c
 #PROJECT_SOURCEFILES += enc28j60.c
 PROJECT_SOURCEFILES += enc28j60-ip64-driver.c
-PROJECT_SOURCEFILES += commands.c
 
 APPS += ping6
+APPS += cli
 
 MODULES += dev/enc28j60 core/net/ip64
 
