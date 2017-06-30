@@ -597,7 +597,7 @@ init_node_local_config()
     lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
   }
   else if(memcmp(node_mac, n63a7, 8) == 0) {
-    lc.dustbin = 0;
+    lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
     lc.cca_test = 1;
     lc.no2_corr = 12; /* Comparing SLB urban background sthlm with Kista */
   }
