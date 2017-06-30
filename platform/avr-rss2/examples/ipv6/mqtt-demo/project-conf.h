@@ -78,13 +78,14 @@
 #define CHANNEL_CONF_802_15_4 20
 #else	/* KTH configuration: this is a default configuration */
 #define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
-#define MQTT_DEMO_BROKER_IP_ADDR "FD02::1"
+#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::c010:7dea"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
 #endif /* TESTBED_UPWIS_CONF */
 
 //#define NO2 1 /* uncomment this to publish NO2 */
+/* Currently we have NO2 sensor on 06aa and 63a7 */
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
 
