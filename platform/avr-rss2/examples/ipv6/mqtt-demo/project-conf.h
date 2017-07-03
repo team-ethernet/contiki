@@ -63,7 +63,7 @@
 
 #define BOARD_STRING  "greeniot"
 
-#define RS232_BAUDRATE USART_BAUD_9600
+//#define RS232_BAUDRATE USART_BAUD_9600
 
 #define RPL_CONF_ACCEPT_DEFAULT_INSTANCE_ONLY 1
 #define NULLRDC_CONF_802154_AUTOACK_HW  1
@@ -84,8 +84,6 @@
 #define CHANNEL_CONF_802_15_4 25
 #endif /* TESTBED_UPWIS_CONF */
 
-//#define NO2 1 /* uncomment this to publish NO2 */
-/* Currently we have NO2 sensor on 06aa and 63a7 */
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
 

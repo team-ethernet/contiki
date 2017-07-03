@@ -182,7 +182,7 @@ static struct {
 /* Publish statistics every N publication */
 #define PUBLISH_STATS_INTERVAL 8
 
-#ifdef NO2
+
 /*---------------------------------------------------------------------------*/
 /* NO2 settings */
 #define MIC2714_M  0.9986
@@ -200,7 +200,7 @@ double a = MIC2714_A;
 
 #define NO2_CONV_EC  1.9125
 #define NO2_CONV_WHO 1.88
-#endif
+
 /*---------------------------------------------------------------------------*/
 extern int
 mqtt_rpl_pub(char *buf, int bufsize);
@@ -609,7 +609,7 @@ init_node_local_config()
   else {
     lc.dustbin = 0;
     lc.cca_test = 0;
-    lc.no2_corr = 1;
+    lc.no2_corr = 0;
   }
   printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
 }
@@ -678,7 +678,6 @@ subscribe(void)
 	}
 
 
-#ifdef NO2
 /* Converts to NO2 ppm according to MIC2714 NO2 curve 
    We assume pure NO2 */
 
@@ -692,7 +691,6 @@ double mics2714(double vcc, double v0, double corr)
   no2 = a * pow(rsr0, m);
   return no2;
 }
-#endif
 
 static void
 publish_sensors(void)
@@ -714,12 +712,10 @@ publish_sensors(void)
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
 #endif
 
-#ifdef NO2
     if(lc.no2_corr) {
       /* Assume 5V VCC and 0 correection */
       PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, lc.no2_corr));
     }
-#endif
 
   if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
     PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
