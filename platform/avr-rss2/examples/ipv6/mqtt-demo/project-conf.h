@@ -90,6 +90,9 @@
 /* PMSx003 sensors -- I2C and/or UART*/
 #define PMS5003_CONF_SERIAL_I2C 1
 #define PMS5003_CONF_SERIAL_UART 0
+#if PMS5003_CONF_SERIAL_UART
+#define RS232_BAUDRATE USART_BAUD_9600
+#endif
 
 /* cli config */
 #define CLI_CONF_COMMAND_PROMPT  "KTH-MQTT> "
