@@ -98,28 +98,31 @@ AUTOSTART_PROCESSES(&cli);
 static void
 print_help(void)
 {
-  printf("%s\n", CLI_PROJECT);
-  printf("cli: version=%s", CLI_VERSION);
-  printf("show dag      -- DODAG info\n");
-  printf("show neighbor -- neighbor list\n");
-  printf("show routes\n");
-  printf("show stats\n");
-  printf("show channel\n");
-  printf("show txpower\n");
-  printf("show frame_retries -- see 1+MAX_FRAME_RETRIES\n");
-  printf("show csma_retries  -- see MAX_CSMA_RETRIES\n");
-  printf("show version\n");
-  printf("set channel   -- set [11-26] channel\n");
-  printf("set debug     -- select debug info\n");
-  printf("txpower       -- set [0-15] TX power\n");
+/**
+ * We don't show uptime and version to save space in CLI reply
+ * Otherwise, if they need to be shown, we show them first
+ */
+//  printf("Uptime %lu sec\n", clock_seconds());
+//  printf("PROJECT: %s\nCLI: %s", CLI_PROJECT, CLI_VERSION);
+  printf("sh dag -- DODAG info\n");
+  printf("sh neighbor -- neighbor list\n");
+  printf("sh routes\n");
+  printf("sh stats\n");
+  printf("sh channel\n");
+  printf("sh txpower\n");
+  printf("sh frame_retries -- 1+MAX_FRAME_RETRIES\n");
+  printf("sh csma_retries -- MAX_CSMA_RETRIES\n");
+  printf("sh uptime\n");
+  printf("sh version\n");
+  printf("set channel -- [11-26]\n");
+  printf("set debug -- set debug info\n");
+  printf("txpower -- [0-15]\n");
   printf("frame_retries -- set 1+MAX_FRAME_RETRIES\n");
-  printf("csma_retries  -- set MAX_CSMA_RETRIES\n");
-  printf("i2c           -- probe i2c bus\n");
-  printf("help          -- this menu\n");
-  printf("repair        -- global dag repair\n");
-  printf("upgr          -- reboot via bootloader\n");
-
-  printf("Uptime %lu sec\n", clock_seconds());
+  printf("csma_retries -- set MAX_CSMA_RETRIES\n");
+  printf("i2c -- probe i2c bus\n");
+  printf("repair -- global dag repair\n");
+  printf("upgr -- reboot via bootloader\n");
+  printf("help -- this menu\n");
 }
 static void
 radio_get_frame_retries(void)
@@ -483,8 +486,10 @@ handle_serial_input(const char *line)
 	radio_get_frame_retries();
       } else if(!strcmp(p, "cs") || !strcmp(p, "csma") || !strcmp(p, "csma_retries")) {
 	radio_get_csma_retries();
+      } else if(!strcmp(p, "up") || !strcmp(p, "upt") || !strcmp(p, "uptime")) {
+	printf("Uptime %lu sec\n", clock_seconds());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
-        printf("%s", CLI_VERSION);
+        printf("PROJECT: %s\nCLI: %s", CLI_PROJECT, CLI_VERSION);
       }
     }
   }
