@@ -579,32 +579,26 @@ static void
 init_node_local_config()
 {
   unsigned char node_mac[8];
-  unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e };
-  unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa };
-  unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 };
-  unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 };
+  unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa }; /* Stadhus north side - has NO2 sensor */
+  unsigned char n050f[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x05, 0x0f }; /* Stadhus south side - no NO2 sensor */
+  unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 }; /* SLB station - has NO2 sensor */
 
   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
 
-  if(memcmp(node_mac, n837e, 8) == 0) {
-    lc.dustbin = 0;
-    lc.cca_test = 1;
-    lc.no2_corr = 1;
-  }
-  else if(memcmp(node_mac, n06aa, 8) == 0) {
+  if(memcmp(node_mac, n06aa, 8) == 0) {
     lc.dustbin = 0;
     lc.cca_test = 1;
     lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n050f, 8) == 0) {
+    lc.dustbin = 0;
+    lc.cca_test = 1;
+    lc.no2_corr = 0;
   }
   else if(memcmp(node_mac, n63a7, 8) == 0) {
     lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
     lc.cca_test = 1;
     lc.no2_corr = 12; /* Comparing SLB urban background sthlm with Kista */
-  }
-  else if(memcmp(node_mac, n8554, 8) == 0) {
-    lc.dustbin = 0;
-    lc.cca_test = 1;
-    lc.no2_corr = 1;
   }
   else {
     lc.dustbin = 0;
