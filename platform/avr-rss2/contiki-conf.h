@@ -269,9 +269,9 @@ typedef unsigned short uip_stats_t;
 
 /* A 0 here means non-extended mode; 1 means extended mode with no retry, >1 for retrys */
 /* Contikimac strobes on its own, but hardware retries are faster */
-#define RF230_CONF_FRAME_RETRIES  1
+#define RF230_CONF_FRAME_RETRIES  5
 /* Long csma backoffs will compromise radio cycling; set to 0 for 1 csma */
-#define RF230_CONF_CSMA_RETRIES   0
+#define RF230_CONF_CSMA_RETRIES   5
 #define SICSLOWPAN_CONF_FRAG      1
 #define SICSLOWPAN_CONF_MAXAGE    3
 /* 54 bytes per queue ref buffer */
