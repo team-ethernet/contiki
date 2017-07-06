@@ -586,12 +586,12 @@ init_node_local_config()
   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
 
   if(memcmp(node_mac, n06aa, 8) == 0) {
-    lc.dustbin = 0;
+    lc.dustbin = 1;
     lc.cca_test = 1;
     lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
   }
   else if(memcmp(node_mac, n050f, 8) == 0) {
-    lc.dustbin = 0;
+    lc.dustbin = 1;
     lc.cca_test = 1;
     lc.no2_corr = 0;
   }

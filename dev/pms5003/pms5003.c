@@ -392,7 +392,11 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
 
   PROCESS_BEGIN();
   etimer_set(&pmstimer, CLOCK_SECOND * PMS_PROCESS_PERIOD);
+#ifdef PMS5003_CONF_NO_DUTYCYCLING
+  pms5003_set_standby_mode(STANDBY_MODE_OFF);
+#else
   pms5003_set_standby_mode(STANDBY_MODE_ON);
+#endif
   when_mode = clock_seconds();
   pms5003_event = process_alloc_event();
 
@@ -420,7 +424,9 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
               if(process_post(PROCESS_BROADCAST, pms5003_event, NULL) == PROCESS_ERR_OK) {
                 PROCESS_WAIT_EVENT_UNTIL(ev == pms5003_event);
               }
+#ifndef PMS5003_CONF_NO_DUTYCYCLING
               pms5003_set_standby_mode(STANDBY_MODE_ON);
+#endif
               when_mode = clock_seconds();
             }
           }
