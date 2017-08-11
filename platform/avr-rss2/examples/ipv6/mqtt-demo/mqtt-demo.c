@@ -820,6 +820,14 @@ publish_stats(void)
     PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
     PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
 #endif
+
+#ifdef CONTIKI_TARGET_AVR_RSS2
+    /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
+    if (seq_nr_value < 40) {
+      PUTFMT(",{\"n\":\"bootcause\",\"v\":%02x}", GPIOR0);
+    }
+#endif
+
     PUTFMT(",");
     len = mqtt_i2c_pub(buf_ptr, remaining);
     if (len < 0 || len >= remaining) { 
