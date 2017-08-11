@@ -112,6 +112,7 @@ print_help(void)
   printf("sh txpower\n");
   printf("sh frame_retries -- 1+MAX_FRAME_RETRIES\n");
   printf("sh csma_retries -- MAX_CSMA_RETRIES\n");
+  printf("sh reboot\n");
   printf("sh uptime\n");
   printf("sh version\n");
   printf("set channel -- [11-26]\n");
@@ -486,6 +487,8 @@ handle_serial_input(const char *line)
 	radio_get_frame_retries();
       } else if(!strcmp(p, "cs") || !strcmp(p, "csma") || !strcmp(p, "csma_retries")) {
 	radio_get_csma_retries();
+      } else if(!strcmp(p, "re") || !strcmp(p, "reb") || !strcmp(p, "reboot")) {
+	print_mcusr(GPIOR0);
       } else if(!strcmp(p, "up") || !strcmp(p, "upt") || !strcmp(p, "uptime")) {
 	printf("Uptime %lu sec\n", clock_seconds());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
