@@ -49,14 +49,18 @@
 #ifdef PMS5003_CONF_SAMPLE_PERIOD
 #define PMS_SAMPLE_PERIOD       PMS5003_CONF_SAMPLE_PERIOD
 #else
-#define PMS_SAMPLE_PERIOD       30
+#define PMS_SAMPLE_PERIOD       60
 #endif /* PMS5003_CONF_SAMPLE_PERIOD */
 
 /* Warmup time before sensor data can be read (secs) */
+/* Setting warmup time equal to sample period disables duty cycling */
 #ifdef PMS5003_CONF_STARTUP_INTERVAL
 #define PMS_STARTUP_INTERVAL    PMS5003_CONF_STARTUP_INTERVAL
 #else
-#define PMS_STARTUP_INTERVAL    10
+#define PMS_STARTUP_INTERVAL    30
+#if PMS_STARTUP_INTERVAL > PMS_SAMPLE_PERIOD
+#warning "PMS_STARTUP_INTERVAL cannot be larger than PMS_SAMPLE_PERIOD"
+#endif /* PMS_STARTUP_INTERVAL > PMS_SAMPLE_PERIOD */
 #endif /* PMS5003_STARTUP_INTERVAL */
 
 /* Use I2C interface? */

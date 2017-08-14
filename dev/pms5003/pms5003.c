@@ -69,8 +69,6 @@ static uint32_t invalid_frames, valid_frames;
 
 /* Sensor configured on? */
 static uint8_t configured_on = 0;
-/* When sensor entered current power save mode, in clock_seconds()*/
-static unsigned long when_mode;
 
 /* Last readings of sensor data */
 static uint16_t PM1, PM2_5, PM10;
@@ -227,6 +225,7 @@ check_pmsframe(uint8_t *buf)
   if(len < PMSMINBODYLEN || len > PMSMAXBODYLEN) {
     return 0;
   }
+  printf("LEN %d byte\n", len);
   /* Sum data bytewise, including preamble but excluding checksum */
   sum = 0;
   for(i = 0; i < len + 2; i++) {
@@ -257,6 +256,8 @@ static int
 pmsframe(uint8_t *buf)
 {
 
+  int len;
+  
   if(check_pmsframe(buf)) {
     timestamp = clock_seconds();
     valid_frames++;
@@ -267,13 +268,20 @@ pmsframe(uint8_t *buf)
     PM1_ATM = (buf[10] << 8) | buf[11];
     PM2_5_ATM = (buf[12] << 8) | buf[13];
     PM10_ATM = (buf[14] << 8) | buf[15];
-    DB0_3 = (buf[16] << 8) | buf[17];
-    DB0_5 = (buf[18] << 8) | buf[19];
-    DB1 = (buf[20] << 8) | buf[21];
-    DB2_5 = (buf[22] << 8) | buf[23];
-    DB5 = (buf[24] << 8) | buf[25];
-    DB10 = (buf[26] << 8) | buf[27];
-
+    /* Not all Plantower sensors report dust size bins. 
+     * PMS3003 (frame length 20) doesn't. 
+     * PMS5003 (frame length 28) does.
+     * Use length field to detect if the frame has size bins. 
+     */
+    len = (buf[2] << 8) + buf[3];
+    if (len == 28) {
+      DB0_3 = (buf[16] << 8) | buf[17];
+      DB0_5 = (buf[18] << 8) | buf[19];
+      DB1 = (buf[20] << 8) | buf[21];
+      DB2_5 = (buf[22] << 8) | buf[23];
+      DB5 = (buf[24] << 8) | buf[25];
+      DB10 = (buf[26] << 8) | buf[27];
+    }
 #ifdef DEBUG
     printpm();
 #endif /* DEBUG */
@@ -296,7 +304,6 @@ static
 PT_THREAD(pms5003_uart_fsm_pt(struct pt *pt, uint8_t data)) {
   static uint8_t buf[PMSBUFFER], *bufp;
   static int remain;
-  static unsigned long mode_secs;
 
   PT_BEGIN(pt);
   bufp = buf;
@@ -325,17 +332,16 @@ PT_THREAD(pms5003_uart_fsm_pt(struct pt *pt, uint8_t data)) {
       *bufp++ = data;
     }
     /* We have a frame! */
-    mode_secs = clock_seconds() - when_mode;
-    /* Frames received while sensor is starting up are ignored */
-    if((pms5003_get_standby_mode() == STANDBY_MODE_OFF) &&
-       (mode_secs >= PMS_STARTUP_INTERVAL)) {
+    /* Is it time for next reading? Otherwise ignore. */
+    if(clock_seconds() - timestamp >= PMS_SAMPLE_PERIOD) {
       /* Check frame and update sensor readings */
       if(pmsframe(buf)) {
         /* Tell other processes there is new data */
         (void)process_post(PROCESS_BROADCAST, pms5003_event, NULL);
+#if PMS_SAMPLE_PERIOD > PMS_STARTUP_INTERVAL
         /* Enter standby mode */
         pms5003_set_standby_mode(STANDBY_MODE_ON);
-        when_mode = clock_seconds();
+#endif /* PMS_SAMPLE_PERIOD > PMS_STARTUP_INTERVAL */
       }
     }
   }
@@ -387,17 +393,20 @@ PROCESS_THREAD(pms5003_uart_process, ev, data)
 PROCESS_THREAD(pms5003_timer_process, ev, data)
 {
   static struct etimer pmstimer;
-  static unsigned long mode_secs;
   static uint8_t standbymode;
 
   PROCESS_BEGIN();
   etimer_set(&pmstimer, CLOCK_SECOND * PMS_PROCESS_PERIOD);
-#ifdef PMS5003_CONF_NO_DUTYCYCLING
-  pms5003_set_standby_mode(STANDBY_MODE_OFF);
-#else
+#if PMS_SAMPLE_PERIOD > PMS_STARTUP_INTERVAL
   pms5003_set_standby_mode(STANDBY_MODE_ON);
-#endif
-  when_mode = clock_seconds();
+#else
+  pms5003_set_standby_mode(STANDBY_MODE_OFF);
+#endif /* PMS_SAMPLE_PERIOD > PMS_STARTUP_INTERVAL */
+/* Pretend there is a fresh reading, to postpone the first
+ * reading for one cycle
+ */
+  timestamp = clock_seconds(); 
+
   pms5003_event = process_alloc_event();
 
   /* Main loop */
@@ -408,13 +417,12 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
     }
 
     if((ev == PROCESS_EVENT_TIMER) && (data == &pmstimer)) {
-      mode_secs = clock_seconds() - when_mode;
       standbymode = pms5003_get_standby_mode();
       if(standbymode == STANDBY_MODE_OFF) {
 #if PMS_SERIAL_I2C
         static uint8_t buf[PMSBUFFER];
         /* Read data over I2C if it is time */
-        if(mode_secs >= PMS_STARTUP_INTERVAL) {
+        if(clock_seconds() - timestamp >= PMS_SAMPLE_PERIOD) {
           if(pms5003_i2c_probe()) {
             leds_on(LEDS_RED);
             i2c_read_mem(I2C_PMS5003_ADDR, 0, buf, PMSBUFFER);
@@ -424,10 +432,10 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
               if(process_post(PROCESS_BROADCAST, pms5003_event, NULL) == PROCESS_ERR_OK) {
                 PROCESS_WAIT_EVENT_UNTIL(ev == pms5003_event);
               }
-#ifndef PMS5003_CONF_NO_DUTYCYCLING
+#if PMS_SAMPLE_PERIOD > PMS_STARTUP_INTERVAL
+              /* Enter standby mode */
               pms5003_set_standby_mode(STANDBY_MODE_ON);
 #endif
-              when_mode = clock_seconds();
             }
           }
         }
@@ -435,10 +443,10 @@ PROCESS_THREAD(pms5003_timer_process, ev, data)
         /* Do nothing -- UART process puts sensor in standby */
         ;
 #endif /* PMS_SERIAL_I2C */
-      } else if(standbymode == STANDBY_MODE_ON) {
-        if(mode_secs >= (PMS_SAMPLE_PERIOD - PMS_STARTUP_INTERVAL)) {
+      } else if (standbymode == STANDBY_MODE_ON) {
+        /* Time to warm up sensor for next reading? */
+        if (clock_seconds() - timestamp >= PMS_SAMPLE_PERIOD - PMS_STARTUP_INTERVAL) {
           pms5003_set_standby_mode(STANDBY_MODE_OFF);
-          when_mode = clock_seconds();
         }
       }
       etimer_reset(&pmstimer);
