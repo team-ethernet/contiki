@@ -824,7 +824,7 @@ publish_stats(void)
 #ifdef CONTIKI_TARGET_AVR_RSS2
     /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
     if (seq_nr_value < 40) {
-      PUTFMT(",{\"n\":\"bootcause\",\"v\":%02x}", GPIOR0);
+      PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
     }
 #endif
 
