@@ -709,6 +709,7 @@ publish_sensors(void)
     if(lc.no2_corr) {
       /* Assume 5V VCC and 0 correection */
       PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, lc.no2_corr));
+      PUTFMT(",{\"n\":\"a2\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
     }
 
   if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
