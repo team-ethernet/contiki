@@ -69,6 +69,7 @@
 
 #if CONTIKI_TARGET_AVR_RSS2
 #include <avr/wdt.h>
+#include "dev/pms5003/pms5003.h"
 #endif
 
 #ifdef CLI_CONF_COMMAND_PROMPT
@@ -123,6 +124,8 @@ print_help(void)
   printf("i2c -- probe i2c bus\n");
   printf("repair -- global dag repair\n");
   printf("upgr -- reboot via bootloader\n");
+  printf("pm_warmup -- PMS5003 warmup time (sec)\n");
+  printf("pm_period -- PMS5003 sample period (sec)\n");  
   printf("help -- this menu\n");
 }
 static void
@@ -449,6 +452,7 @@ cmd_chan(uint8_t verbose)
   }
   return 1;
 }
+
 static void
 debug_cmd(char *p)
 {
@@ -493,6 +497,10 @@ handle_serial_input(const char *line)
 	printf("Uptime %lu sec\n", clock_seconds());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
         printf("PROJECT: %s\nCLI: %s", CLI_PROJECT, CLI_VERSION);
+      } else if(!strcmp(p, "pm_w") || !strcmp(p, "pm_warmup")) {
+        printf("PMS5003 warmup: %d sec\n", pms5003_get_warmup_interval());
+      } else if(!strcmp(p, "pm_p") || !strcmp(p, "pm_period")) {
+        printf("PMS5003 period: %d sec\n", pms5003_get_sample_period());
       }
     }
   }
@@ -539,7 +547,20 @@ handle_serial_input(const char *line)
 	int csma_retries = atoi(p);
         radio_set_csma_retries((uint8_t) csma_retries);
     }
+  } else if(!strcmp(p, "pm_w") || !strcmp(p, "pm_warmup")) {
+    p = strtok(NULL, (const char *)delim);
+    if (p) {
+      int warmup = atoi(p);
+      pms5003_config_warmup_interval(warmup);
+    }
+  } else if(!strcmp(p, "pm_p") || !strcmp(p, "pm_period")) {
+    p = strtok(NULL, (const char *)delim);
+    if (p) {
+      int period = atoi(p);
+      pms5003_config_sample_period(period);
+    }
   }
+
 #endif
   else if(!strcmp(p, "rep") || !strcmp(p, "repair")) {
     rpl_repair_root(RPL_DEFAULT_INSTANCE);
