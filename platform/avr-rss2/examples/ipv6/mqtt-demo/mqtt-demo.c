@@ -679,6 +679,8 @@ double mics2714(double vcc, double v0, double corr)
 {
   double no2, rsr0;
   /* Voltage divider */
+  if(v0 == 0)
+    return 9999.99;
   rsr0 = (vcc - v0)/v0;
   rsr0 = rsr0 * corr;
   /* Transfer function */
