@@ -51,7 +51,7 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
-#define MQTT_CONF_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
+#define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
 
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
