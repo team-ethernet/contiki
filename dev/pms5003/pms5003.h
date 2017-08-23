@@ -45,7 +45,7 @@
 #define PMS_PROCESS_PERIOD  5
 #endif /* PMS5003_CONF_PROCESS_PERIOD */
 
-/* How often sensor data is collected (secs) */
+/* Sample period - how often sensor data is collected (secs) */
 #ifdef PMS5003_CONF_SAMPLE_PERIOD
 #define PMS_SAMPLE_PERIOD       PMS5003_CONF_SAMPLE_PERIOD
 #else
@@ -54,14 +54,14 @@
 
 /* Warmup time before sensor data can be read (secs) */
 /* Setting warmup time equal to sample period disables duty cycling */
-#ifdef PMS5003_CONF_STARTUP_INTERVAL
-#define PMS_STARTUP_INTERVAL    PMS5003_CONF_STARTUP_INTERVAL
+#ifdef PMS5003_CONF_WARMUP_INTERVAL
+#define PMS_WARMUP_INTERVAL    PMS5003_CONF_WARMUP_INTERVAL
 #else
-#define PMS_STARTUP_INTERVAL    30
-#if PMS_STARTUP_INTERVAL > PMS_SAMPLE_PERIOD
-#warning "PMS_STARTUP_INTERVAL cannot be larger than PMS_SAMPLE_PERIOD"
-#endif /* PMS_STARTUP_INTERVAL > PMS_SAMPLE_PERIOD */
-#endif /* PMS5003_STARTUP_INTERVAL */
+#define PMS_WARMUP_INTERVAL    30
+#if PMS_WARMUP_INTERVAL > PMS_SAMPLE_PERIOD
+#warning "PMS_WARMUP_INTERVAL cannot be larger than PMS_SAMPLE_PERIOD"
+#endif /* PMS_WARMUP_INTERVAL > PMS_SAMPLE_PERIOD */
+#endif /* PMS5003_WARMUP_INTERVAL */
 
 /* Use I2C interface? */
 #ifdef PMS5003_CONF_SERIAL_I2C
@@ -112,4 +112,9 @@ uint16_t pms5003_db2_5();
 uint16_t pms5003_db5();
 uint16_t pms5003_db10();
 uint32_t pms5003_timestamp();
+void pms5003_config_sample_period(unsigned int);
+void pms5003_config_warmup_interval(unsigned int);
+unsigned pms5003_get_sample_period(void);
+unsigned pms5003_get_warmup_interval(void);
+
 #endif /* PMS5003_H */
