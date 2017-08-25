@@ -36,7 +36,7 @@
 #ifndef PMS5003_H
 #define PMS5003_H
 
-/* How often sensor process runs (secs) -- defines resolution
+/* How often sensor process runs (sec) -- defines resolution
  * of warmup time and sample period
  */
 #ifdef PMS5003_CONF_PROCESS_PERIOD
@@ -45,22 +45,18 @@
 #define PMS_PROCESS_PERIOD  5
 #endif /* PMS5003_CONF_PROCESS_PERIOD */
 
-/* Sample period - how often sensor data is collected (secs) */
+/* Default sample period - how often sensor data is collected (sec) */
 #ifdef PMS5003_CONF_SAMPLE_PERIOD
 #define PMS_SAMPLE_PERIOD       PMS5003_CONF_SAMPLE_PERIOD
 #else
 #define PMS_SAMPLE_PERIOD       60
 #endif /* PMS5003_CONF_SAMPLE_PERIOD */
 
-/* Warmup time before sensor data can be read (secs) */
-/* Setting warmup time equal to sample period disables duty cycling */
+/* Default warmup time before sensor data can be read (sec) */
 #ifdef PMS5003_CONF_WARMUP_INTERVAL
 #define PMS_WARMUP_INTERVAL    PMS5003_CONF_WARMUP_INTERVAL
 #else
 #define PMS_WARMUP_INTERVAL    30
-#if PMS_WARMUP_INTERVAL > PMS_SAMPLE_PERIOD
-#warning "PMS_WARMUP_INTERVAL cannot be larger than PMS_SAMPLE_PERIOD"
-#endif /* PMS_WARMUP_INTERVAL > PMS_SAMPLE_PERIOD */
 #endif /* PMS5003_WARMUP_INTERVAL */
 
 /* Use I2C interface? */

@@ -49,7 +49,7 @@
 #include "pms5003.h"
 
 #include "lib/ringbuf.h"
-#define DEBUG
+
 /*
  * Definitions for frames from PMSX003 sensors
  */
@@ -217,28 +217,12 @@ pms5003_invalid_frames()
 
 void
 pms5003_config_sample_period(unsigned int sample_period) {
-  if(sample_period >= pms_config.warmup_interval) {
-    pms_config.sample_period = sample_period;
-  }
-#ifdef DEBUG
-  else {
-    printf("pms5003 sample period can't be shorter than warmup time (%u)\n",
-           pms_config.warmup_interval);
-  }
-#endif /* DEBUG */
+  pms_config.sample_period = sample_period;
 }
 
 void
 pms5003_config_warmup_interval(unsigned int warmup_interval) {
-  if(warmup_interval <= pms_config.sample_period) {
-    pms_config.warmup_interval = warmup_interval;
-  }
-#ifdef DEBUG
-  else {
-    printf("pms5003 warmup time can't be longer than sample period (%u)\n",
-           pms_config.sample_period);
-  }
-#endif /* DEBUG */
+  pms_config.warmup_interval = warmup_interval;
 }
 
 unsigned
@@ -300,6 +284,7 @@ check_pmsframe(uint8_t *buf)
   return pmssum == sum;
 }
 /*---------------------------------------------------------------------------*/
+#ifdef DEBUG
 static void
 printpm()
 {
@@ -311,6 +296,7 @@ printpm()
   printf(" DB0_3 = %04d, DB0_5 = %04d, DB1 = %04d, DB2_5 = %04d, DB5 = %04d, DB10 = %04d\n",
          DB0_3, DB0_5, DB1, DB2_5, DB5, DB10);
 }
+#endif /* DEBUG */
 /*---------------------------------------------------------------------------*/
 /**
  * Frame received from PMS sensor. Validate and update sensor data.
@@ -346,6 +332,7 @@ pmsframe(uint8_t *buf)
       DB5 = (buf[24] << 8) | buf[25];
       DB10 = (buf[26] << 8) | buf[27];
     }
+    
 #ifdef DEBUG
     printpm();
 #endif /* DEBUG */
