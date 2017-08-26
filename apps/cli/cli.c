@@ -47,11 +47,6 @@
 
 #define CLI_VERSION "0.9-2017-03-13\n"
 
-#if CONTIKI_TARGET_AVR_RSS2
-#define radio_get_rssi    rf230_rssi
-#include "radio/rf230bb/rf230bb.h"
-#endif
-
 #include "contiki.h"
 #include "net/rpl/rpl.h"
 #include "net/rpl/rpl-private.h"
@@ -68,8 +63,11 @@
 #include "net/ip/uip-debug.h"
 
 #if CONTIKI_TARGET_AVR_RSS2
+#define radio_get_rssi    rf230_rssi
 #include <avr/wdt.h>
 #include "dev/pms5003/pms5003.h"
+#include "adc.h"
+#include "radio/rf230bb/rf230bb.h"
 #endif
 
 #ifdef CLI_CONF_COMMAND_PROMPT
@@ -90,6 +88,8 @@ static uint8_t eof = END_OF_FILE;
 static uint8_t channel;
 
 #define READY_PRINT_INTERVAL (CLOCK_SECOND * 5)
+
+extern double no2(void);
 
 #if CLI_STANDALONE
 PROCESS(cli, "cli app");
@@ -124,8 +124,9 @@ print_help(void)
   printf("i2c -- probe i2c bus\n");
   printf("repair -- global dag repair\n");
   printf("upgr -- reboot via bootloader\n");
-  printf("pm_warmup -- PMS5003 warmup time (sec)\n");
-  printf("pm_period -- PMS5003 sample period (sec)\n");  
+  printf("sh pm_warmup -- PMS5003 warmup time (sec)\n");
+  printf("sh pm_period -- PMS5003 sample period (sec)\n");  
+  printf("sh no2 -- ug/m**3\n");  
   printf("help -- this menu\n");
 }
 static void
@@ -501,6 +502,8 @@ handle_serial_input(const char *line)
         printf("PMS5003 warmup: %d sec\n", pms5003_get_warmup_interval());
       } else if(!strcmp(p, "pm_p") || !strcmp(p, "pm_period")) {
         printf("PMS5003 period: %d sec\n", pms5003_get_sample_period());
+      } else if(!strcmp(p, "no2") || !strcmp(p, "NO2")) {
+        printf("NO2 %-4.2f, a2 %-4.2f\n", no2(), adc_read_a2());
       }
     }
   }

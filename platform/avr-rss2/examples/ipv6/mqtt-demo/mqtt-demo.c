@@ -572,6 +572,7 @@ struct {
   uint8_t dustbin;
   uint8_t cca_test;
   double no2_corr;
+  uint8_t no2_rev;
 } lc;
 
 /*---------------------------------------------------------------------------*/
@@ -582,6 +583,7 @@ init_node_local_config()
   unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa }; /* Stadhus north side - has NO2 sensor */
   unsigned char n050f[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x05, 0x0f }; /* Stadhus south side - no NO2 sensor */
   unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 }; /* SLB station - has NO2 sensor */
+  unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e }; /* RO test */
 
   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
 
@@ -598,12 +600,19 @@ init_node_local_config()
   else if(memcmp(node_mac, n63a7, 8) == 0) {
     lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
     lc.cca_test = 1;
+    lc.no2_corr = 375; /* Experiment with SLB Uppsala */
+    lc.no2_rev = 1;
+  }
+  else if(memcmp(node_mac, n837e, 8) == 0) {
+    lc.dustbin = 0; /*  */
+    lc.cca_test = 0;
     lc.no2_corr = 12; /* Comparing SLB urban background sthlm with Kista */
   }
   else {
     lc.dustbin = 0;
     lc.cca_test = 0;
     lc.no2_corr = 0;
+    lc.no2_rev = 0;
   }
   printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
 }
@@ -679,12 +688,24 @@ double mics2714(double vcc, double v0, double corr)
 {
   double no2, rsr0;
   /* Voltage divider */
+
+  /* Experimental fix */
+  if( lc.no2_rev)
+    v0 = vcc - v0;
+
   if(v0 == 0)
     return 9999.99;
   rsr0 = (vcc - v0)/v0;
   rsr0 = rsr0 * corr;
   /* Transfer function */
   no2 = a * pow(rsr0, m);
+  return no2;
+}
+
+double no2(void) 
+{
+  double no2;
+  no2 = mics2714(5, adc_read_a2(), lc.no2_corr) * NO2_CONV_EC;
   return no2;
 }
 
@@ -710,7 +731,7 @@ publish_sensors(void)
 
     if(lc.no2_corr) {
       /* Assume 5V VCC and 0 correection */
-      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", mics2714(5, adc_read_a2()*NO2_CONV_EC, lc.no2_corr));
+      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", no2());
       PUTFMT(",{\"n\":\"a2\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
     }
 
