@@ -600,13 +600,13 @@ init_node_local_config()
   else if(memcmp(node_mac, n63a7, 8) == 0) {
     lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
     lc.cca_test = 1;
-    lc.no2_corr = 375; /* Experiment with SLB Uppsala */
+    lc.no2_corr = 1600; /* Experiment with SLB Uppsala */
     lc.no2_rev = 1;
   }
   else if(memcmp(node_mac, n837e, 8) == 0) {
     lc.dustbin = 0; /*  */
     lc.cca_test = 0;
-    lc.no2_corr = 12; /* Comparing SLB urban background sthlm with Kista */
+    lc.no2_corr = 100; /* Comparing SLB urban background sthlm with Kista */
   }
   else {
     lc.dustbin = 0;
