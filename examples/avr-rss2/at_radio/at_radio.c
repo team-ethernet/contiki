@@ -47,6 +47,14 @@
 #include "i2c.h"
 #include "dev/leds.h"
 #include "dev/sc16is/sc16is.h"
+
+#define GP0 1
+#define GP1 2
+#define GP2 4
+#define G_RESET GP0
+#define G_SLEEP  GP1
+#define G_PWR_KEY GP2
+
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_process, "I2C UART/GPIO process");
 AUTOSTART_PROCESSES(&sc16is_process);
@@ -66,25 +74,36 @@ PROCESS_THREAD(sc16is_process, ev, data)
     sc16is_init();
     baud = 115200;
     sc16is_uart_set_speed(baud);
-  }
+   
+/* GPIO set output */
+    sc16is_gpio_set_dir(G_RESET|G_PWR_KEY|G_SLEEP);
+ }
 
   leds_init();
 
-  /* Fix baudrate  */
+/* Fix baudrate  */
   sc16is_tx(at, sizeof(at));
+  etimer_set(&et, CLOCK_SECOND * 10);
 
-  etimer_set(&et, CLOCK_SECOND * 3);
-
-  while(1) {
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-    if( i2c_probed & I2C_SC16IS ) {
- 	  len = sc16is_rx(buf, sizeof(buf));
-	  buf[len] = 0;
-	  printf("%s\n", buf);
-	  sc16is_tx(at, sizeof(at)); /* Just for demo */
+while(1) {
+  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+  if( i2c_probed & I2C_SC16IS ) {
+    len = sc16is_rx(buf, sizeof(buf));
+    if(len) {
+      buf[len] = 0;
+      printf("%s\n", buf);
     }
-    etimer_reset(&et);
+
+      printf("GPIO=0x%02x\n", sc16is_gpio_get());
+      if(sc16is_gpio_get() & G_SLEEP) {
+	sc16is_gpio_set(0);
+	sc16is_tx(at, sizeof(at)); /* Just for demo */
+      }
+      else
+	sc16is_gpio_set(G_SLEEP);
   }
-  PROCESS_END();
+  etimer_reset(&et);
+ }
+ PROCESS_END();
 }
 
