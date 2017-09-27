@@ -52,6 +52,7 @@
 #define GP0 1
 #define GP1 2
 #define GP2 4
+#define GP3 8
 #define G_RESET GP0
 #define G_SLEEP  GP1
 #define G_PWR_KEY GP2
@@ -60,18 +61,16 @@ process_event_t sc16is_input_event;
 process_event_t at_match_event;
 
 /*---------------------------------------------------------------------------*/
-PROCESS(sc16is_process, "I2C UART/GPIO process");
 PROCESS(sc16is_reader, "I2C UART input process");
 PROCESS(sc16is_at, "I2C UART AT emitter");
 AUTOSTART_PROCESSES(&sc16is_reader, &sc16is_at);
-//AUTOSTART_PROCESSES(&sc16is_process);
 uint32_t baud;
 
 uint8_t at[] = {'A', 'T', 0xd };
 uint8_t atcgatt[] = {'A', 'T', 'C', 'G', 'A', 'T', 'T', '=', '1', 0xd };
 
 int len;
-uint8_t buf[120];
+uint8_t buf[200];
 
 static unsigned char *waitstr;
 static int waitpos;
@@ -120,22 +119,28 @@ dumpstr(unsigned char *str) {
   printf("\n");
 }
 
-PROCESS_THREAD(sc16is_reader, ev, data)
+void module_init(void)
 {
-  
-  PROCESS_BEGIN();
-
   if( i2c_probed & I2C_SC16IS ) {
+    /* GPIO set output */
+    sc16is_gpio_set_dir(G_RESET|G_PWR_KEY|G_SLEEP);
+
     sc16is_init();
     baud = 115200;
     sc16is_uart_set_speed(baud);
-   
-    /* GPIO set output */
-    sc16is_gpio_set_dir(G_RESET|G_PWR_KEY|G_SLEEP);
+    //sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT);
+    sc16is_tx(at, sizeof(at));
   }
+}
+
+PROCESS_THREAD(sc16is_reader, ev, data)
+{
+  PROCESS_BEGIN();
+
   sc16is_input_event = process_alloc_event();
   at_match_event = process_alloc_event();  
 
+  module_init();
   leds_init();
 
   /* Fix baudrate  */
@@ -147,9 +152,8 @@ PROCESS_THREAD(sc16is_reader, ev, data)
       len = sc16is_rx(buf, sizeof(buf));
       if(len) {
         static unsigned char *match;
-
         buf[len] = 0;
-        dumpstr(buf);
+	dumpstr(buf);
 #if 1
         if((match = matchwait(buf))) {
           stopwait();
@@ -159,7 +163,7 @@ PROCESS_THREAD(sc16is_reader, ev, data)
           }
         }
 #endif
-        PROCESS_PAUSE();
+       PROCESS_PAUSE();
       }
     }
   }
@@ -170,7 +174,6 @@ static struct etimer et;
 
 static void
 sendstr(char *str) {
-  printf("%s\n", str);
   sc16is_tx((unsigned char *) str, strlen(str)); 
 }
 
@@ -194,6 +197,7 @@ PROCESS_THREAD(sc16is_at, ev, data)
   char str[80];
   PROCESS_BEGIN();
 
+  module_init();
   etimer_set(&et, CLOCK_SECOND*10);
   PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
 
@@ -201,14 +205,15 @@ PROCESS_THREAD(sc16is_at, ev, data)
   ATWAIT("ATE1\r", "OK", CLOCK_SECOND*10); /* Echo on */
   ATWAIT("AT\r", "OK", CLOCK_SECOND*10);
 
-  sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", "online.telia.se");
-  ATWAIT(str, "OK", CLOCK_SECOND*5);
+  //sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", "online.telia.se");
+  sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", "4g.tele2.se");
 
   ATWAIT("AT+CGATT=1\r", "OK", CLOCK_SECOND*5);
   ATWAIT("AT+CGATT?\r", "OK", CLOCK_SECOND*5);
 
-  sprintf(str, "AT+CGDCONT=1,\"IP\",%s\r", "mobile.telia.se");
-  ATWAIT(str, "OK", CLOCK_SECOND*5);
+  //sprintf(str, "AT+CGDCONT=1,\"IP\",%s\r", "mobile.telia.se");
+  sprintf(str, "AT+CGDCONT=1,\"IP\",%s\r", "herjulf.se");
+
   ATWAIT("AT+CGACT=1,1\r", "OK", CLOCK_SECOND*30);
 
   ATWAIT("AT+CIPSTATUS?\r", "OK", CLOCK_SECOND*5);
@@ -216,50 +221,10 @@ PROCESS_THREAD(sc16is_at, ev, data)
   ATWAIT("AT+CEER\r", "OK", CLOCK_SECOND*5);
   ATWAIT("AT+CSQ\r", "OK", CLOCK_SECOND*5);
 
+  ATWAIT("AT+CIFSR\r", "OK", CLOCK_SECOND*5);
+
   ATWAIT("AT\r", "KOKO", CLOCK_SECOND*30); /* delay */
   goto again;
 
   PROCESS_END();
 }
-
-PROCESS_THREAD(sc16is_process, ev, data)
-{
-  PROCESS_BEGIN();
-
-  if( i2c_probed & I2C_SC16IS ) {
-    sc16is_init();
-    baud = 115200;
-    sc16is_uart_set_speed(baud);
-   
-/* GPIO set output */
-    sc16is_gpio_set_dir(G_RESET|G_PWR_KEY|G_SLEEP);
- }
-
-  leds_init();
-
-/* Fix baudrate  */
-  sc16is_tx(at, sizeof(at));
-  etimer_set(&et, CLOCK_SECOND * 10);
-
-while(1) {
-  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-  if( i2c_probed & I2C_SC16IS ) {
-    len = sc16is_rx(buf, sizeof(buf));
-    if(len) {
-      buf[len] = 0;
-      printf("%s\n", buf);
-    }
-
-      printf("GPIO=0x%02x\n", sc16is_gpio_get());
-      if(sc16is_gpio_get() & G_SLEEP) {
-	sc16is_gpio_set(0);
-	sc16is_tx(at, sizeof(at)); /* Just for demo */
-      }
-      else
-	sc16is_gpio_set(G_SLEEP);
-  }
-  etimer_reset(&et);
- }
- PROCESS_END();
-}
-
