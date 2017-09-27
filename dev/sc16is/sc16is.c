@@ -153,7 +153,11 @@ sc16is_uart_set_speed(uint32_t baud)
   /* Open the LCR divisors for configuration */
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, SC16IS_LCR_CONF_MODE_B);
   /* Enaable enchancfed features */
+#ifdef HW_FLOW_NONE
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT);
+#else
+  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT|SC16IS_EFR_AUTORTS_BIT|SC16IS_EFR_AUTOCTS_BIT);
+#endif
   /* LCR to Normal mode */
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, lcr);
   /* Prescaler */
@@ -214,8 +218,11 @@ sc16is_init(void)
   /* Enable EFR */
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, SC16IS_LCR_CONF_MODE_B);
   /* Enaable enchancfed features */
+#ifdef HW_FLOW_NONE
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT);
- 
+#else
+  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT|SC16IS_EFR_AUTORTS_BIT|SC16IS_EFR_AUTOCTS_BIT);
+#endif
  /* Enable TCL/TLR */
   sc16is_arch_i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_MCR, &val, 1);
   val |= SC16IS_MCR_TCRTLR_BIT;
