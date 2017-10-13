@@ -1,5 +1,5 @@
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
-CONTIKI_PROJECT = at_radio
+CONTIKI_PROJECT = gprs-a6
 all: $(CONTIKI_PROJECT)
 
 # We use floating vars. Add library.
@@ -7,6 +7,8 @@ PRINTF_LIB_FLT  = -Wl,-u,vfprintf -lprintf_flt -lm
 PRINTF_LIB_MIN  = -Wl,-u,vfprintf -lprintf_min
 PRINTF_LIB      = $(PRINTF_LIB_FLT)
 CLIBS           = $(PRINTF_LIB) 
+
+PROJECT_OBJECTFILES += testapp.o tcp-socket-gprs.o
 
 MODULES += dev/sc16is
 
