@@ -73,12 +73,14 @@ struct gprs_context gprs_context;
 process_event_t sc16is_input_event;
 process_event_t at_match_event;
 
+#define min(A, B) ((A) <= (B) ? (A) : (B))
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_reader, "I2C UART input process");
 //PROCESS(sc16is_at, "I2C UART AT emitter");
 PROCESS(gprs_init_pt, "GPRS Initializer");
 PROCESS(a6at, "GPRS A6 module");
 extern struct process testapp;
+//AUTOSTART_PROCESSES(&sc16is_reader);
 AUTOSTART_PROCESSES(&sc16is_reader, &a6at, &testapp); //&sc16is_at);
 //AUTOSTART_PROCESSES(&sc16is_reader, &a6at);
 
@@ -162,16 +164,203 @@ gprs_close(struct tcp_socket_gprs *socket) {
   (void) process_post(&a6at, a6at_gprs_close, socket->g_c);
 }
 /*---------------------------------------------------------------------------*/
-int len;
-uint8_t buf[200];
+
+struct at_wait;
+
+typedef char (* at_callback_t)(struct pt *, struct at_wait *, uint8_t *data, int len);
+
+struct at_wait {
+  char *str;
+  at_callback_t callback;
+  uint8_t active;
+  uint8_t pos;
+  uint8_t remain;  
+};
+ 
+static
+PT_THREAD(wait_basic_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+PT_THREAD(wait_line_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+  PT_THREAD(wait_cipstatus_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+  PT_THREAD(wait_cmeerror_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+  PT_THREAD(wait_creg_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+
+
+struct at_wait wait_ok = {"OK", wait_basic_callback};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_cipstatus_callback};
+struct at_wait wait_creg = {"+CREG: ", wait_creg_callback};
+struct at_wait wait_connectok = {"CONNECT OK", wait_basic_callback};
+struct at_wait wait_cmeerror = {"CME ERROR", wait_cmeerror_callback};
+struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_callback};
+struct at_wait wait_sendprompt = {">", wait_basic_callback};
+
+struct at_wait *at_waitlist[] = {&wait_ok, &wait_cipstatus, &wait_creg, &wait_connectok,
+                                 &wait_cmeerror, &wait_commandnoresponse, &wait_sendprompt};
+#define NUMWAIT (sizeof(at_waitlist)/sizeof(struct at_wait *))
+
+struct pt wait_pt;
+static char atline[80];
+
+static
+PT_THREAD(wait_basic_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  PT_BEGIN(pt);
+  process_post(&a6at, at_match_event, at);
+  PT_END(pt);
+}
+
+static
+PT_THREAD(wait_line_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  static int atpos;
+  int done = 0;
+  int datapos = 0;
+
+  PT_BEGIN(pt);
+  atpos = 0; 
+  while (done == 0) {
+    while (datapos < len && done == 0) {
+      if (data[datapos] == '\n' || data[datapos] == '\r') {
+        //printf("-seen EOL-");
+        done = 1;
+      }
+      else {
+        //printf("-%d %c %d+ ", atpos, data[datapos], datapos);
+        atline[atpos++] = (char ) data[datapos++];
+        if (atpos == sizeof(atline))
+          done = 1;
+      }
+    }
+    if (!done) {
+      //printf(" --NOT DONE\n");
+      /* Reached end of input data but have not seen end of line. 
+       * Yield here and wait for next invocation.
+       */ 
+      PT_YIELD(pt);
+    }
+  }
+  /* done -- mark end of string */
+
+  atline[atpos] = '\0';
+  printf("FSM found line \"%s\"\n", atline);
+  process_post(&a6at, at_match_event, at);
+  PT_END(pt);
+}
+
+static
+PT_THREAD(wait_cipstatus_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  return wait_line_callback(pt, at, data, len);
+}
+
+static
+PT_THREAD(wait_creg_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  return wait_line_callback(pt, at, data, len);
+}
+
+
+static
+PT_THREAD(wait_cmeerror_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  return wait_line_callback(pt, at, data, len);
+}
+
+static void
+start_at(struct at_wait *at) {
+  at->active = 1;
+  at->pos = 0;
+  at->remain = strlen(at->str);
+}
+
+static void
+stop_at(struct at_wait *at) {
+  at->active = 0;
+  at->pos = 0;
+}
+
+static void start_atlist(struct at_wait *at, ...) { //char *str, char *end) {
+  va_list valist;
+  char *s;
+  
+  va_start(valist, at);
+  while (at) {
+    printf(" %s ", at->str);
+    start_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+}
+
+static void stop_atlist(struct at_wait *at, ...) { //char *str, char *end) {
+  va_list valist;
+  char *s;
+  uint8_t w;
+  
+  va_start(valist, at);
+  while (at) {
+    stop_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+}
+
+
+static void
+wait_init() {
+  int i;
+  for (i = 0; i < NUMWAIT; i++) {
+    stop_at(at_waitlist[i]);
+  }
+  PT_INIT(&wait_pt);
+}
+
+
+PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, int len)) {
+  uint8_t i;
+  uint8_t datapos = 0;
+  static struct pt subpt;
+  static struct at_wait *at;
+
+  PT_BEGIN(pt);
+  while (1) {
+    for (datapos = 0; datapos < len; datapos++){
+      for (i = 0; i < NUMWAIT; i++) {
+        at = at_waitlist[i];
+        if (at->active) {
+          //printf("Check match %d at inpos %d matchpos %d-- '%c' vs '%c'\n", i, datapos, at->pos, data[datapos], at->str[at->pos]);
+          //printf("wait_ok @pos %d\n", wait_ok.pos);
+          if (data[datapos] == at->str[at->pos]) {
+            // printf("MATCH '%c' at %d\n", (char ) data[datapos], at->pos);
+            at->pos += 1;
+            if (at->str[at->pos] == '\0') {
+              PT_INIT(&subpt);
+              while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
+                PT_YIELD(pt);
+              }
+              PT_RESTART(pt);;
+            }
+          }
+          else {
+            /* Does not match current char. Restart. */
+            at->pos = 0;
+          }
+        }
+      }
+    }
+    PT_YIELD(pt);
+  }
+  PT_END(pt);
+}
 
 #define MAXWAIT 3
 #define PERMANENT 0
+
 static struct waitfor {
+  uint8_t active;
   unsigned char *str;
   uint8_t pos;
   uint8_t found;  
 } waitfor[MAXWAIT];
+
+int len;
+uint8_t buf[200];
 
 
 uint8_t found;
@@ -185,6 +374,8 @@ static void startwait(char *str, ...) { //char *str, char *end) {
   char *s;
   uint8_t w;
   
+  start_at(&wait_ok);
+
   va_start(valist, str);
   s = str;
   w = PERMANENT;
@@ -204,6 +395,7 @@ static void startwait(char *str, ...) { //char *str, char *end) {
 static void
 stopwait() {
   waitfor[PERMANENT].str = NULL;
+  stop_at(&wait_ok);
 }
 
 static unsigned char
@@ -263,7 +455,7 @@ void module_init(void)
     baud = 115200;
     sc16is_uart_set_speed(baud);
     //sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT);
-    sc16is_tx(at, sizeof(at));
+    sc16is_tx((uint8_t *)"AT", sizeof("AT"-1));
   }
 }
 
@@ -283,16 +475,35 @@ PROCESS_THREAD(sc16is_reader, ev, data)
   /* Fix baudrate  */
   sc16is_tx(at, sizeof(at));
 #endif
+  printf ("here is reader\n");
+  wait_init();
   atpos = 0;
   memset(atbuf, 0, sizeof(atbuf));
   while(1) {
     PROCESS_PAUSE();
+#if 0
+    start_atlist(&wait_creg, NULL);
+    
+    wait_fsm_pt(&wait_pt, (uint8_t *) "AVOK", 2);
+    wait_fsm_pt(&wait_pt, (uint8_t *) "+CRE", 4);
+    wait_fsm_pt(&wait_pt, (uint8_t *) "G: this is", 10);        
+    wait_fsm_pt(&wait_pt, (uint8_t *) "data\n", 5);            
+    {
+      static struct etimer et;
+      etimer_set(&et, CLOCK_SECOND*30);
+      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+      continue;
+    }        
+#endif    
     if( i2c_probed & I2C_SC16IS ) {
       len = sc16is_rx(buf, sizeof(buf));
       if (len) {
         buf[len] = '\0';
         dumpstr(buf);
         //printf("????matchwait \"%s\"\n", buf);
+
+        wait_fsm_pt(&wait_pt, buf, len);
+
         match = matchwait(buf);
         if (match != NULL) {
           stopwait();
@@ -319,7 +530,28 @@ sendbuf(unsigned char *buf, size_t len) {
 #define ATSTR(str) sendbuf((unsigned char *) str, strlen(str))
 #define ATBUF(buf, len) sendbuf(buf, len)
 
-#define ATWAIT(delay, ...)            \
+#define ATWAIT2(SEC, ...)  {                    \
+  at = NULL; \
+  printf("---start_atlist:%d: (%d sec)", __LINE__, SEC);    \
+  start_atlist(__VA_ARGS__, NULL);            \
+  printf("\n"); \
+  etimer_set(&et, (SEC)*CLOCK_SECOND);                         \
+  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) || \
+                           ev == at_match_event); \
+  /* printf("#####WAIYED\n"); */                  \
+  if(etimer_expired(&et)) { \
+    printf("---timeout:%d\n", __LINE__);                 \
+  } \
+  else if(ev == at_match_event) { \
+    etimer_stop(&et); \
+    at = (struct at_wait *) data;                \
+    printf("---got %s\n", at->str);\
+  } \
+  stop_atlist(__VA_ARGS__, NULL);               \
+  }
+
+
+#define ATWAIT(delay, ...)                     \
   res = NULL; \
   printf("---startwait:%d: delay=%d", __LINE__, delay);     \
   startwait(__VA_ARGS__, NULL);            \
@@ -337,7 +569,11 @@ sendbuf(unsigned char *buf, size_t len) {
     etimer_stop(&et); \
     res = (unsigned char *) data;                \
     printf("---got %s\n", res);\
-  }
+  } 
+#undef ATWAIT
+#define ATWAIT(delay, ...)
+
+#define DELAY(SEC)   { etimer_set(&et, SEC*CLOCK_SECOND); PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));}
 
 static char *strings[] = {
   "HEJ \375hopp\n",
@@ -361,7 +597,8 @@ void fnus() {
 
 
 PROCESS_THREAD(a6at, ev, data) {
-  unsigned char *res;
+  //unsigned char *res;
+  struct at_wait *at;
   char str[80];
   static struct gprs_connection *gprsconn;
   static struct tcp_socket_gprs *socket;
@@ -377,13 +614,17 @@ PROCESS_THREAD(a6at, ev, data) {
   sc16is_input_event = process_alloc_event();
   at_match_event = process_alloc_event();  
 
+  wait_init();
   module_init();
   leds_init();
 
-  gprs_init();
-  /* Fix baudrate  */
-  sc16is_tx(at, sizeof(at));
 
+  gprs_init();
+
+
+  /* Fix baudrate  */
+  sc16is_tx((uint8_t *) "AT", sizeof("at"-1));
+  
  again:
   if (0){
 
@@ -394,9 +635,10 @@ PROCESS_THREAD(a6at, ev, data) {
   /* Power on */
   sc16is_gpio_set(sc16is_gpio_get()|G_PWR_KEY|G_SLEEP); /* Power key on, no sleep */
   printf("Probing2... gpio == 0x%x\n", sc16is_gpio_get());
-  ATWAIT(CLOCK_SECOND*5, "KOKO");
+  DELAY(5);
   sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
   printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
+  ATWAIT2(30, &wait_ok);
   ATWAIT(CLOCK_SECOND*30, "OK");
   goto again;
   }
@@ -405,14 +647,14 @@ PROCESS_THREAD(a6at, ev, data) {
     printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
     sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
     printf("Sleeping... gpio == 0x%x\n", sc16is_gpio_get());
-    ATWAIT(CLOCK_SECOND*5, "KOKO");
+    DELAY(5);ATWAIT(CLOCK_SECOND*5, "KOKO");
     sc16is_gpio_set((sc16is_gpio_get()&~G_RESET)|G_PWR_KEY|G_SLEEP); /* Toggle reset, power key on, no sleep */
     printf("Probing2... gpio == 0x%x\n", sc16is_gpio_get());
-    ATWAIT(CLOCK_SECOND*5, "KOKO");
+    DELAY(5);ATWAIT(CLOCK_SECOND*5, "KOKO");
     sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
     printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
     ATSTR("AT\r"); ATWAIT(CLOCK_SECOND*10, "OK");
-    ATWAIT(CLOCK_SECOND*10, "KOOK");
+    DELAY(5);    ATWAIT(CLOCK_SECOND*10, "KOOK");
   }
 
   /* Wait for registration status to become 1 (local registration)
@@ -420,14 +662,17 @@ PROCESS_THREAD(a6at, ev, data) {
    */
   while (1) {
     static uint8_t creg;
-    ATWAIT(CLOCK_SECOND*2, "KOKO");
+    DELAY(2);
     ATSTR("AT+CIPSTATUS?\r");
+    ATWAIT2(10, &wait_cipstatus);
     ATWAIT(CLOCK_SECOND*10, "+CIPSTATUS:0,");
     ATSTR("AT+CREG?\r");
+    ATWAIT2(10, &wait_creg);
     ATWAIT(CLOCK_SECOND*10, "+CREG: 1,");
-    if (res == NULL)
+    if (at == NULL)
       continue;
-    creg = atoi((char *) foundbuf);
+    creg = atoi((char *) atline /*foundbuf*/);
+    printf("creg atoi(\"%s\") -> %d\n", atline, creg);
     if (creg == 1 || creg == 5 || creg == 10) /* Wait for status == 1 (local registration) */
       break; /* Wait for status == 1 (local registration) */    
   }
@@ -444,26 +689,36 @@ PROCESS_THREAD(a6at, ev, data) {
       gcontext = (struct gprs_context *) data;
       /* Deactivate PDP context */
       sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
-      ATSTR(str);   ATWAIT(CLOCK_SECOND*20, "OK");
+      ATSTR(str);   
+      ATWAIT2(20, &wait_ok);
+      ATWAIT(CLOCK_SECOND*20, "OK");
 
-      ATSTR("AT+CGATT=1\r"); ATWAIT(CLOCK_SECOND*5, "OK"); /* Service attach */
+      ATSTR("AT+CGATT=1\r"); ATWAIT2(5, &wait_ok);
+      ATWAIT(CLOCK_SECOND*5, "OK"); /* Service attach */
 
-      ATSTR("AT+CIPMUX=0\r"); ATWAIT(CLOCK_SECOND*5, "OK"); /* Single IP connection */
+      ATSTR("AT+CIPMUX=0\r"); ATWAIT2(5, &wait_ok);
+      ATWAIT(CLOCK_SECOND*5, "OK"); /* Single IP connection */
 
-      ATSTR("AT+CREG?\r");ATWAIT(CLOCK_SECOND, "OK");
+      ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
+      ATWAIT(CLOCK_SECOND, "OK");
   
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
-      ATSTR(str);  ATWAIT(CLOCK_SECOND*5, "OK");
-      ATSTR("AT+CREG?\r");ATWAIT(CLOCK_SECOND, "OK");
-      ATSTR("AT+CGACT=1,1\r"); ATWAIT(CLOCK_SECOND*20, "OK"); /* Activate context */
+      ATSTR(str);        ATWAIT2(5, &wait_ok);
+      ATWAIT(CLOCK_SECOND*5, "OK");
+      ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
+      ATWAIT(CLOCK_SECOND, "OK");
+      ATSTR("AT+CGACT=1,1\r");       ATWAIT2(20, &wait_ok);
+      ATWAIT(CLOCK_SECOND*20, "OK"); /* Activate context */
 
-      ATSTR("AT+CREG?\r"); ATWAIT(CLOCK_SECOND*2, "OK");
+      ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
+      ATWAIT(CLOCK_SECOND*2, "OK");
       
       while (1) {
         ATSTR("AT+CIPSTATUS?\r"); 
+        ATWAIT2(60, &wait_cipstatus);
         ATWAIT(CLOCK_SECOND*60, "+CIPSTATUS:0,");
-        if (res != NULL && strcmp((char *) res, "+CIPSTATUS:0,") == 0) {
-          if (strncmp((char *) foundbuf, "IP GPRSACT", strlen("IP GPRSACT")) == 0) {
+        if (at == &wait_cipstatus) {
+          if (strncmp((char *) atline /*foundbuf*/, "IP GPRSACT", strlen("IP GPRSACT")) == 0) {
             printf("GPRS is active\n");
             gcontext->active = 1;
             //process_post(PROCESS_BROADCAST, a6at_gprs_active, NULL);
@@ -472,7 +727,8 @@ PROCESS_THREAD(a6at, ev, data) {
         }
         printf("GPRS not active\n");
         printf("Got gpio 0x%x\n", sc16is_gpio_get());
-        ATSTR("AT+CREG?\r"); ATWAIT(CLOCK_SECOND*2, "OK");
+        ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
+        ATWAIT(CLOCK_SECOND*2, "OK");
       }
     } /* ev == a6at_gprs_activate */
     else if (ev == a6at_gprs_connection) {
@@ -481,39 +737,51 @@ PROCESS_THREAD(a6at, ev, data) {
     try:
       printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
 
-      ATSTR("AT+CREG?\r"); ATWAIT(CLOCK_SECOND*2, "OK");
-      ATSTR("AT+CIPSTATUS?\r"); ATWAIT(CLOCK_SECOND*2, "OK");
+      ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
+      ATWAIT(CLOCK_SECOND*2, "OK");
+      ATSTR("AT+CIPSTATUS?\r");       ATWAIT2(2, &wait_ok);
+      ATWAIT(CLOCK_SECOND*2, "OK");
 
       sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
-      ATSTR(str); ATWAIT(CLOCK_SECOND*60, "CONNECT OK", "CME ERROR", "COMMAND NO RESPONSE!");
-      if (res != NULL && (strcmp("CONNECT OK", (char *) res) == 0)) {
+      ATSTR(str);
+      ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
+      ATWAIT(CLOCK_SECOND*60, "CONNECT OK", "CME ERROR", "COMMAND NO RESPONSE!");
+      if (at == &wait_connectok) {
         call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
         goto nextcommand;
       }
-      if (res != NULL && (strcmp("COMMAND NO RESPONSE!", (char *) res) == 0)) {
+      else if (at == &wait_commandnoresponse) {
         /* Give it some more time. It happens that the connection succeeds after COMMAND NO RESPONSE! */
+        ATWAIT2(15, &wait_connectok);
         ATWAIT(CLOCK_SECOND*15, "CONNECT OK");
-        if (res != NULL && (strcmp("CONNECT OK", (char *) res) == 0)) {
+        if (at == &wait_connectok) {
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
         }
       }
-      /* If we end up here, we failed to set up connection */
-      if (res == NULL) {
+      /* If we ended up here, we failed to set up connection */
+      if (at == NULL) {
         /* Timeout */
-          ATSTR("AT+CIPCLOSE\r");  ATWAIT(CLOCK_SECOND*5, "OK");
-          ATSTR("AT+CIPSHUT\r");  ATWAIT(CLOCK_SECOND*5, "OK");
+          ATSTR("AT+CIPCLOSE\r");
+          ATWAIT2(5, &wait_ok);
+          ATWAIT(CLOCK_SECOND*5, "OK");
+          ATSTR("AT+CIPSHUT\r");
+          ATWAIT2(5, &wait_ok);
+          ATWAIT(CLOCK_SECOND*5, "OK");
           call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
           goto nextcommand;
       }        
-      else if (res == NULL || (0 == strcmp((char *) res, "CME ERROR"))) {
+      else if (at == &wait_cmeerror) {
         /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
         /* Seen +CME ERROR:53 */
         /* After CME ERROR:53, seen CIPSTATUS stuck at IP START */
         printf("CIPSTART failed\n");
-        ATSTR("AT+CREG?\r"); ATWAIT(CLOCK_SECOND*2, "OK");    
-        ATSTR("AT+CIPCLOSE\r");  ATWAIT(CLOCK_SECOND*5, "OK");
-        ATSTR("AT+CIPSHUT\r");  ATWAIT(CLOCK_SECOND*5, "OK");
+        ATSTR("AT+CREG?\r");           ATWAIT2(2, &wait_ok);
+        ATWAIT(CLOCK_SECOND*2, "OK");    
+        ATSTR("AT+CIPCLOSE\r");            ATWAIT2(5, &wait_ok);
+        ATWAIT(CLOCK_SECOND*5, "OK");
+        ATSTR("AT+CIPSHUT\r");            ATWAIT2(5, &wait_ok);
+        ATWAIT(CLOCK_SECOND*5, "OK");
         goto try;
       }
 
@@ -531,6 +799,7 @@ PROCESS_THREAD(a6at, ev, data) {
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
         sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
+        ATWAIT2(2, &wait_sendprompt);
         ATWAIT(CLOCK_SECOND*2, ">");
         ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
 #ifdef notdef
@@ -539,6 +808,7 @@ PROCESS_THREAD(a6at, ev, data) {
         ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
         ATSTR((char *) "\r"); /* sometimes CME ERROR:516 */
 #endif 
+        ATWAIT2(10, &wait_ok);
         ATWAIT(CLOCK_SECOND*10, "OK");
         if (remain > len) {
           memcpy(&socket->output_data_ptr[0],
@@ -554,12 +824,14 @@ PROCESS_THREAD(a6at, ev, data) {
       gprsconn = (struct gprs_connection *) data;
       socket = gprsconn->socket;
 
-      ATSTR("AT+CIPCLOSE\r");  ATWAIT(CLOCK_SECOND*15, "OK");
-      if (res == NULL) {
-        call_event(socket, TCP_SOCKET_TIMEDOUT);
+      ATSTR("AT+CIPCLOSE\r");
+      ATWAIT2(15, &wait_ok);
+      ATWAIT(CLOCK_SECOND*15, "OK");
+      if (at == &wait_ok) {
+        call_event(socket, TCP_SOCKET_CLOSED);
       }
       else {
-        call_event(socket, TCP_SOCKET_CLOSED);
+        call_event(socket, TCP_SOCKET_TIMEDOUT);
       }
     } /* ev == a6at_gprs_close */
   }
@@ -609,7 +881,7 @@ PROCESS_THREAD(gprs_init_pt, ev, data) {
     ATWAIT(CLOCK_SECOND*60, "+CIPSTATUS:0,");
     ATSTR("AT+CREG?\r");
     ATWAIT(CLOCK_SECOND*10, "+CREG: 1,");
-  } while (atoi((char *) foundbuf) != 1 && atoi((char *) foundbuf) != 5); /* Wait for status == 1 (local registration) */
+ } while (atoi((char *) atline /*foundbuf*/) != 1 && atoi((char *) atline /*foundbuf*/) != 5); /* Wait for status == 1 (local registration) */
 
 
   if (1){
@@ -618,7 +890,7 @@ PROCESS_THREAD(gprs_init_pt, ev, data) {
     ATSTR("AT+CGACT=1,0\r");  ATWAIT(CLOCK_SECOND*15, "OK"); 
     ATSTR("AT+CGACT=0,0\r");  ATWAIT(CLOCK_SECOND*15, "OK");
     ATSTR("AT+CGACT=0\r");  ATWAIT(CLOCK_SECOND*15, "OK");     
-    if ((res == NULL) || (strncmp((char *) foundbuf, "IP START", strlen("IP START")) == 0)) { /* IP CLOSE OK?*/
+    if ((res == NULL) || (strncmp((char *) atline/* foundbuf*/, "IP START", strlen("IP START")) == 0)) { /* IP CLOSE OK?*/
       printf("IP STATUS not OK\n");
       ATSTR("AT+CGACT=1,0\r");  ATWAIT(CLOCK_SECOND*15, "OK"); 
       ATSTR("AT+CGACT=0,0\r");  ATWAIT(CLOCK_SECOND*15, "OK");
@@ -632,7 +904,7 @@ PROCESS_THREAD(gprs_init_pt, ev, data) {
   if (0) {
     ATSTR("AT+CREG?\r");
     ATWAIT(CLOCK_SECOND*10, "+CREG: 1,");
-    if (atoi((char *) foundbuf) == 5) {
+    if (atoi((char *) atline /*foundbuf*/) == 5) {
       printf("Roaming mode\n");
       ATSTR("AT+CGATT=0\r");
       ATWAIT(CLOCK_SECOND*10, "OK"); /* Echo on */
@@ -664,7 +936,7 @@ PROCESS_THREAD(gprs_init_pt, ev, data) {
   ATSTR("AT+CIPSTATUS?\r"); 
   ATWAIT(CLOCK_SECOND*60, "+CIPSTATUS:0,");
   if (res != NULL && strcmp((char *) res, "+CIPSTATUS:0,") == 0) {
-    if (strncmp((char *) foundbuf, "IP GPRSACT", strlen("IP GPRSACT")) == 0) {
+    if (strncmp((char *) atline /*foundbuf*/, "IP GPRSACT", strlen("IP GPRSACT")) == 0) {
       printf("GPRS is active\n");
       PROCESS_EXIT();
     }
