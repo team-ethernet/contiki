@@ -122,24 +122,27 @@ PROCESS_THREAD(testapp, ev, data)
   PROCESS_WAIT_EVENT_UNTIL(ev == a6at_gprs_init);
   printf("Here is testapp proc again\n");
 
-  tcp_socket_gprs_register(&socket, NULL, inbuf, sizeof(inbuf), outbuf, sizeof(outbuf), tcp_gprs_input, tcp_gprs_event);
-again:
-  while (1) 
-    {
-      connstatus = -1;      
-      err = tcp_socket_gprs_connect_strhost(&socket, IPADDR, PORTNO);
-      PROCESS_YIELD_UNTIL(connstatus != -1);
-      if (connstatus == TCP_SOCKET_CONNECTED)
-        break;
-    }
-  printf("CONNECTED\n");
-  tcp_socket_gprs_send(&socket, (uint8_t *) "heja data", sizeof("heja data"));
-  PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_DATA_SENT);
-
-  tcp_socket_gprs_close(&socket);
-  PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_CLOSED || connstatus == TCP_SOCKET_TIMEDOUT);
-  etimer_set(&et, CLOCK_SECOND*30);
-  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-  goto again;
+  while (1) {
+    tcp_socket_gprs_register(&socket, NULL, inbuf, sizeof(inbuf), outbuf, sizeof(outbuf), tcp_gprs_input, tcp_gprs_event);
+    while (1) 
+      {
+        connstatus = -1;      
+        err = tcp_socket_gprs_connect_strhost(&socket, IPADDR, PORTNO);
+        PROCESS_YIELD_UNTIL(connstatus != -1);
+        if (connstatus == TCP_SOCKET_CONNECTED)
+          break;
+      }
+    printf("CONNECTED\n");
+    tcp_socket_gprs_send(&socket, (uint8_t *) "heja data", sizeof("heja data"));
+    PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_DATA_SENT || connstatus == TCP_SOCKET_CLOSED || connstatus == TCP_SOCKET_TIMEDOUT);
+    if (connstatus != TCP_SOCKET_DATA_SENT)
+      goto clear;
+    etimer_set(&et, CLOCK_SECOND*30);
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    tcp_socket_gprs_close(&socket);
+    PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_CLOSED || connstatus == TCP_SOCKET_TIMEDOUT);
+  clear:
+    tcp_socket_gprs_unregister(&socket);
+  }
   PROCESS_END();
 }

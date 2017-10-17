@@ -321,6 +321,8 @@ tcp_socket_gprs_connect(struct tcp_socket_gprs *s,
                    const uip_ipaddr_t *ipaddr,
                    uint16_t port)
 {
+  
+  return -1;  /* Not supported for hprs */
   /* Convert ipaddr to string and call tcp_socket_gprs_connect_strhost() */
   if(s == NULL) {
     return -1;
@@ -424,8 +426,14 @@ tcp_socket_gprs_unregister(struct tcp_socket_gprs *s)
   }
 
   tcp_socket_gprs_unlisten(s);
+  gprs_unregister(s);
+#if 0
   if(s->c != NULL) {
     tcp_attach(s->c, NULL);
+  }
+#endif
+  if (s->g_c != NULL) {
+    gprs_unregister(s->g_c);
   }
   list_remove(socketlist_gprs, s);
   return 1;

@@ -14,6 +14,7 @@ process_event_t a6at_gprs_activate;
 process_event_t a6at_gprs_connection;
 
 #define GPRS_MAX_SEND_LEN 1024
+#define GPRS_MAX_RECV_LEN 1024
 
 #define GPRS_MAX_APN_LEN 32
 
@@ -37,6 +38,7 @@ typedef int (* gprs_callback_t)(struct gprs_connection *, int);
 
 process_event_t sc16is_input_event;
 process_event_t at_match_event;
+process_event_t at_recv_event;
 
 process_event_t a6at_gprs_init;
 process_event_t a6at_gprs_activate;
