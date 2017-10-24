@@ -583,7 +583,9 @@ init_node_local_config()
   unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa }; /* Stadhus north side - has NO2 sensor */
   unsigned char n050f[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x05, 0x0f }; /* Stadhus south side - no NO2 sensor */
   unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 }; /* SLB station - has NO2 sensor */
+  unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 }; /* SLB station - has NO2 sensor */
   unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e }; /* RO test */
+  unsigned char n1242[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x12, 0x42 }; /* lab node */
 
   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
 
@@ -603,10 +605,21 @@ init_node_local_config()
     lc.no2_corr = 1600; /* Experiment with SLB Uppsala */
     lc.no2_rev = 1;
   }
+  else if(memcmp(node_mac, n8554, 8) == 0) {
+    lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
+    lc.cca_test = 1;
+    lc.no2_corr = 1; /* Experiment with SLB Uppsala */
+    lc.no2_rev = 1;
+  }
   else if(memcmp(node_mac, n837e, 8) == 0) {
     lc.dustbin = 0; /*  */
     lc.cca_test = 0;
     lc.no2_corr = 100; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n1242, 8) == 0) {
+    lc.dustbin = 1; /*  */
+    lc.cca_test = 0;
+    lc.no2_corr = 0; 
   }
   else {
     lc.dustbin = 0;
@@ -748,7 +761,7 @@ publish_sensors(void)
       PUTFMT(",{\"n\":\"pms5003;db;0_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_5));
       PUTFMT(",{\"n\":\"pms5003;db;1\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB1));
       PUTFMT(",{\"n\":\"pms5003;db;2_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB2_5));
-      PUTFMT(",{\"n\":\"pms5003;db:5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
+      PUTFMT(",{\"n\":\"pms5003;db;5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
       PUTFMT(",{\"n\":\"pms5003;db;10\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB10));
     }
 
