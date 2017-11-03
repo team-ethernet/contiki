@@ -663,7 +663,6 @@ PROCESS_THREAD(a6at, ev, data) {
   sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
   printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
   ATWAIT2(30, &wait_ok);
-  ATWAIT(CLOCK_SECOND*30, "OK");
   goto again;
   }
 
@@ -671,14 +670,14 @@ PROCESS_THREAD(a6at, ev, data) {
     printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
     sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
     printf("Sleeping... gpio == 0x%x\n", sc16is_gpio_get());
-    DELAY(5);ATWAIT(CLOCK_SECOND*5, "KOKO");
+    DELAY(5);
     sc16is_gpio_set((sc16is_gpio_get()&~G_RESET)|G_PWR_KEY|G_SLEEP); /* Toggle reset, power key on, no sleep */
     printf("Probing2... gpio == 0x%x\n", sc16is_gpio_get());
-    DELAY(5);ATWAIT(CLOCK_SECOND*5, "KOKO");
+    DELAY(5); 
     sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
     printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
-    ATSTR("AT\r"); ATWAIT(CLOCK_SECOND*10, "OK");
-    DELAY(5);    ATWAIT(CLOCK_SECOND*10, "KOOK");
+    ATSTR("AT\r");
+    DELAY(5);
   }
 
   /* Wait for registration status to become 1 (local registration)
@@ -689,10 +688,8 @@ PROCESS_THREAD(a6at, ev, data) {
     DELAY(2);
     ATSTR("AT+CIPSTATUS?\r");
     ATWAIT2(10, &wait_cipstatus);
-    ATWAIT(CLOCK_SECOND*10, "+CIPSTATUS:0,");
     ATSTR("AT+CREG?\r");
     ATWAIT2(10, &wait_creg);
-    ATWAIT(CLOCK_SECOND*10, "+CREG: 1,");
     if (at == NULL)
       continue;
     creg = atoi((char *) atline /*foundbuf*/);
@@ -715,32 +712,23 @@ PROCESS_THREAD(a6at, ev, data) {
       sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
       ATSTR(str);   
       ATWAIT2(20, &wait_ok);
-      ATWAIT(CLOCK_SECOND*20, "OK");
-
+      
       ATSTR("AT+CGATT=1\r"); ATWAIT2(5, &wait_ok);
-      ATWAIT(CLOCK_SECOND*5, "OK"); /* Service attach */
 
       ATSTR("AT+CIPMUX=0\r"); ATWAIT2(5, &wait_ok);
-      ATWAIT(CLOCK_SECOND*5, "OK"); /* Single IP connection */
 
       ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
-      ATWAIT(CLOCK_SECOND, "OK");
-  
+      
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
       ATSTR(str);        ATWAIT2(5, &wait_ok);
-      ATWAIT(CLOCK_SECOND*5, "OK");
       ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
-      ATWAIT(CLOCK_SECOND, "OK");
       ATSTR("AT+CGACT=1,1\r");       ATWAIT2(20, &wait_ok);
-      ATWAIT(CLOCK_SECOND*20, "OK"); /* Activate context */
 
       ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
-      ATWAIT(CLOCK_SECOND*2, "OK");
       
       while (1) {
         ATSTR("AT+CIPSTATUS?\r"); 
         ATWAIT2(60, &wait_cipstatus);
-        ATWAIT(CLOCK_SECOND*60, "+CIPSTATUS:0,");
         if (at == &wait_cipstatus) {
           if (strncmp((char *) atline /*foundbuf*/, "IP GPRSACT", strlen("IP GPRSACT")) == 0) {
             printf("GPRS is active\n");
@@ -752,7 +740,6 @@ PROCESS_THREAD(a6at, ev, data) {
         printf("GPRS not active\n");
         printf("Got gpio 0x%x\n", sc16is_gpio_get());
         ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
-        ATWAIT(CLOCK_SECOND*2, "OK");
       }
     } /* ev == a6at_gprs_activate */
     else if (ev == a6at_gprs_connection) {
@@ -762,14 +749,11 @@ PROCESS_THREAD(a6at, ev, data) {
       printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
 
       ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
-      ATWAIT(CLOCK_SECOND*2, "OK");
       ATSTR("AT+CIPSTATUS?\r");       ATWAIT2(2, &wait_ok);
-      ATWAIT(CLOCK_SECOND*2, "OK");
-
+      
       sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
       ATSTR(str);
       ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
-      ATWAIT(CLOCK_SECOND*60, "CONNECT OK", "CME ERROR", "COMMAND NO RESPONSE!");
       if (at == &wait_connectok) {
         call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
         goto nextcommand;
@@ -777,7 +761,6 @@ PROCESS_THREAD(a6at, ev, data) {
       else if (at == &wait_commandnoresponse) {
         /* Give it some more time. It happens that the connection succeeds after COMMAND NO RESPONSE! */
         ATWAIT2(15, &wait_connectok);
-        ATWAIT(CLOCK_SECOND*15, "CONNECT OK");
         if (at == &wait_connectok) {
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
@@ -788,10 +771,8 @@ PROCESS_THREAD(a6at, ev, data) {
         /* Timeout */
           ATSTR("AT+CIPCLOSE\r");
           ATWAIT2(5, &wait_ok);
-          ATWAIT(CLOCK_SECOND*5, "OK");
           ATSTR("AT+CIPSHUT\r");
           ATWAIT2(5, &wait_ok);
-          ATWAIT(CLOCK_SECOND*5, "OK");
           call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
           goto nextcommand;
       }        
@@ -801,11 +782,8 @@ PROCESS_THREAD(a6at, ev, data) {
         /* After CME ERROR:53, seen CIPSTATUS stuck at IP START */
         printf("CIPSTART failed\n");
         ATSTR("AT+CREG?\r");           ATWAIT2(2, &wait_ok);
-        ATWAIT(CLOCK_SECOND*2, "OK");    
         ATSTR("AT+CIPCLOSE\r");            ATWAIT2(5, &wait_ok);
-        ATWAIT(CLOCK_SECOND*5, "OK");
         ATSTR("AT+CIPSHUT\r");            ATWAIT2(5, &wait_ok);
-        ATWAIT(CLOCK_SECOND*5, "OK");
         goto try;
       }
 
@@ -824,7 +802,6 @@ PROCESS_THREAD(a6at, ev, data) {
         sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
         ATWAIT2(2, &wait_sendprompt);
-        ATWAIT(CLOCK_SECOND*5, ">");
         if (at == NULL) {
           printf("NO SENDPROMPT\n");
           goto failed;
@@ -849,7 +826,6 @@ PROCESS_THREAD(a6at, ev, data) {
           goto failed;
         }        
 
-        ATWAIT(CLOCK_SECOND*10, "OK");
         if (remain > len) {
           memcpy(&socket->output_data_ptr[0],
                  &socket->output_data_ptr[len],
@@ -866,7 +842,6 @@ PROCESS_THREAD(a6at, ev, data) {
 
       ATSTR("AT+CIPCLOSE\r");
       ATWAIT2(15, &wait_ok);
-      ATWAIT(CLOCK_SECOND*15, "OK");
       if (at == &wait_ok) {
         call_event(socket, TCP_SOCKET_CLOSED);
       }
@@ -879,10 +854,8 @@ PROCESS_THREAD(a6at, ev, data) {
     /* Timeout */
     ATSTR("AT+CIPCLOSE\r");
     ATWAIT2(5, &wait_ok);
-    ATWAIT(CLOCK_SECOND*5, "OK");
     ATSTR("AT+CIPSHUT\r");
     ATWAIT2(5, &wait_ok);
-    ATWAIT(CLOCK_SECOND*5, "OK");
     call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
   }
   PROCESS_END();
