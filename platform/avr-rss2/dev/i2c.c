@@ -236,5 +236,10 @@ i2c_probe(void)
     probed |= I2C_PMS5003;
     print_delim(p++, "PMS5003", del);
   }
+  if(!i2c_start(I2C_SC16IS_ADDR)) {
+    i2c_stop();
+    probed |= I2C_SC16IS;
+    print_delim(p++, "SC16IS", del);    
+  }
   return probed;
 }
