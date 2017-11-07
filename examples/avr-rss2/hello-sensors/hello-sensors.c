@@ -49,7 +49,7 @@
 #include "dev/temp_mcu-sensor.h"
 #include "dev/light-sensor.h"
 #include "dev/pulse-sensor.h"
-#include "dev/bme280/bme280-sensor.h"
+#include "dev/bme680/bme680-sensor.h"
 #include "dev/co2_sa_kxx-sensor.h"
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_sensors_process, "Hello sensor process");
@@ -86,18 +86,18 @@ read_values(void)
 
   if( i2c_probed & I2C_BME280 ) {
 #if STD_API
-    printf(" BME280_TEMP=%-d", bme280_sensor.value(BME280_SENSOR_TEMP));
-    printf(" BME280_RH=%-d", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
-    printf(" BME280_P=%-d", bme280_sensor.value(BME280_SENSOR_PRESSURE));
+    printf(" BME680_TEMP=%-d", bme680_sensor.value(BME680_SENSOR_TEMP));
+    printf(" BME680_RH=%-d", bme680_sensor.value(BME680_SENSOR_HUMIDITY));
+    printf(" BME680_P=%-d", bme680_sensor.value(BME680_SENSOR_PRESSURE));
 #else 
     /* Trigger burst read */
-    bme280_sensor.value(BME280_SENSOR_TEMP);
-    printf(" T_BME280=%5.2f", (double)bme280_mea.t_overscale100 / 100.);
-    printf(" RH_BME280=%5.2f", (double)bme280_mea.h_overscale1024 / 1024.);
-#ifdef BME280_64BIT
-    printf(" P_BME280=%5.2f", (double)bme280_mea.p_overscale256 / 256.);
+    bme680_sensor.value(BME680_SENSOR_TEMP);
+    printf(" T_BME680=%5.2f", (double)bme680_mea.t_overscale100 / 100.);
+    printf(" RH_BME680=%5.2f", (double)bme680_mea.h_overscale1024 / 1024.);
+#ifdef BME680_64BIT
+    printf(" P_BME680=%5.2f", (double)bme680_mea.p_overscale256/100.);
 #else
-    printf(" P_BME280=%5.2f", (double)bme280_mea.p);
+    printf(" P_BME680=%5.2f", (double)bme680_mea.p);
 #endif
 #endif
   }
@@ -116,7 +116,7 @@ PROCESS_THREAD(hello_sensors_process, ev, data)
   SENSORS_ACTIVATE(pulse_sensor);
 
   if( i2c_probed & I2C_BME280 ) {
-    SENSORS_ACTIVATE(bme280_sensor);
+    SENSORS_ACTIVATE(bme680_sensor);
   }
 
   if( i2c_probed & I2C_CO2SA ) {
