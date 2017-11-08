@@ -43,6 +43,7 @@
 #include "bme680.h"
 #include "bme680-arch.h"
 #include "lib/sensors.h"
+#include <stdio.h>
 
 static struct {
   uint16_t t1;
@@ -67,7 +68,30 @@ static struct {
   int8_t h7;
   int32_t t_fine;
   uint8_t mode;
+  int8_t gh1;
+  int16_t gh2;
+  int8_t gh3;
+
+  uint8_t res_heat_range;
+  /*! Variable to store heater resistance value */
+  int8_t res_heat_val;
+  /*! Variable to store error range */
+  int8_t range_sw_err;
+
+  /*! Ambient temperature in Degree C*/
+  int8_t amb_temp; //BETTER PLACE
+
 } cal;
+
+uint32_t lookupTable1[16] = { 
+  2147483647, 2147483647, 2147483647, 2147483647, 2147483647, 
+  2126008810, 2147483647, 2130303777, 2147483647, 2147483647, 
+  2143188679, 2136746228, 2147483647, 2126008810, 2147483647, 2147483647 };
+/**Look up table for the possible gas range values */
+uint32_t lookupTable2[16] = { 
+  4096000000ul, 2048000000, 1024000000, 512000000, 255744255, 
+  127110228,    64000000,   32258064, 16016016,    8000000,  
+    4000000,     2000000,    1000000,   500000,     250000, 125000 };
 
 static 
 int32_t calc_t(uint32_t temp_adc)
@@ -86,9 +110,6 @@ int32_t calc_t(uint32_t temp_adc)
   return temp;
 }
 
-/*!
- * @brief This internal API is used to calculate the pressure value.
- */
 static uint32_t calc_p(uint32_t pres_adc)
 {
   int64_t var1, var2, var3;
@@ -142,6 +163,63 @@ uint32_t calc_h(uint16_t hum_adc)
   
   return (uint32_t) calc_hum;
 }
+
+static uint32_t calc_gas_res(uint16_t gas_res_adc, uint8_t gas_range)
+{
+  int64_t var1;
+  uint64_t var2;
+  int64_t var3;
+  uint32_t calc_gas_res;
+
+  var1 = (int64_t) ((1340 + (5 * (int64_t) cal.range_sw_err)) * ((int64_t) lookupTable1[gas_range])) / 65536;
+  var2 = (((int64_t) ((int64_t) gas_res_adc * 32768) - (int64_t) (16777216)) + var1);
+  var3 = (((int64_t) lookupTable2[gas_range] * (int64_t) var1) / 512);
+  calc_gas_res = (uint32_t) ((var3 + ((int64_t) var2 / 2)) / (int64_t) var2);
+
+  return calc_gas_res;
+}
+static uint8_t calc_heater_res(uint16_t temp)
+{
+  uint8_t heatr_res;
+  int32_t var1, var2, var3, var4, var5;
+  int32_t heatr_res_x100;
+
+  if (temp < 200) /* Cap temperature */
+    temp = 200;
+  else if (temp > 400)
+    temp = 400;
+
+  var1 = (((int32_t) cal.amb_temp * cal.gh3) / 1000) * 256;
+  var2 = (cal.gh1 + 784) * (((((cal.gh2 + 154009) * temp * 5) / 100) + 3276800) / 10);
+  var3 = var1 + (var2 / 2);
+  var4 = (var3 / (cal.res_heat_range + 4));
+  var5 = (131 * cal.res_heat_val) + 65536;
+  heatr_res_x100 = (int32_t) (((var4 / var5) - 250) * 34);
+  heatr_res = (uint8_t) ((heatr_res_x100 + 50) / 100);
+
+  return heatr_res;
+}
+
+
+/*   calculate the Heat duration value. */
+static uint8_t calc_heater_dur(uint16_t dur)
+{
+  uint8_t factor = 0;
+  uint8_t durval;
+
+  if (dur >= 0xfc0) {
+    durval = 0xff; /* Max duration*/
+  } else {
+    while (dur > 0x3F) {
+      dur = dur / 4;
+      factor += 1;
+    }
+    durval = (uint8_t) (dur + (factor * 64));
+  }
+
+  return durval;
+}
+
 
 uint8_t buf[BME680_COEFF_ADDR1_LEN+BME680_COEFF_ADDR2_LEN];
 
@@ -199,12 +277,21 @@ bme680_init(void)
   cal.h6 = (uint8_t) buf[BME680_H6_REG];
   cal.h7 = (int8_t) buf[BME680_H7_REG];
 
+  /* Heater coeff */
+  cal.gh1 = (int8_t) buf[BME680_GH1_REG];
+  cal.gh2 = (int16_t) buf[BME680_GH2_MSB_REG]<<8 | buf[BME680_GH2_LSB_REG];
+  cal.gh3 = (int8_t) buf[BME680_GH3_REG];
+
+
   return 1;
 }
 void
 bme680_read(void)
 {
-  uint32_t ut, uh, up;
+  uint32_t ut, up;
+  uint16_t uh, adc_gas_res;
+  uint8_t gas_range;
+
   uint8_t sleep;
   uint16_t i;
   memset(buf, 0, sizeof(buf));
@@ -220,11 +307,9 @@ bme680_read(void)
   // GAS heater off 
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00);
 
-  /*  00100110  0x26 oversampling *1 for t and p  plus forced mode */
-  /* Trigger measurement needed for every time in forced mode */
-  //bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x26);
-  // Temp and P oversampling * 1 + FORCE MODE
+  // 00100101 Temp and P oversampling * 1 + FORCE MODE
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x25);
+
   /* Wait to get into sleep mode == measurement done */
   for(i = 0; i < BME280_MAX_WAIT; i++) {
     bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
@@ -250,13 +335,15 @@ bme680_read(void)
   up = (uint32_t) (((uint32_t) buf[2] * 4096) | ((uint32_t) buf[3] * 16) | ((uint32_t) buf[4] / 16));
   ut = (uint32_t) (((uint32_t) buf[5] * 4096) | ((uint32_t) buf[6] * 16) | ((uint32_t) buf[7] / 16));
   uh = (uint16_t) (((uint32_t) buf[8] * 256) | (uint32_t) buf[9]);
-  //adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
-  //gas_range = buf[14] & BME680_GAS_RANGE_MSK;
+  adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
+  gas_range = buf[14] & BME680_GAS_RANGE_MSK;
 
   bme680_mea.t_overscale100 = calc_t(ut);
   bme680_mea.h_overscale1024 = calc_h(uh);
   //bme680_mea.p_overscale256 = calc_p(up);
   bme680_mea.p = calc_p(up);
+
+  printf("GAS=%lu\n", calc_gas_res(adc_gas_res, gas_range));
 
 #if TEST
   printf("T_BME680=%5.2f", (double)bme680_mea.t_overscale100 / 100.);

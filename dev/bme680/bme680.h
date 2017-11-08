@@ -63,6 +63,9 @@ void bme680_read(void);
 #define BME680_FIELD0_ADDR		0x1d
 #define BME680_RES_HEAT0_ADDR		0x5a
 #define BME680_GAS_WAIT0_ADDR		0x64
+
+#define BME680_GAS_RANGE_MSK	        0x0f
+
 #define BME680_CONF_HEAT_CTRL_ADDR		0x70
 #define BME680_CONF_ODR_RUN_GAS_NBC_ADDR	0x71
 #define BME680_CONF_OS_H_ADDR			0x72
