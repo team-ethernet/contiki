@@ -84,15 +84,12 @@ void bme680_read(void);
 #define BME680_CNTL_HUM                 0x72
 #define BME680_GAS_1                    0x71
 #define BME680_GAS_0                    0x70
-#define BME680_GAS_WAIT_X               0x6D
-#define BME680_GAS_WAIT_Y               0x64
-
-#define BME680_RES_HEAT_X               0x63
-#define BME680_RES_HEAT_Y               0x5A
-
-#define BME680_IDAC_HEAT_X              0x59
-#define BME680_IDAC_HEAT_Y              0x50
-
+#define BME680_GAS_WAIT_9               0x6D
+#define BME680_GAS_WAIT_0               0x64
+#define BME680_RES_HEAT_9               0x63
+#define BME680_RES_HEAT_0               0x5A
+#define BME680_IDAC_HEAT_9              0x59
+#define BME680_IDAC_HEAT_0              0x50
 #define BME680_R_LSB                    0x2B
 #define BME680_R_MSB                    0x2A
 
@@ -158,6 +155,9 @@ void bme680_read(void);
 #define BME680_GH3_REG		(38)
 
 #define BME280_MAX_WAIT                300 /* ms. Forced mode max wait */
+
+#define BME680_RSERROR_MSK	0xf0
+#define BME680_RHRANGE_MSK	0x30
 
 struct {
   int32_t t_overscale100;

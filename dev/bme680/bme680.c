@@ -227,6 +227,7 @@ uint8_t
 bme680_init(void)
 {
   uint16_t i;
+  uint8_t tmp;
 
   /* Do not mess with other chips */
   bme680_arch_i2c_read_mem(BME680_ADDR, 0xD0, buf, 1);
@@ -282,6 +283,12 @@ bme680_init(void)
   cal.gh2 = (int16_t) buf[BME680_GH2_MSB_REG]<<8 | buf[BME680_GH2_LSB_REG];
   cal.gh3 = (int8_t) buf[BME680_GH3_REG];
 
+  bme680_arch_i2c_read_mem(BME680_ADDR, BME680_ADDR_RES_HEAT_RANGE_ADDR, &tmp, 1);
+  cal.res_heat_range = ( tmp & BME680_RHRANGE_MSK) / 16;
+  bme680_arch_i2c_read_mem(BME680_ADDR, BME680_ADDR_RES_HEAT_VAL_ADDR, &tmp, 1);
+  cal.res_heat_val = tmp;
+  bme680_arch_i2c_read_mem(BME680_ADDR, BME680_ADDR_RANGE_SW_ERR_ADDR, &tmp, 1);
+  cal.range_sw_err = ( tmp & BME680_RSERROR_MSK) / 16;
 
   return 1;
 }
@@ -291,12 +298,18 @@ bme680_read(void)
   uint32_t ut, up;
   uint16_t uh, adc_gas_res;
   uint8_t gas_range;
+  
+  uint16_t l1, l2;
+
+  uint8_t ght, ghd;
 
   uint8_t sleep;
   uint16_t i;
   memset(buf, 0, sizeof(buf));
 
   ut = uh = up = 0;
+  l1 = l2 = 0;
+
   /* Humidity oversampling *1 */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, 0x01);
   
@@ -305,13 +318,30 @@ bme680_read(void)
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, 0x00); // KOLLA
   
   // GAS heater off 
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00);
+  //bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x04);
 
   // 00100101 Temp and P oversampling * 1 + FORCE MODE
+  // bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x25);
+
+  ght = calc_heater_res(320);
+  ghd = calc_heater_dur(100);
+  printf("gdt=%d, ghd=%d\n", ght, ghd);
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_WAIT_0, ghd);
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_RES_HEAT_0, ght);
+  // Select the heater  0 above start 0x10
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_1, 0x10);
+
+  /* Gas measurements */
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00);
+
+
+  /* Start gas measuement */
+  //bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x1);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x25);
 
   /* Wait to get into sleep mode == measurement done */
   for(i = 0; i < BME280_MAX_WAIT; i++) {
+    l1++;
     bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
     sleep = sleep& 0x10; // BIT 5
     if(sleep == 0) {
@@ -321,7 +351,7 @@ bme680_read(void)
     }
   }
   if(i == BME280_MAX_WAIT) {
-    printf("MAX--WAIT\n");
+    printf("TPH MAX--WAIT\n");
     return; /* error  wait*/
   }
 
@@ -331,19 +361,41 @@ bme680_read(void)
   //data->gas_index = buff[0] & BME680_GAS_INDEX_MSK;
   //data->meas_index = buff[1];
 
+  /* Set sleep mode */
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x0);
+
   /* read the raw data from the sensor */
   up = (uint32_t) (((uint32_t) buf[2] * 4096) | ((uint32_t) buf[3] * 16) | ((uint32_t) buf[4] / 16));
   ut = (uint32_t) (((uint32_t) buf[5] * 4096) | ((uint32_t) buf[6] * 16) | ((uint32_t) buf[7] / 16));
   uh = (uint16_t) (((uint32_t) buf[8] * 256) | (uint32_t) buf[9]);
+  bme680_mea.t_overscale100 = calc_t(ut);
+  bme680_mea.h_overscale1024 = calc_h(uh);
+  bme680_mea.p = calc_p(up);
+
+
+#if 0
+  for(i = 0; i < BME280_MAX_WAIT; i++) {
+    l2++;
+    bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
+    sleep = sleep& 0x20; // BIT 6
+    if(sleep == 0) {
+      break;
+    } else {
+      clock_delay_usec(1000);
+    }
+  }
+  if(i == BME280_MAX_WAIT) {
+    printf("GAS MAX--WAIT\n");
+    return; /* error  wait*/
+  }
+#endif
+
+
   adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
 
-  bme680_mea.t_overscale100 = calc_t(ut);
-  bme680_mea.h_overscale1024 = calc_h(uh);
-  //bme680_mea.p_overscale256 = calc_p(up);
-  bme680_mea.p = calc_p(up);
 
-  printf("GAS=%lu\n", calc_gas_res(adc_gas_res, gas_range));
+  printf("GAS=%lu %u %lu l1=%d, l2=%d\n", adc_gas_res, gas_range, calc_gas_res(adc_gas_res, gas_range), l1, l2);
 
 #if TEST
   printf("T_BME680=%5.2f", (double)bme680_mea.t_overscale100 / 100.);
