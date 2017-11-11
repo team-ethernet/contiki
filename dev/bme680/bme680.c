@@ -299,7 +299,7 @@ bme680_read(void)
   uint16_t uh, adc_gas_res;
   uint8_t gas_range;
   
-  uint16_t l1, l2;
+  uint16_t l1;
 
   uint8_t ght, ghd;
 
@@ -308,46 +308,38 @@ bme680_read(void)
   memset(buf, 0, sizeof(buf));
 
   ut = uh = up = 0;
-  l1 = l2 = 0;
-
-  /* Humidity oversampling *1 */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, 0x01);
+  l1 = 0;
   
-  /*  00100111  0x27 oversampling *1 for t and p plus normal mode */
   /* 0.5 ms -- no filter -- no SPI */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, 0x00); // KOLLA
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, 0x00); 
   
   // GAS heater off 
   //bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x04);
 
-  // 00100101 Temp and P oversampling * 1 + FORCE MODE
-  // bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x25);
-
-  ght = calc_heater_res(320);
+  //ght = calc_heater_res(320);
+  ght = calc_heater_res(300);
   ghd = calc_heater_dur(100);
-  printf("gdt=%d, ghd=%d\n", ght, ghd);
+  printf("gdt=%d, ghd=%d", ght, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_WAIT_0, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_RES_HEAT_0, ght);
-  // Select the heater  0 above start 0x10
+  // Select the heater  0 above start 0x10 run_gas
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_1, 0x10);
 
-  /* Gas measurements */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00);
+  /* Gas  heater off  */
+  // bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00);
 
-
-  /* Start gas measuement */
-  //bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x1);
+  /* Humidity oversampling *1 */
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, 0x01);
+  /* 00100101 Temp and P oversampling * 1 + Trigger FORCE MODE */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x25);
 
   /* Wait to get into sleep mode == measurement done */
   for(i = 0; i < BME280_MAX_WAIT; i++) {
-    l1++;
     bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
-    sleep = sleep& 0x10; // BIT 5
-    if(sleep == 0) {
+    if(sleep & 0x80) { /* New data */
       break;
     } else {
-      clock_delay_usec(1000);
+      clock_delay_usec(1000); // 1 mS
     }
   }
   if(i == BME280_MAX_WAIT) {
@@ -355,11 +347,19 @@ bme680_read(void)
     return; /* error  wait*/
   }
 
-  /* Burst read of all measurements */
+  l1 = i;
+
+  /* Burst read of measurements */
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_FIELD0_ADDR , buf, BME680_FIELD_LENGTH);
-  //data->status = buff[0] & BME680_NEW_DATA_MSK;
-  //data->gas_index = buff[0] & BME680_GAS_INDEX_MSK;
-  //data->meas_index = buff[1];
+  //cal.status = buff[0] & BME680_NEW_DATA_MSK;
+  //cal.gas_index = buff[0] & BME680_GAS_INDEX_MSK;
+  //cal.>meas_index = buff[1];
+
+  if( buf[14] & BME680_GASM_VALID_MSK)
+    printf(" GAS-OK ");
+  if( buf[14] & BME680_HEAT_STAB_MSK)
+    printf(" HEAT-OK ");
+  printf(" GAS-IDX=%x ", sleep & 0x0f);
 
   /* Set sleep mode */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x0);
@@ -371,39 +371,15 @@ bme680_read(void)
   bme680_mea.t_overscale100 = calc_t(ut);
   bme680_mea.h_overscale1024 = calc_h(uh);
   bme680_mea.p = calc_p(up);
-
-
-#if 0
-  for(i = 0; i < BME280_MAX_WAIT; i++) {
-    l2++;
-    bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
-    sleep = sleep& 0x20; // BIT 6
-    if(sleep == 0) {
-      break;
-    } else {
-      clock_delay_usec(1000);
-    }
-  }
-  if(i == BME280_MAX_WAIT) {
-    printf("GAS MAX--WAIT\n");
-    return; /* error  wait*/
-  }
-#endif
-
-
   adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
+  bme680_mea.g = calc_gas_res(adc_gas_res, gas_range);
 
+  printf(" GS %d %d %u l1=%u", buf[14] , BME680_GAS_RANGE_MSK, gas_range, l1);
 
-  printf("GAS=%lu %u %lu l1=%d, l2=%d\n", adc_gas_res, gas_range, calc_gas_res(adc_gas_res, gas_range), l1, l2);
+  // Set to sleep 
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x0);
 
-#if TEST
-  printf("T_BME680=%5.2f", (double)bme680_mea.t_overscale100 / 100.);
-  printf(" RH_BME680=%5.2f ", (double)bme680_mea.h_overscale1024 / 1024.);
-#ifdef BME680_64BIT
-  printf(" P_BME680=%5.2f\n", (double)bme680_mea.p_overscale256 / 256.);
-#else
-  printf(" P_BME680=%5.2f\n", (double)bme680_mea.p);
-#endif
-#endif
+  printf(" gas=%u %u adc=%u l1=%u ", bme680_mea.g, gas_range, adc_gas_res, l1);
+
 }

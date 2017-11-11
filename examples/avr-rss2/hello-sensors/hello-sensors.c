@@ -63,7 +63,7 @@ read_values(void)
   char serial[16];
 
   int i;
- 
+#if 0 
  /* Read out mote unique 128 bit ID */
   i2c_at24mac_read((char *) &serial, 0);
   printf("128_bit_ID=");
@@ -83,7 +83,7 @@ read_values(void)
   if( i2c_probed & I2C_CO2SA ) {
     printf(" CO2=%-d", co2_sa_kxx_sensor.value( CO2_SA_KXX_CO2));
   }
-
+#endif
   if( i2c_probed & I2C_BME280 ) {
 #if STD_API
     printf(" BME680_TEMP=%-d", bme680_sensor.value(BME680_SENSOR_TEMP));

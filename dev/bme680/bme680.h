@@ -158,6 +158,9 @@ void bme680_read(void);
 
 #define BME680_RSERROR_MSK	0xf0
 #define BME680_RHRANGE_MSK	0x30
+#define BME680_GASM_VALID_MSK	0x20
+#define BME680_HEAT_STAB_MSK	0x10
+
 
 struct {
   int32_t t_overscale100;
@@ -167,6 +170,7 @@ struct {
 #else
   uint32_t p;
 #endif
+  uint16_t g;
 } bme680_mea;
 
 #endif /* BME680_H */
