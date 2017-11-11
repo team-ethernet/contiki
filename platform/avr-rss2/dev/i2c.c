@@ -230,6 +230,11 @@ i2c_probe(void)
     probed |= I2C_BME280;
     print_delim(p++, "BME280", del);
   }
+  if(!i2c_start(I2C_BME680_ADDR)) {
+    i2c_stop();
+    probed |= I2C_BME680;
+    print_delim(p++, "BME680", del);
+  }
   watchdog_periodic();
   if(!i2c_start(I2C_PMS5003_ADDR)) {
     i2c_stop();

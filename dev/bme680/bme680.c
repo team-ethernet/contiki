@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson
+ * Copyright (c) 2017, Copyright Robert Olsson
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,7 +30,7 @@
  *
  *
  * Author  : Robert Olsson rolss@kth.se/robert@radio-sensors.com
- * Created : 2016-09-14
+ * Created : 2017-11-10
  */
 
 /**
@@ -71,17 +71,12 @@ static struct {
   int8_t gh1;
   int16_t gh2;
   int8_t gh3;
-
   uint8_t res_heat_range;
-  /*! Variable to store heater resistance value */
   int8_t res_heat_val;
-  /*! Variable to store error range */
   int8_t range_sw_err;
-
-  /*! Ambient temperature in Degree C*/
-  int8_t amb_temp; //BETTER PLACE
-
 } cal;
+
+uint8_t buf[BME680_COEFF_ADDR1_LEN+BME680_COEFF_ADDR2_LEN];
 
 uint32_t lookupTable1[16] = { 
   2147483647, 2147483647, 2147483647, 2147483647, 2147483647, 
@@ -93,116 +88,118 @@ uint32_t lookupTable2[16] = {
   127110228,    64000000,   32258064, 16016016,    8000000,  
     4000000,     2000000,    1000000,   500000,     250000, 125000 };
 
-static 
-int32_t calc_t(uint32_t temp_adc)
+static int32_t 
+calc_t(uint32_t temp_adc)
 {
-  int64_t var1, var2, var3;
+  int64_t v1, v2, v3;
   int32_t temp;
   
-  var1 = ((int32_t) temp_adc / 8) - ((int32_t) cal.t1 * 2);
-  var2 = (var1 * (int32_t) cal.t2) / 2048;
-  var3 = ((var1 / 2) * (var1 / 2)) / 4096;
-  var3 = ((var3) * ((int32_t) cal.t3 * 16)) / 16384;
-  cal.t_fine = (int32_t) (var2 + var3);
-  //temp = (int32_t) (var2 + var3);
+  v1 = ((int32_t) temp_adc / 8) - ((int32_t) cal.t1 * 2);
+  v2 = (v1 * (int32_t) cal.t2) / 2048;
+  v3 = ((v1 / 2) * (v1 / 2)) / 4096;
+  v3 = ((v3) * ((int32_t) cal.t3 * 16)) / 16384;
+  cal.t_fine = (int32_t) (v2 + v3);
+  //temp = (int32_t) (v2 + v3);
   temp = (int16_t) (((cal.t_fine * 5) + 128) / 256);
-  
   return temp;
 }
 
-static uint32_t calc_p(uint32_t pres_adc)
+static uint32_t 
+calc_p(uint32_t pres_adc)
 {
-  int64_t var1, var2, var3;
+  int64_t v1, v2, v3;
   int32_t calc_pres;
 	
-  var1 = (((int32_t) cal.t_fine) / 2) - 64000;
-  var2 = ((var1 / 4) * (var1 / 4)) / 2048;
-  var2 = ((var2) * (int32_t) cal.p6) / 4;
-  var2 = var2 + ((var1 * (int32_t) cal.p5) * 2);
-  var2 = (var2 / 4) + ((int32_t) cal.p4 * 65536);
-  var1 = ((var1 / 4) * (var1 / 4)) / 8192;
-  var1 = (((var1) * ((int32_t) cal.p3 * 32)) / 8) + (((int32_t) cal.p2 * var1) / 2);
-  var1 = var1 / 262144;
-  var1 = ((32768 + var1) * (int32_t) cal.p1) / 32768;
+  v1 = (((int32_t) cal.t_fine) / 2) - 64000;
+  v2 = ((v1 / 4) * (v1 / 4)) / 2048;
+  v2 = ((v2) * (int32_t) cal.p6) / 4;
+  v2 = v2 + ((v1 * (int32_t) cal.p5) * 2);
+  v2 = (v2 / 4) + ((int32_t) cal.p4 * 65536);
+  v1 = ((v1 / 4) * (v1 / 4)) / 8192;
+  v1 = (((v1) * ((int32_t) cal.p3 * 32)) / 8) + (((int32_t) cal.p2 * v1) / 2);
+  v1 = v1 / 262144;
+  v1 = ((32768 + v1) * (int32_t) cal.p1) / 32768;
   calc_pres = (int32_t) (1048576 - pres_adc);
-  calc_pres = (int32_t) ((calc_pres - (var2 / 4096)) * (3125));
-  calc_pres = ((calc_pres / var1) * 2);
-  var1 = ((int32_t) cal.p9 * (int32_t) (((calc_pres / 8) * (calc_pres / 8)) / 8192)) / 4096;
-  var2 = ((int32_t) (calc_pres / 4) * (int32_t) cal.p8) / 8192;
-  var3 = ((int32_t) (calc_pres / 256) * (int32_t) (calc_pres / 256) * (int32_t) (calc_pres / 256)
+  calc_pres = (int32_t) ((calc_pres - (v2 / 4096)) * (3125));
+  calc_pres = ((calc_pres / v1) * 2);
+  v1 = ((int32_t) cal.p9 * (int32_t) (((calc_pres / 8) * (calc_pres / 8)) / 8192)) / 4096;
+  v2 = ((int32_t) (calc_pres / 4) * (int32_t) cal.p8) / 8192;
+  v3 = ((int32_t) (calc_pres / 256) * (int32_t) (calc_pres / 256) * (int32_t) (calc_pres / 256)
 	  * (int32_t) cal.p10) / 131072;
-  calc_pres = (int32_t) (calc_pres) + ((var1 + var2 + var3 + ((int32_t) cal.p7 * 128)) / 16);
+  calc_pres = (int32_t) (calc_pres) + ((v1 + v2 + v3 + ((int32_t) cal.p7 * 128)) / 16);
   
   return (uint32_t) calc_pres;
 }
 
-static 
-uint32_t calc_h(uint16_t hum_adc)
+static uint32_t 
+calc_h(uint16_t hum_adc)
 {
-  int32_t var1, var2, var3, var4, var5, var6;
+  int32_t v1, v2, v3, v4, v5, v6;
   int32_t temp_scaled, calc_hum;
 	
   temp_scaled = (((int32_t) cal.t_fine * 5) + 128) / 256;
-  var1 = (int32_t) (hum_adc - ((int32_t) ((int32_t) cal.h1 * 16)))
+  v1 = (int32_t) (hum_adc - ((int32_t) ((int32_t) cal.h1 * 16)))
     - (((temp_scaled * (int32_t) cal.h3) / ((int32_t) 100)) / 2);
-  var2 = ((int32_t) cal.h2
+  v2 = ((int32_t) cal.h2
 	  * (((temp_scaled * (int32_t) cal.h4) / ((int32_t) 100))
 	     + (((temp_scaled * ((temp_scaled * (int32_t) cal.h5) / ((int32_t) 100))) / 64)
 		/ ((int32_t) 100)) + (int32_t) (1 * 16384))) / 1024;
-  var3 = var1 * var2;
-  var4 = (int32_t) cal.h6 * 128;
-  var4 = ((var4) + ((temp_scaled * (int32_t) cal.h7) / ((int32_t) 100))) / 16;
-  var5 = ((var3 / 16384) * (var3 / 16384)) / 1024;
-  var6 = (var4 * var5) / 2;
-  calc_hum = (((var3 + var6) / 1024) * ((int32_t) 1000)) / 4096;
+  v3 = v1 * v2;
+  v4 = (int32_t) cal.h6 * 128;
+  v4 = ((v4) + ((temp_scaled * (int32_t) cal.h7) / ((int32_t) 100))) / 16;
+  v5 = ((v3 / 16384) * (v3 / 16384)) / 1024;
+  v6 = (v4 * v5) / 2;
+  calc_hum = (((v3 + v6) / 1024) * ((int32_t) 1000)) / 4096;
   
   if (calc_hum > 100000) /* Cap at 100%rH */
     calc_hum = 100000;
   else if (calc_hum < 0)
     calc_hum = 0;
-  
   return (uint32_t) calc_hum;
 }
 
 static uint32_t calc_gas_res(uint16_t gas_res_adc, uint8_t gas_range)
 {
-  int64_t var1;
-  uint64_t var2;
-  int64_t var3;
+  int64_t v1;
+  uint64_t v2;
+  int64_t v3;
   uint32_t calc_gas_res;
 
-  var1 = (int64_t) ((1340 + (5 * (int64_t) cal.range_sw_err)) * ((int64_t) lookupTable1[gas_range])) / 65536;
-  var2 = (((int64_t) ((int64_t) gas_res_adc * 32768) - (int64_t) (16777216)) + var1);
-  var3 = (((int64_t) lookupTable2[gas_range] * (int64_t) var1) / 512);
-  calc_gas_res = (uint32_t) ((var3 + ((int64_t) var2 / 2)) / (int64_t) var2);
-
+  v1 = (int64_t) ((1340 + (5 * (int64_t) cal.range_sw_err)) * ((int64_t) lookupTable1[gas_range])) / 65536;
+  v2 = (((int64_t) ((int64_t) gas_res_adc * 32768) - (int64_t) (16777216)) + v1);
+  v3 = (((int64_t) lookupTable2[gas_range] * (int64_t) v1) / 512);
+  calc_gas_res = (uint32_t) ((v3 + ((int64_t) v2 / 2)) / (int64_t) v2);
   return calc_gas_res;
 }
-static uint8_t calc_heater_res(uint16_t temp)
+
+static uint8_t 
+calc_heater_res(uint16_t temp)
 {
   uint8_t heatr_res;
-  int32_t var1, var2, var3, var4, var5;
+  int32_t v1, v2, v3, v4, v5;
   int32_t heatr_res_x100;
+  int8_t atemp;  /* For heater calc */
 
-  if (temp < 200) /* Cap temperature */
+  if (temp < 200) /* Cal temperature */
     temp = 200;
   else if (temp > 400)
     temp = 400;
 
-  var1 = (((int32_t) cal.amb_temp * cal.gh3) / 1000) * 256;
-  var2 = (cal.gh1 + 784) * (((((cal.gh2 + 154009) * temp * 5) / 100) + 3276800) / 10);
-  var3 = var1 + (var2 / 2);
-  var4 = (var3 / (cal.res_heat_range + 4));
-  var5 = (131 * cal.res_heat_val) + 65536;
-  heatr_res_x100 = (int32_t) (((var4 / var5) - 250) * 34);
+  /* Ambient temperature in degree C */
+  atemp = bme680_mea.t_overscale100/100;
+  v1 = (((int32_t) atemp * cal.gh3) / 1000) * 256;
+  v2 = (cal.gh1 + 784) * (((((cal.gh2 + 154009) * temp * 5) / 100) + 3276800) / 10);
+  v3 = v1 + (v2 / 2);
+  v4 = (v3 / (cal.res_heat_range + 4));
+  v5 = (131 * cal.res_heat_val) + 65536;
+  heatr_res_x100 = (int32_t) (((v4 / v5) - 250) * 34);
   heatr_res = (uint8_t) ((heatr_res_x100 + 50) / 100);
-
   return heatr_res;
 }
 
-
 /*   calculate the Heat duration value. */
-static uint8_t calc_heater_dur(uint16_t dur)
+static uint8_t 
+calc_heater_dur(uint16_t dur)
 {
   uint8_t factor = 0;
   uint8_t durval;
@@ -216,12 +213,8 @@ static uint8_t calc_heater_dur(uint16_t dur)
     }
     durval = (uint8_t) (dur + (factor * 64));
   }
-
   return durval;
 }
-
-
-uint8_t buf[BME680_COEFF_ADDR1_LEN+BME680_COEFF_ADDR2_LEN];
 
 uint8_t
 bme680_init(void)
@@ -231,7 +224,6 @@ bme680_init(void)
 
   /* Do not mess with other chips */
   bme680_arch_i2c_read_mem(BME680_ADDR, 0xD0, buf, 1);
-
   if(buf[0] != BME680_CHIP_ID) {
     return 0;
   }
@@ -289,20 +281,17 @@ bme680_init(void)
   cal.res_heat_val = tmp;
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_ADDR_RANGE_SW_ERR_ADDR, &tmp, 1);
   cal.range_sw_err = ( tmp & BME680_RSERROR_MSK) / 16;
-
   return 1;
 }
+
 void
 bme680_read(void)
 {
   uint32_t ut, up;
   uint16_t uh, adc_gas_res;
   uint8_t gas_range;
-  
   uint16_t l1;
-
   uint8_t ght, ghd;
-
   uint8_t sleep;
   uint16_t i;
   memset(buf, 0, sizeof(buf));
@@ -319,7 +308,7 @@ bme680_read(void)
   //ght = calc_heater_res(320);
   ght = calc_heater_res(300);
   ghd = calc_heater_dur(100);
-  printf("gdt=%d, ghd=%d", ght, ghd);
+  printf("gdt=0x%02x, ghd=0x%02x", ght, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_WAIT_0, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_RES_HEAT_0, ght);
   // Select the heater  0 above start 0x10 run_gas
@@ -375,11 +364,11 @@ bme680_read(void)
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
   bme680_mea.g = calc_gas_res(adc_gas_res, gas_range);
 
-  printf(" GS %d %d %u l1=%u", buf[14] , BME680_GAS_RANGE_MSK, gas_range, l1);
+  printf(" GAS %d %d l1=%u", buf[14] , BME680_GAS_RANGE_MSK, l1);
 
-  // Set to sleep 
+  /* Set to sleep */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, 0x0);
 
-  printf(" gas=%u %u adc=%u l1=%u ", bme680_mea.g, gas_range, adc_gas_res, l1);
-
+  printf(" gas_range=%u adc_gas_res=%u l1=%u ", gas_range, adc_gas_res, l1);
+  return;
 }

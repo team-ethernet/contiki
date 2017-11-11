@@ -161,7 +161,6 @@ void bme680_read(void);
 #define BME680_GASM_VALID_MSK	0x20
 #define BME680_HEAT_STAB_MSK	0x10
 
-
 struct {
   int32_t t_overscale100;
   uint32_t h_overscale1024;
