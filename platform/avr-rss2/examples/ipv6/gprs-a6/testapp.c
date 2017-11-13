@@ -58,8 +58,8 @@ AUTOSTART_PROCESSES(&testapp);
 
 //#define APN "online.telia.se"
 #define APN "4g.tele2.se"
-#define PDPTYPE "IP"
 #define IPADDR  "192.16.125.232"
+//#define IPADDR  "2001:6b0:32:13:4d6b:73cf:d936:2bfe"
 #define PORTNO 9999
 
 struct etimer et;
