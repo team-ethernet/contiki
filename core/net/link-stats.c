@@ -135,11 +135,6 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   uint16_t packet_etx;
   uint8_t ewma_alpha;
 
-  if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
-    /* Do not penalize the ETX when collisions or transmission errors occur. */
-    return;
-  }
-
   stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
     /* Add the neighbor */
@@ -151,9 +146,22 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     }
   }
 
+  /* Update total count of TX packets, and total TX send+resend attempts */
+  stats->tx_tot_cnt++;
+  stats->tx_num_sum += numtx;
+
+  if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
+    /* Do not penalize the ETX when collisions or transmission errors occur. */
+    return;
+  }
+
   /* Update last timestamp and freshness */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
+
+  /* Update successful TX count */
+  if (status == MAC_TX_OK)
+      stats->tx_ok_cnt++;
 
   /* ETX used for this update */
   packet_etx = ((status == MAC_TX_NOACK) ? ETX_NOACK_PENALTY : numtx) * ETX_DIVISOR;
