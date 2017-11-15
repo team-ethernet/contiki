@@ -44,6 +44,7 @@
 #include "adc.h"
 #include "i2c.h"
 #include "dev/leds.h"
+#include "dev/bme680/bme680.h"
 #include "dev/bme680/bme680-sensor.h"
 /*---------------------------------------------------------------------------*/
 PROCESS(bme680_test_process, "BME680 test process");
@@ -61,7 +62,7 @@ read_values(void)
     printf(" T=%5.2f", (double)bme680_mea.t_overscale100 / 100.);
     printf(" RH=%5.2f", (double)bme680_mea.h_overscale1024 / 1024.);
     printf(" P=%5.2f", (double)bme680_mea.p);
-    printf(" G=%u", (uint16_t) bme680_mea.g);
+    printf(" G=%lu", bme680_mea.g);
   }
 
   printf("\n");

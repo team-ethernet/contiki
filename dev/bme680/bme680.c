@@ -78,18 +78,6 @@ static struct {
 
 uint8_t buf[BME680_COEFF_ADDR1_LEN + BME680_COEFF_ADDR2_LEN];
 
-uint32_t lookupTable1[16] = {
-  2147483647ul, 2147483647ul, 2147483647ul, 2147483647ul, 2147483647ul,
-  2126008810ul, 2147483647ul, 2130303777ul, 2147483647ul, 2147483647ul,
-  2143188679ul, 2136746228ul, 2147483647ul, 2126008810ul, 2147483647ul, 2147483647ul
-};
-/**Look up table for the possible gas range values */
-uint32_t lookupTable2[16] = {
-  4096000000ul, 2048000000ul, 1024000000ul, 512000000ul, 255744255ul,
-  127110228ul, 64000000ul, 32258064ul, 16016016ul, 8000000ul,
-  4000000ul, 2000000ul, 1000000ul, 500000ul, 250000ul, 125000ul
-};
-
 static int32_t
 calc_t(uint32_t temp_adc)
 {
@@ -164,13 +152,26 @@ calc_gas_res(uint16_t gas_res_adc, uint8_t gas_range)
   int64_t v1;
   uint64_t v2;
   int64_t v3;
-  uint32_t calc_gas_res;
+  uint32_t gas_res;
+
+  uint32_t const lookupTable1[16] = {
+    2147483647ul, 2147483647ul, 2147483647ul, 2147483647ul, 2147483647ul,
+    2126008810ul, 2147483647ul, 2130303777ul, 2147483647ul, 2147483647ul,
+    2143188679ul, 2136746228ul, 2147483647ul, 2126008810ul, 2147483647ul, 2147483647ul
+  };
+
+  /**Look up table for the possible gas range values */
+  uint32_t const lookupTable2[16] = {
+    4096000000ul, 2048000000ul, 1024000000ul, 512000000ul, 255744255ul,
+    127110228ul, 64000000ul, 32258064ul, 16016016ul, 8000000ul,
+    4000000ul, 2000000ul, 1000000ul, 500000ul, 250000ul, 125000ul
+  };
 
   v1 = (int64_t)((1340 + (5 * (int64_t)cal.range_sw_err)) * ((int64_t)lookupTable1[gas_range])) / 65536;
   v2 = (((int64_t)((int64_t)gas_res_adc * 32768) - (int64_t)(16777216)) + v1);
   v3 = (((int64_t)lookupTable2[gas_range] * (int64_t)v1) / 512);
-  calc_gas_res = (uint32_t)((v3 + ((int64_t)v2 / 2)) / (int64_t)v2);
-  return calc_gas_res;
+  gas_res = (uint32_t)((v3 + ((int64_t)v2 / 2)) / (int64_t)v2);
+  return gas_res;
 }
 double const t1[16] = {
   1., 1., 1., 1., 1., 0.99, 1., 0.992,
@@ -258,6 +259,14 @@ bme680_init(void)
   bme680_arch_i2c_init();
   memset(buf, 0, sizeof(buf));
 
+  /* Default init */
+  bme680_mea.os_temp = BME680_OS_4X;
+  bme680_mea.os_pres = BME680_OS_4X;
+  bme680_mea.os_hum =  BME680_OS_4X;
+  bme680_mea.filter =  BME680_FILTER_SIZE_0;
+  bme680_mea.heater_temp = 320; /* Celsius */
+  bme680_mea.heater_dur = 150;  /* ms */
+
   /* Burst read of all calibration part 1 */
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_COEFF_ADDR1, buf, BME680_COEFF_ADDR1_LEN);
   /* Burst read of all calibration part 2 */
@@ -321,18 +330,14 @@ bme680_read(void)
   ut = uh = up = 0;
 
   /* 0.5 ms -- no filter -- no SPI */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, 0x00);
-
-  bme680_mea.osrs_t = 1;
-  bme680_mea.osrs_p = 5; /* 16 ggr * / */
-  bme680_mea.osrs_h = 1;
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, bme680_mea.filter<<2);
 
   /* GAS heater off */
   /* bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x04); */
 
   /* ght = calc_heater_res(320); */
-  ght = calc_heater_res(300);
-  ghd = calc_heater_dur(100);
+  ght = calc_heater_res(bme680_mea.heater_temp); 
+  ghd = calc_heater_dur(bme680_mea.heater_dur);
   /* printf("gdt=0x%02x, ghd=0x%02x", ght, ghd); */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_WAIT_0, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_RES_HEAT_0, ght);
@@ -343,11 +348,11 @@ bme680_read(void)
   /* bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00); */
 
   /* Humidity oversampling SPI int off */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, bme680_mea.osrs_h);
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, bme680_mea.os_hum);
 
   /* 00100101 Temp and P oversampling * 1 + Trigger FORCE MODE */
 
-  reg = (bme680_mea.osrs_p << 5) | (bme680_mea.osrs_t << 2) | 0x01;
+  reg = (bme680_mea.os_pres << 5) | (bme680_mea.os_temp << 2) | 0x01;
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, reg);
 
   /* Wait to get into sleep mode == measurement done */
@@ -380,7 +385,7 @@ bme680_read(void)
   /* printf(" GAS-IDX=%x ", sleep & 0x0f); */
 
   /* Set sleep mode */
-  reg = (bme680_mea.osrs_p << 5) | (bme680_mea.osrs_t << 2) | 0x00;
+  reg = (bme680_mea.os_pres << 5) | (bme680_mea.os_temp << 2) | 0x00;
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, reg);
 
   /* read the raw data from the sensor */
@@ -391,13 +396,12 @@ bme680_read(void)
   bme680_mea.h_overscale1024 = calc_h(uh);
   bme680_mea.p = calc_p(up);
   adc_gas_res = ((uint16_t)buf[13] << 2) | (((uint16_t)buf[14]) / 64);
+  //adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
 
   bme680_mea.g = calc_gas_res(adc_gas_res, gas_range);
-  bme680_mea.gd = calc_gas_res_d(adc_gas_res, gas_range);
-
   /* printf(" GAS %d %d l1=%u", buf[14] , BME680_GAS_RANGE_MSK, l1); */
-  /* Set to sleep */
   printf(" sw_err=%d gas_range=%u adc_gas_res=%u  ", cal.range_sw_err, gas_range, adc_gas_res);
+    //printf(" %d %u %u %u %u %u\n", cal.range_sw_err, gas_range, adc_gas_res, bme680_mea.heater_temp, i, bme680_mea.g);
   return;
 }

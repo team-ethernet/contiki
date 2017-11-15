@@ -161,6 +161,24 @@ void bme680_read(void);
 #define BME680_GASM_VALID_MSK 0x20
 #define BME680_HEAT_STAB_MSK  0x10
 
+/** Over-sampling settings */
+#define BME680_OS_NONE		0
+#define BME680_OS_1X		1
+#define BME680_OS_2X		2
+#define BME680_OS_4X		3
+#define BME680_OS_8X		4
+#define BME680_OS_16X		5
+
+/** IIR filter settings */
+#define BME680_FILTER_SIZE_0	0
+#define BME680_FILTER_SIZE_1	1
+#define BME680_FILTER_SIZE_3	2
+#define BME680_FILTER_SIZE_7	3
+#define BME680_FILTER_SIZE_15	4
+#define BME680_FILTER_SIZE_31	5
+#define BME680_FILTER_SIZE_63	6
+#define BME680_FILTER_SIZE_127	7
+
 struct {
   int32_t t_overscale100;
   uint32_t h_overscale1024;
@@ -169,34 +187,17 @@ struct {
 #else
   uint32_t p;
 #endif
-  uint16_t g;
-  double gd;
+  int16_t heater_temp; /* Celsius */
+  int16_t heater_dur;  /* ms */
 
-  /* Oversampling t h p
-     000 Skipped  out 0x8000
-     001 overs*1
-     010 overs*2
-     011 overs*4
-     100 overs*8
-     101 overs*16
-   */
+  uint32_t g;
+  //double gd;
 
-  uint8_t osrs_t;
-  uint8_t osrs_h;
-  uint8_t osrs_p;
+  uint8_t os_temp;
+  uint8_t os_hum;
+  uint8_t os_pres;
 
-  /* Filter
-     000 0
-     001 1
-     010 3
-     011 7
-     100 15
-     101 31
-     110 63
-     111 127
-   */
-
-  uint8_t ir_filter; /* 3bit, 0-7 Corresponds 0 - 127  fot temp and P */
+  uint8_t filter; /* 3bit, 0-7 Corresponds 0 - 127  fot temp and P */
 } bme680_mea;
 
 #endif /* BME680_H */
