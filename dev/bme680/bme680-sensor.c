@@ -48,17 +48,17 @@ value(int type)
   switch(type) {
 
   case BME680_SENSOR_TEMP:
-    return bme680_mea.t_overscale100 / 100;
+    return bme680.temp / 100;
 
   case BME680_SENSOR_HUMIDITY:
-    return bme680_mea.h_overscale1024 >> 10;
+    return bme680.hum >> 10;
 
   case BME680_SENSOR_PRESSURE:
     /* Scale down w. 10 not to overslow the signed int */
 #ifdef BME680_64BIT
-    return bme680_mea.p_overscale256 / (256 * 10);
+    return bme680.pres / (256 * 10);
 #else
-    return bme680_mea.p / 10;
+    return bme680.pres / 10;
 #endif
   }
   return 0;

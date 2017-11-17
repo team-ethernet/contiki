@@ -180,24 +180,21 @@ void bme680_read(void);
 #define BME680_FILTER_SIZE_127	7
 
 struct {
-  int32_t t_overscale100;
-  uint32_t h_overscale1024;
-#ifdef BME680_64BIT
-  uint32_t p_overscale256;
-#else
-  uint32_t p;
-#endif
-  int16_t heater_temp; /* Celsius */
-  int16_t heater_dur;  /* ms */
+  int32_t temp;
+  uint32_t hum;
+  uint32_t pres;
 
-  uint32_t g;
-  //double gd;
+  struct {
+    uint32_t res; /* Ohm */
+    uint32_t iaq; /* Indoor Air Qualty Index */
+    int16_t heater_temp; /* Celsius */
+    int16_t heater_dur;  /* ms */
+  } gas;
 
   uint8_t os_temp;
   uint8_t os_hum;
   uint8_t os_pres;
-
   uint8_t filter; /* 3bit, 0-7 Corresponds 0 - 127  fot temp and P */
-} bme680_mea;
+} bme680;
 
 #endif /* BME680_H */

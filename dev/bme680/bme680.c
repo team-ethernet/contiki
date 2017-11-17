@@ -35,7 +35,62 @@
 
 /**
  * \file
- *        Basic functions for Bosch BME680 based on datasheet Rev 1.0
+ *        
+ 
+ Basic functions for Bosch BME680 based on datasheet Rev 1.0
+ The written documentation are lacking information about the chip 
+ and si referring to driver. 
+
+ The Contiki driver implements Forced mode and I2C according to
+ same API as BMI280. The Contiki I2C platform remapping was
+ developed by Anation Lignan/Zolertio & Robert Olsson KTH/Radio
+ Sensors AB.
+
+ The original Bosch driver copyright:
+
+ This work is based on Bosch driver that is a part of the BME680
+ documentation. 
+
+ * Copyright (C) 2017 - 2018 Bosch Sensortec GmbH
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ *
+ * Neither the name of the copyright holder nor the names of the
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDER
+ * OR CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ * OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ *
+ * The information provided is believed to be accurate and reliable.
+ * The copyright holder assumes no responsibility
+ * for the consequences of use
+ * of such information nor for any infringement of patents or
+ * other rights of third parties which may result from its use.
+ * No license is granted by implication or otherwise under any patent or
+ * patent rights of the copyright holder.
+
  */
 
 #include "contiki.h"
@@ -210,7 +265,7 @@ calc_heater_res(uint16_t temp)
   }
 
   /* Ambient temperature in degree C */
-  atemp = bme680_mea.t_overscale100 / 100;
+  atemp = bme680.temp / 100;
   v1 = (((int32_t)atemp * cal.gh3) / 1000) * 256;
   v2 = (cal.gh1 + 784) * (((((cal.gh2 + 154009) * temp * 5) / 100) + 3276800) / 10);
   v3 = v1 + (v2 / 2);
@@ -260,12 +315,12 @@ bme680_init(void)
   memset(buf, 0, sizeof(buf));
 
   /* Default init */
-  bme680_mea.os_temp = BME680_OS_4X;
-  bme680_mea.os_pres = BME680_OS_4X;
-  bme680_mea.os_hum =  BME680_OS_4X;
-  bme680_mea.filter =  BME680_FILTER_SIZE_0;
-  bme680_mea.heater_temp = 320; /* Celsius */
-  bme680_mea.heater_dur = 150;  /* ms */
+  bme680.os_temp = BME680_OS_4X;
+  bme680.os_pres = BME680_OS_4X;
+  bme680.os_hum =  BME680_OS_4X;
+  bme680.filter =  BME680_FILTER_SIZE_0;
+  bme680.gas.heater_temp = 320; /* Celsius */
+  bme680.gas.heater_dur = 150;  /* ms */
 
   /* Burst read of all calibration part 1 */
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_COEFF_ADDR1, buf, BME680_COEFF_ADDR1_LEN);
@@ -322,7 +377,7 @@ bme680_read(void)
   uint16_t uh, adc_gas_res;
   uint8_t gas_range;
   uint8_t ght, ghd;
-  uint8_t sleep, reg;
+  uint8_t status, reg;
   uint16_t i;
 
   memset(buf, 0, sizeof(buf));
@@ -330,35 +385,29 @@ bme680_read(void)
   ut = uh = up = 0;
 
   /* 0.5 ms -- no filter -- no SPI */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, bme680_mea.filter<<2);
-
-  /* GAS heater off */
-  /* bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x04); */
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CONFIG, bme680.filter<<2);
 
   /* ght = calc_heater_res(320); */
-  ght = calc_heater_res(bme680_mea.heater_temp); 
-  ghd = calc_heater_dur(bme680_mea.heater_dur);
+  ght = calc_heater_res(bme680.gas.heater_temp); 
+  ghd = calc_heater_dur(bme680.gas.heater_dur);
   /* printf("gdt=0x%02x, ghd=0x%02x", ght, ghd); */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_WAIT_0, ghd);
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_RES_HEAT_0, ght);
   /* Select the heater  0 above start 0x10 run_gas */
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_1, 0x10);
 
-  /* Gas  heater off  */
-  /* bme680_arch_i2c_write_mem(BME680_ADDR, BME680_GAS_0, 0x00); */
-
   /* Humidity oversampling SPI int off */
-  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, bme680_mea.os_hum);
+  bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_HUM, bme680.os_hum);
 
   /* 00100101 Temp and P oversampling * 1 + Trigger FORCE MODE */
 
-  reg = (bme680_mea.os_pres << 5) | (bme680_mea.os_temp << 2) | 0x01;
+  reg = (bme680.os_pres << 5) | (bme680.os_temp << 2) | 0x01;
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, reg);
 
-  /* Wait to get into sleep mode == measurement done */
+  /* Wait to get into status mode == measurement done */
   for(i = 0; i < BME280_MAX_WAIT; i++) {
-    bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &sleep, 1);
-    if(sleep& 0x80) {  /* New data */
+    bme680_arch_i2c_read_mem(BME680_ADDR, BME680_MEAS_STATUS_0, &status, 1);
+    if(status& 0x80) {  /* New data */
       break;
     } else {
       clock_delay_usec(1000); /* 1 mS */
@@ -369,7 +418,7 @@ bme680_read(void)
     return; /* error  wait*/
   }
 
-  /* Burst read of measurements */
+  /* Burst read the measurements */
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_FIELD0_ADDR, buf, BME680_FIELD_LENGTH);
   /* cal.status = buff[0] & BME680_NEW_DATA_MSK; */
   /* cal.gas_index = buff[0] & BME680_GAS_INDEX_MSK; */
@@ -382,26 +431,25 @@ bme680_read(void)
     printf(" HEAT-ERR ");
   }
 
-  /* printf(" GAS-IDX=%x ", sleep & 0x0f); */
+  /* printf(" GAS-IDX=%x ", status & 0x0f); */
 
   /* Set sleep mode */
-  reg = (bme680_mea.os_pres << 5) | (bme680_mea.os_temp << 2) | 0x00;
+  reg = (bme680.os_pres << 5) | (bme680.os_temp << 2) | 0x00;
   bme680_arch_i2c_write_mem(BME680_ADDR, BME680_CNTL_MEAS, reg);
 
   /* read the raw data from the sensor */
   up = (uint32_t)(((uint32_t)buf[2] * 4096) | ((uint32_t)buf[3] * 16) | ((uint32_t)buf[4] / 16));
   ut = (uint32_t)(((uint32_t)buf[5] * 4096) | ((uint32_t)buf[6] * 16) | ((uint32_t)buf[7] / 16));
   uh = (uint16_t)(((uint32_t)buf[8] * 256) | (uint32_t)buf[9]);
-  bme680_mea.t_overscale100 = calc_t(ut);
-  bme680_mea.h_overscale1024 = calc_h(uh);
-  bme680_mea.p = calc_p(up);
+  bme680.temp = calc_t(ut);
+  bme680.hum = calc_h(uh);
+  bme680.pres = calc_p(up);
   adc_gas_res = ((uint16_t)buf[13] << 2) | (((uint16_t)buf[14]) / 64);
-  //adc_gas_res = (uint16_t) ((uint32_t) buf[13] * 4 | (((uint32_t) buf[14]) / 64));
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
 
-  bme680_mea.g = calc_gas_res(adc_gas_res, gas_range);
+  bme680.gas.res = calc_gas_res(adc_gas_res, gas_range);
   /* printf(" GAS %d %d l1=%u", buf[14] , BME680_GAS_RANGE_MSK, l1); */
   printf(" sw_err=%d gas_range=%u adc_gas_res=%u  ", cal.range_sw_err, gas_range, adc_gas_res);
-    //printf(" %d %u %u %u %u %u\n", cal.range_sw_err, gas_range, adc_gas_res, bme680_mea.heater_temp, i, bme680_mea.g);
+    //printf(" %d %u %u %u %u %u\n", cal.range_sw_err, gas_range, adc_gas_res, bme680.gas.heater_temp, i, bme680_mea.g);
   return;
 }

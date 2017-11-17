@@ -59,10 +59,10 @@ read_values(void)
   if( i2c_probed & I2C_BME280 ) {
 
     bme680_sensor.value(BME680_SENSOR_TEMP);
-    printf(" T=%5.2f", (double)bme680_mea.t_overscale100 / 100.);
-    printf(" RH=%5.2f", (double)bme680_mea.h_overscale1024 / 1024.);
-    printf(" P=%5.2f", (double)bme680_mea.p);
-    printf(" G=%lu", bme680_mea.g);
+    printf(" T=%5.2f", (double)bme680.temp / 100.);
+    printf(" RH=%5.2f", (double)bme680.hum / 1024.);
+    printf(" P=%5.2f", (double)bme680.pres);
+    printf(" G=%lu", bme680.gas.res);
   }
 
   printf("\n");
