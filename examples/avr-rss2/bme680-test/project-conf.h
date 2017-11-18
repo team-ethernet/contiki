@@ -42,10 +42,15 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
-/* #define BME280_32BIT */
-
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
 
+/* Default setting for BME680 */
+#define BME680_CONF_TEMP_OVERSCALE  BME680_OS_4X
+#define BME680_CONF_HUM_OVERSCALE  BME680_OS_2X
+#define BME680_CONF_PRES_OVERSCALE  BME680_OS_4X
+#define BME680_CONF_FILTER  BME680_FILTER_SIZE_0
+#define BME680_CONF_HEATER_TEMP  300 /* Celsius */
+#define BME680_CONF_HEATER_DUR  100  /* ms */
 
 #endif /* PROJECT_CONF_H_ */

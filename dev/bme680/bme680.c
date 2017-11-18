@@ -250,6 +250,12 @@ calc_gas_res_d(uint16_t gas_r, uint8_t gas_range)
   }
   return calc_gas_res;
 }
+static int16_t
+calc_gas_iaq(uint16_t gas_res, uint16_t temp, uint32_t hum)
+{
+  /* Not yet implemented due to lacking documentaion */
+  return  -1;
+}
 static uint8_t
 calc_heater_res(uint16_t temp)
 {
@@ -314,13 +320,12 @@ bme680_init(void)
   bme680_arch_i2c_init();
   memset(buf, 0, sizeof(buf));
 
-  /* Default init */
-  bme680.os_temp = BME680_OS_4X;
-  bme680.os_pres = BME680_OS_4X;
-  bme680.os_hum =  BME680_OS_4X;
-  bme680.filter =  BME680_FILTER_SIZE_0;
-  bme680.gas.heater_temp = 320; /* Celsius */
-  bme680.gas.heater_dur = 150;  /* ms */
+  bme680.os_temp = BME680_TEMP_OVERSCALE;
+  bme680.os_pres = BME680_PRES_OVERSCALE;
+  bme680.os_hum =  BME680_HUM_OVERSCALE;
+  bme680.filter =  BME680_FILTER;
+  bme680.gas.heater_temp = BME680_HEATER_TEMP; 
+  bme680.gas.heater_dur = BME680_HEATER_DUR; 
 
   /* Burst read of all calibration part 1 */
   bme680_arch_i2c_read_mem(BME680_ADDR, BME680_COEFF_ADDR1, buf, BME680_COEFF_ADDR1_LEN);
@@ -446,8 +451,8 @@ bme680_read(void)
   bme680.pres = calc_p(up);
   adc_gas_res = ((uint16_t)buf[13] << 2) | (((uint16_t)buf[14]) / 64);
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
-
   bme680.gas.res = calc_gas_res(adc_gas_res, gas_range);
+  bme680.gas.iaq = calc_gas_iaq(bme680.gas.res, bme680.gas.heater_temp, bme680.hum);
   /* printf(" GAS %d %d l1=%u", buf[14] , BME680_GAS_RANGE_MSK, l1); */
   printf(" sw_err=%d gas_range=%u adc_gas_res=%u  ", cal.range_sw_err, gas_range, adc_gas_res);
     //printf(" %d %u %u %u %u %u\n", cal.range_sw_err, gas_range, adc_gas_res, bme680.gas.heater_temp, i, bme680_mea.g);
