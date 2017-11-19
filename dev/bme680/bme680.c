@@ -228,28 +228,6 @@ calc_gas_res(uint16_t gas_res_adc, uint8_t gas_range)
   gas_res = (uint32_t)((v3 + ((int64_t)v2 / 2)) / (int64_t)v2);
   return gas_res;
 }
-double const t1[16] = {
-  1., 1., 1., 1., 1., 0.99, 1., 0.992,
-  1., 1., 0.998, 0.995, 1., 0.99, 1., 1.
-};
-
-double const t2[16] = {
-  8000000., 4000000., 2000000., 1000000., 499500.4995, 248262.1648, 125000, 63004.03226, 31281.28128,
-  15625., 7812.5, 3906.25, 1953.125, 976.5625, 488.28125, 244.140625
-};
-
-static double
-calc_gas_res_d(uint16_t gas_r, uint8_t gas_range)
-{
-  double v1, v2, calc_gas_res = 0;
-
-  v1 = (double)(1340. + (5.0 * (double)cal.range_sw_err)) * (double)t1[gas_range];
-  v2 = (double)(gas_r - 512.0 + v1);
-  if(v2) {
-    calc_gas_res = (double)(v1 * (double)t2[gas_range]) / (double)v2;
-  }
-  return calc_gas_res;
-}
 static int16_t
 calc_gas_iaq(uint16_t gas_res, uint16_t temp, uint32_t hum)
 {
