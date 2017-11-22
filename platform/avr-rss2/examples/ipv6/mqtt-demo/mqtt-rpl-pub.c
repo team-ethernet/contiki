@@ -85,7 +85,7 @@ mqtt_rpl_pub(char *buf, int bufsize)  {
     
     PUTFMT("{\"prn\":");
     PUTIPADDR(rpl_get_parent_ipaddr(p));
-    PUTFMT(",\"rank\":%u, \"of:link_metric\":%u, \"of:rank_via\":%u, \"fresh\":%u, \"status\":\"%c%c\", \"last_tx (min)\":%u, \"tx_tot_cnt\":%lu, \"tx_ok_cnt\":%lu, \"tx_num_sum\":%lu",
+    PUTFMT(",\"rank\":%u, \"of:link_metric\":%u, \"of:rank_via\":%u, \"fresh\":%u, \"status\":\"%c%c\", \"last_tx (min)\":%u, \"tx_tot_cnt\":%lu, \"tx_ok_cnt\":%lu, \"tx_num_sum\":%lu, \"tx_collision\":%lu, \"tx_deferred\":%lu, \"tx_error\":%lu",
 	   p->rank,
 	   rpl_get_parent_link_metric(p),
 	   rpl_rank_via_parent(p),
@@ -95,7 +95,10 @@ mqtt_rpl_pub(char *buf, int bufsize)  {
 	   (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND)),
 	   (stats != NULL) ? stats->tx_tot_cnt : 0,
 	   (stats != NULL) ? stats->tx_ok_cnt : 0,
-	   (stats != NULL) ? stats->tx_num_sum : 0
+	   (stats != NULL) ? stats->tx_num_sum : 0,
+	   (stats != NULL) ? stats->tx_collision : 0,
+	   (stats != NULL) ? stats->tx_deferred : 0,
+	   (stats != NULL) ? stats->tx_error : 0
 	   );
     PUTFMT("}");	   
     p = nbr_table_next(rpl_parents, p);

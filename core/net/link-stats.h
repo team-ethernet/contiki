@@ -51,6 +51,9 @@ struct link_stats {
   uint32_t tx_tot_cnt;	      /* Count of total TX packets */
   uint32_t tx_ok_cnt;	      /* Count of successfully TX:ed packets */
   uint32_t tx_num_sum;	      /* Sum of all TX send+resend attempts */
+  uint32_t tx_collision;      /* Counf of MAC_TX_COLLISION */
+  uint32_t tx_deferred;       /* Counf of MAC_TX_DEFERRED */
+  uint32_t tx_error;          /* Counf of TX error */
 };
 
 /* Returns the neighbor's link statistics */

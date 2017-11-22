@@ -152,6 +152,12 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 
   if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
     /* Do not penalize the ETX when collisions or transmission errors occur. */
+    if(status == MAC_TX_COLLISION)
+	stats->tx_collision++;
+    if(status == MAC_TX_DEFERRED)
+	stats->tx_deferred++;
+    if(status == MAC_TX_ERR || status == MAC_TX_ERR_FATAL)
+	stats->tx_error++;
     return;
   }
 
