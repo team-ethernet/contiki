@@ -85,14 +85,17 @@ mqtt_rpl_pub(char *buf, int bufsize)  {
     
     PUTFMT("{\"prn\":");
     PUTIPADDR(rpl_get_parent_ipaddr(p));
-    PUTFMT(",\"rank\":%u, \"of:link_metric\":%u, \"of:rank_via\":%u, \"fresh\":%u, \"status\":\"%c%c\", \"last_tx (min)\":%u",
+    PUTFMT(",\"rank\":%u, \"of:link_metric\":%u, \"of:rank_via\":%u, \"fresh\":%u, \"status\":\"%c%c\", \"last_tx (min)\":%u, \"tx_tot_cnt\":%lu, \"tx_ok_cnt\":%lu, \"tx_num_sum\":%lu",
 	   p->rank,
 	   rpl_get_parent_link_metric(p),
 	   rpl_rank_via_parent(p),
 	   stats != NULL ? stats->freshness : 0,
 	   link_stats_is_fresh(stats) ? 'f' : ' ',
 	   p == default_instance->current_dag->preferred_parent ? 'p' : ' ',
-	   (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND))
+	   (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND)),
+	   (stats != NULL) ? stats->tx_tot_cnt : 0,
+	   (stats != NULL) ? stats->tx_ok_cnt : 0,
+	   (stats != NULL) ? stats->tx_num_sum : 0
 	   );
     PUTFMT("}");	   
     p = nbr_table_next(rpl_parents, p);
