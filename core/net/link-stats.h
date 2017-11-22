@@ -48,6 +48,9 @@ struct link_stats {
   int16_t rssi;               /* RSSI (received signal strength) */
   uint8_t freshness;          /* Freshness of the statistics */
   clock_time_t last_tx_time;  /* Last Tx timestamp */
+  uint32_t tx_tot_cnt;	      /* Count of total TX packets */
+  uint32_t tx_ok_cnt;	      /* Count of successfully TX:ed packets */
+  uint32_t tx_num_sum;	      /* Sum of all TX send+resend attempts */
 };
 
 /* Returns the neighbor's link statistics */
