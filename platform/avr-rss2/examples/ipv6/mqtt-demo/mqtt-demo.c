@@ -767,7 +767,7 @@ publish_sensors(void)
 
   }
   if( i2c_probed & I2C_BME280 ) {
-    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
+    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_TEMP)/10, bme280_sensor.value(BME280_SENSOR_TEMP)%10);
     PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
     PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_PRESSURE)/10,
 	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);

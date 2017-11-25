@@ -48,7 +48,7 @@ value(int type)
   switch(type) {
 
   case BME280_SENSOR_TEMP:
-    return bme280_mea.t_overscale100 / 100;
+    return bme280_mea.t_overscale100 / 10;
 
   case BME280_SENSOR_HUMIDITY:
     return bme280_mea.h_overscale1024 >> 10;
