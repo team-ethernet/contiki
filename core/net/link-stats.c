@@ -153,11 +153,11 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
     /* Do not penalize the ETX when collisions or transmission errors occur. */
     if(status == MAC_TX_COLLISION)
-	stats->tx_collision++;
+      stats->tx_collision++;
     if(status == MAC_TX_DEFERRED)
-	stats->tx_deferred++;
+      stats->tx_deferred++;
     if(status == MAC_TX_ERR || status == MAC_TX_ERR_FATAL)
-	stats->tx_error++;
+      stats->tx_error++;
     return;
   }
 
@@ -185,6 +185,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
 {
   struct link_stats *stats;
   int16_t packet_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
+  int16_t packet_lqi = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
 
   stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
@@ -194,6 +195,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
       /* Initialize */
       stats->rssi = packet_rssi;
       stats->etx = LINK_STATS_INIT_ETX(stats);
+      stats->lqi = packet_lqi;
     }
     return;
   }
@@ -201,6 +203,9 @@ link_stats_input_callback(const linkaddr_t *lladdr)
   /* Update RSSI EWMA */
   stats->rssi = ((int32_t)stats->rssi * (EWMA_SCALE - EWMA_ALPHA) +
       (int32_t)packet_rssi * EWMA_ALPHA) / EWMA_SCALE;
+  /* Update LQI EWMA */
+  stats->lqi = ((int32_t)stats->lqi * (EWMA_SCALE - EWMA_ALPHA) +
+      (int32_t)packet_lqi * EWMA_ALPHA) / EWMA_SCALE;
 }
 /*---------------------------------------------------------------------------*/
 /* Periodic timer called every FRESHNESS_HALF_LIFE minutes */
