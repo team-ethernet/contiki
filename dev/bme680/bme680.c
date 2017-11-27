@@ -229,10 +229,29 @@ calc_gas_res(uint16_t gas_res_adc, uint8_t gas_range)
   return gas_res;
 }
 static int16_t
-calc_gas_iaq(uint16_t gas_res, uint16_t temp, uint32_t hum)
+calc_gas_iaq(uint32_t gas_res)
 {
+  double lo, hi, rk, iaq;
+  
+  rk = gas_res;
+  lo = 50000;
+  hi = 500000;
+
+#if 0  
+  if( rk > hi) 
+    return AQ_GOOD;
+  if( rk < lo) 
+    return AQ_HAZARDOUS;
+#endif
+
+  iaq = 1 - rk/(hi - lo);
+  
+  printf("iaq=%5.0f iaq=%5.2f ", iaq*500, iaq);
+
+  iaq *= 500;
+
   /* Not yet implemented due to lacking documentaion */
-  return  -1;
+  return  iaq;
 }
 static uint8_t
 calc_heater_res(uint16_t temp)
@@ -430,7 +449,7 @@ bme680_read(void)
   adc_gas_res = ((uint16_t)buf[13] << 2) | (((uint16_t)buf[14]) / 64);
   gas_range = buf[14] & BME680_GAS_RANGE_MSK;
   bme680.gas.res = calc_gas_res(adc_gas_res, gas_range);
-  bme680.gas.iaq = calc_gas_iaq(bme680.gas.res, bme680.gas.heater_temp, bme680.hum);
+  bme680.gas.iaq = calc_gas_iaq(bme680.gas.res);
   /* printf(" GAS %d %d l1=%u", buf[14] , BME680_GAS_RANGE_MSK, l1); */
   printf(" sw_err=%d gas_range=%u adc_gas_res=%u  ", cal.range_sw_err, gas_range, adc_gas_res);
     //printf(" %d %u %u %u %u %u\n", cal.range_sw_err, gas_range, adc_gas_res, bme680.gas.heater_temp, i, bme680_mea.g);
