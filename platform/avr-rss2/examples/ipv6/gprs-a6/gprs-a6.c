@@ -212,7 +212,7 @@ struct at_wait wait_ok = {"OK", wait_basic_callback};
 struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_cipstatus_callback};
 struct at_wait wait_creg = {"+CREG: ", wait_creg_callback};
 struct at_wait wait_connectok = {"CONNECT OK", wait_basic_callback};
-struct at_wait wait_cmeerror = {"CME ERROR", wait_cmeerror_callback};
+struct at_wait wait_cmeerror = {"+CME ERROR:", wait_cmeerror_callback};
 struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_callback};
 struct at_wait wait_sendprompt = {">", wait_basic_callback};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback};
@@ -624,12 +624,14 @@ sendbuf(unsigned char *buf, size_t len) {
 #define ATWAIT(delay, ...)
 
 #define DELAY(SEC)   { \
-    printf("%d: DELAY(%d)\n", __LINE__, SEC); \
+    /*printf("%d: DELAY(%d), clock_time() = %lu (CLOCK_SECOND = %d)\n", __LINE__, SEC, clock_time(), CLOCK_SECOND); */ \
+  printf("%d: start etimer %lu, clock_time() = %lu\n", __LINE__, (clock_time_t) SEC*CLOCK_SECOND, clock_time()); \
     etimer_set(&et, SEC*CLOCK_SECOND); \
   while (1) { \
     PROCESS_WAIT_EVENT();                           \
   /* printf("#####WAIYED\n"); */                  \
     if(etimer_expired(&et)) { \
+      printf("%d: timeout: clock_time() = %lu\n", __LINE__, clock_time()); \
       break; \
     } \
     else { \
@@ -743,15 +745,25 @@ PROCESS_THREAD(a6at, ev, data) {
     sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
     ATSTR(str);        ATWAIT2(5, &wait_ok);
     ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
-    ATSTR("AT+CGACT=1,1\r");       ATWAIT2(20, &wait_ok);
 
+    while (1) {
+    ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
+      ATWAIT2(20, &wait_ok,  &wait_cmeerror);
+      if (at == &wait_cmeerror) {
+        printf("CGACT failed with CME ERROR:%s\n", atline);
+        DELAY(5);
+      }
+      else {
+        break;
+      }
+    }
     ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
       
     while (1) {
       ATSTR("AT+CIPSTATUS?\r"); 
       ATWAIT2(60, &wait_cipstatus);
       if (at == &wait_cipstatus) {
-        if (strncmp((char *) atline /*foundbuf*/, "0,IP GPRSACT", strlen("IP GPRSACT")) == 0) {
+        if (strncmp((char *) atline /*foundbuf*/, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
           printf("GPRS is active\n");
           gcontext->active = 1;
           //process_post(PROCESS_BROADCAST, a6at_gprs_active, NULL);
