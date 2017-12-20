@@ -74,6 +74,10 @@
 #include "radio/rf230bb/rf230bb.h"
 #endif /* #if RF230_DEBUG */
 #endif /* #ifndef RF230_DEBUG */
+#ifdef MQTT_GPRS
+#include "gprs-a6.h"
+#endif /* MQTT_GPRS */  
+
 
 extern void handle_serial_input(const char *line);
 
@@ -1039,7 +1043,13 @@ state_machine(void)
     leds_on(STATUS_LED);
     ctimer_set(&ct, CONNECTING_LED_DURATION, publish_led_off, NULL);
     /* Not connected yet. Wait */
-    DBG("Connecting (%u)\n", connect_attempt);
+    {
+      static int connect_reported = 0;
+      if (connect_attempt > connect_reported) {
+        DBG("Connecting (%u)\n", connect_attempt);
+        connect_reported += 1;
+      }
+    }
     break;
   case STATE_CONNECTED:
     /* Don't subscribe unless we are a registered device */
@@ -1174,6 +1184,14 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
   uip_icmp6_echo_reply_callback_add(&echo_reply_notification,
                                     echo_reply_handler);
   etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
+
+#ifdef MQTT_GPRS
+  gprs_init();
+  PROCESS_WAIT_EVENT_UNTIL(ev == a6at_gprs_init);
+  printf("Here is MQTT with GPRS again\n");
+  /* Schedule next publication ASAP, to get state machinery going */
+  etimer_set(&publish_periodic_timer, 0);
+#endif /* MQTT_GPRS */  
 
   /* Main loop */
   while(1) {

@@ -15,11 +15,14 @@ CLIBS           = $(PRINTF_LIB)
 
 
 PROJECT_OBJECTFILES += mqtt-rpl-pub.o mqtt-i2c-pub.o mqtt-cli.o
+PROJECT_OBJECTFILES +=  tcp-socket-gprs.o gprs-a6.o
 #CFLAGS += -DPMS5003
 #CFLAGS += -DBME280
+CFLAGS += -DMQTT_GPRS
 
 MODULES += dev/bme280
 MODULES += dev/pms5003
+MODULES += dev/sc16is
 
 CUSTOM_RULE_LINK = 1
 %.$(TARGET): %.co $(PROJECT_OBJECTFILES) $(PROJECT_LIBRARIES) contiki-$(TARGET).a 

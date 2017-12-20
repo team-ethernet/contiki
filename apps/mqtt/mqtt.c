@@ -249,7 +249,12 @@ connect_tcp(struct mqtt_connection *conn)
                       MQTT_TCP_OUTPUT_BUFF_SIZE,
                       tcp_input,
                       tcp_event);
+#ifdef MQTT_GPRS 
+  /* GPRS takes IP addresses as strings */
+  tcp_socket_gprs_connect_strhost(&(conn->socket), conn->server_host, conn->server_port);
+#else
   tcp_socket_connect(&(conn->socket), &(conn->server_ip), conn->server_port);
+#endif /* MQTT_GPRS */
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1337,11 +1342,12 @@ mqtt_connect(struct mqtt_connection *conn, char *host, uint16_t port,
   conn->out_packet.qos_state = MQTT_QOS_STATE_NO_ACK;
   conn->connect_vhdr_flags |= MQTT_VHDR_CLEAN_SESSION_FLAG;
 
+#ifndef MQTT_GPRS /* GPRS takes IP addresses as strings */
   /* convert the string IPv6 address to a numeric IPv6 address */
   uiplib_ip6addrconv(host, &ip6addr);
 
   uip_ipaddr_copy(&(conn->server_ip), ipaddr);
-
+#endif /* MQTT_GPRS */
   /*
    * Initiate the connection if the IP could be resolved. Otherwise the
    * connection will be initiated when the DNS lookup is finished, in the main
