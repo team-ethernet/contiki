@@ -835,7 +835,11 @@ publish_stats(void)
     memset(def_rt_str, 0, sizeof(def_rt_str));
     ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
+#ifdef MQTT_GPRS
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"<gprs>\"}", def_rt_str);
+#else
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);    
+#endif /* MQTT_GPRS */
     PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
     extern uint32_t pms5003_valid_frames();
@@ -987,10 +991,11 @@ connect_to_broker(void)
 static void
 ping_parent(void)
 {
+#ifndef MQTT_GPRS
   if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) {
     return;
   }
-
+#endif /* MQTT_GPRS */
   uip_icmp6_send(uip_ds6_defrt_choose(), ICMP6_ECHO_REQUEST, 0,
                  ECHO_REQ_PAYLOAD_LEN);
 }
@@ -1027,7 +1032,11 @@ state_machine(void)
     DBG("Init\n");
     /* Continue */
   case STATE_REGISTERED:
+#ifdef MQTT_GPRS
+    if(1) {
+#else
     if(uip_ds6_get_global(ADDR_PREFERRED) != NULL) {
+#endif /* MQTT_GPRS */
       /* Registered and with a public IP. Connect */
       DBG("Registered. Connect attempt %u\n", connect_attempt);
       ping_parent();
@@ -1197,7 +1206,6 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
   while(1) {
 
     PROCESS_YIELD();
-
     if(ev == sensors_event && data == PUBLISH_TRIGGER) {
       if(state == STATE_ERROR) {
         connect_attempt = 1;
