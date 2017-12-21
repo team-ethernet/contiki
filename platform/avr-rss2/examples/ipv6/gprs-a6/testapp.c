@@ -114,7 +114,7 @@ tcp_gprs_event(struct tcp_socket_gprs *s, void *ptr, tcp_socket_gprs_event_t eve
 
 uint8_t senddata[512];
 
-#define LENSTEP 32
+#define LENSTEP 16
 PROCESS_THREAD(testapp, ev, data)
 {
   err = 0;
@@ -122,7 +122,7 @@ PROCESS_THREAD(testapp, ev, data)
   static int len = LENSTEP;
   PROCESS_BEGIN();
 
-  for (i = 0; i < sizeof(data); i++) {
+  for (i = 0; i < sizeof(senddata); i++) {
     senddata[i] = (uint8_t) i;
   }
   printf("Here is testapp. Wait for gprs\n");
@@ -153,13 +153,15 @@ PROCESS_THREAD(testapp, ev, data)
 #endif
     PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_DATA_SENT || connstatus == TCP_SOCKET_CLOSED || connstatus == TCP_SOCKET_TIMEDOUT);
     if (connstatus != TCP_SOCKET_DATA_SENT)
+      
       goto clear;
-    etimer_set(&et, CLOCK_SECOND*30);
+    etimer_set(&et, CLOCK_SECOND*2);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
     }
     tcp_socket_gprs_close(&socket);
     PROCESS_YIELD_UNTIL(connstatus == TCP_SOCKET_CLOSED || connstatus == TCP_SOCKET_TIMEDOUT);
   clear:
+    len = LENSTEP;
     tcp_socket_gprs_unregister(&socket);
   }
   PROCESS_END();

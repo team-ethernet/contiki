@@ -13,7 +13,8 @@ process_event_t a6at_gprs_init;
 process_event_t a6at_gprs_activate;
 process_event_t a6at_gprs_connection;
 
-#define GPRS_MAX_SEND_LEN 1024
+//#define GPRS_MAX_SEND_LEN 1024
+#define GPRS_MAX_SEND_LEN 256
 #define GPRS_MAX_RECV_LEN 1024
 
 #define GPRS_MAX_APN_LEN 32
