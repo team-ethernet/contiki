@@ -582,7 +582,10 @@ static struct etimer et;
 
 static void
 sendbuf(unsigned char *buf, size_t len) {
-  sc16is_tx(buf, len); 
+  size_t remain = len;
+  while (remain > 0) {
+    remain -= sc16is_tx(&buf[len - remain], remain); 
+  }
 }
 
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
@@ -742,20 +745,29 @@ PROCESS_THREAD(a6at, ev, data) {
 
     ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
       
-    sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
-    ATSTR(str);        ATWAIT2(5, &wait_ok);
-    ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
     while (1) {
+      sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
+      ATSTR(str);        ATWAIT2(5, &wait_ok);
       ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
       ATWAIT2(20, &wait_ok,  &wait_cmeerror);
-      if (at == &wait_cmeerror) {
-        printf("CGACT failed with CME ERROR:%s\n", atline);
-        DELAY(5);
-      }
-      else {
+      if (at == &wait_ok) {
         break;
       }
+      if (at == &wait_cmeerror) {
+        printf("CGACT failed with CME ERROR:%s\n", atline);
+      }
+      else {
+        printf("CGACT timeout\n");
+      }
+      ATSTR("AT+CGACT?\r");  
+      ATWAIT2(5, &wait_ok);
+      ATSTR("AT+CGDCONT?\r");
+      ATWAIT2(5, &wait_ok);
+      ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
+      DELAY(5);
+
     }
+
     ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
       
     while (1) {
@@ -788,6 +800,7 @@ PROCESS_THREAD(a6at, ev, data) {
 
     try:
       printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+      ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_ok);
 
       ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
       ATSTR("AT+CIPSTATUS?\r");       ATWAIT2(2, &wait_ok);
@@ -803,6 +816,7 @@ PROCESS_THREAD(a6at, ev, data) {
         /* Give it some more time. It happens that the connection succeeds after COMMAND NO RESPONSE! */
         ATWAIT2(15, &wait_connectok);
         if (at == &wait_connectok) {
+          ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_ok);
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
         }
@@ -844,7 +858,7 @@ PROCESS_THREAD(a6at, ev, data) {
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
         sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
-        ATWAIT2(2, &wait_sendprompt);
+        ATWAIT2(5, &wait_sendprompt);
         if (at == NULL) {
           printf("NO SENDPROMPT\n");
           goto failed;
