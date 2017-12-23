@@ -35,6 +35,20 @@ struct gprs_connection {
   struct tcp_socket_gprs *socket;
 };
 
+struct gprs_status {
+  enum {
+    GPRS_STATE_NONE,
+    GPRS_STATE_IDLE,
+    GPRS_STATE_REGISTERED,
+    GPRS_STATE_ACTIVE
+  } state;
+#if NETSTACK_CONF_WITH_IPV6
+  char ipaddr[sizeof("::ffff:255.255.255.255")];
+#else
+  char ipaddr[sizeof("255.255.255.255")];  
+#endif /* NETSTACK_CONF_WITH_IPV6 */
+};
+
 typedef int (* gprs_callback_t)(struct gprs_connection *, int);
 
 process_event_t sc16is_input_event;
@@ -68,4 +82,6 @@ gprs_unregister(struct gprs_connection *gconn);
 
 void
 gprs_close(struct tcp_socket_gprs *socket);
+
+struct gprs_status *gprs_status();
 #endif /* GPRS_A6_H */

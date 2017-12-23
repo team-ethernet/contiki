@@ -75,6 +75,8 @@ struct gprs_context gprs_context;
 process_event_t sc16is_input_event;
 process_event_t at_match_event;
 
+static struct gprs_status status;
+
 #define min(A, B) ((A) <= (B) ? (A) : (B))
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_reader, "I2C UART input process");
@@ -181,6 +183,11 @@ gprs_close(struct tcp_socket_gprs *socket) {
   (void) process_post(&a6at, a6at_gprs_close, socket->g_c);
 }
 /*---------------------------------------------------------------------------*/
+struct gprs_status *
+gprs_status() {
+  return &status;
+}
+/*---------------------------------------------------------------------------*/
 
 struct at_wait;
 
@@ -189,9 +196,9 @@ typedef char (* at_callback_t)(struct pt *, struct at_wait *, uint8_t *data, int
 struct at_wait {
   char *str;
   at_callback_t callback;
+  int (* match)(struct at_wait *, uint8_t *, int);
   uint8_t active;
   uint8_t pos;
-  uint8_t remain;  
 };
  
 static
@@ -208,21 +215,27 @@ static
 PT_THREAD(wait_creg_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 
+static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
+static int at_match_null(struct at_wait *at, uint8_t *buf, int len);
+static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
 
-struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback};
-struct at_wait wait_ok = {"OK", wait_basic_callback};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_cipstatus_callback};
-struct at_wait wait_creg = {"+CREG: ", wait_creg_callback};
-struct at_wait wait_connectok = {"CONNECT OK", wait_basic_callback};
-struct at_wait wait_cmeerror = {"+CME ERROR:", wait_cmeerror_callback};
-struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_callback};
-struct at_wait wait_sendprompt = {">", wait_basic_callback};
-struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback};
+struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
+struct at_wait wait_ok = {"OK", wait_basic_callback, at_match_byte};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_cipstatus_callback, at_match_byte};
+struct at_wait wait_creg = {"+CREG: ", wait_creg_callback, at_match_byte};
+struct at_wait wait_connectok = {"CONNECT OK", wait_basic_callback, at_match_byte};
+struct at_wait wait_cmeerror = {"+CME ERROR:", wait_cmeerror_callback, at_match_byte};
+struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_callback, at_match_byte};
+struct at_wait wait_sendprompt = {">", wait_basic_callback, at_match_byte};
+struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
+struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
 struct at_wait *at_waitlist[] = {&wait_ciprcv, &wait_ok, &wait_cipstatus,
                                  &wait_creg, &wait_connectok, &wait_cmeerror,
                                  &wait_commandnoresponse, &wait_sendprompt,
-                                 &wait_tcpclosed};
+                                 &wait_tcpclosed, &wait_dotquad};
 #define NUMWAIT (sizeof(at_waitlist)/sizeof(struct at_wait *))
 
 struct pt wait_pt;
@@ -232,7 +245,6 @@ static void
 start_at(struct at_wait *at) {
   at->active = 1;
   at->pos = 0;
-  at->remain = strlen(at->str);
 }
 
 static void
@@ -266,6 +278,7 @@ static void stop_atlist(struct at_wait *at, ...) { //char *str, char *end) {
 static void
 wait_init() {
   int i;
+  printf("Here is WWAIT_NIT\n");
   for (i = 0; i < NUMWAIT; i++) {
     stop_at(at_waitlist[i]);
   }
@@ -452,7 +465,116 @@ PT_THREAD(wait_cmeerror_callback(struct pt *pt, struct at_wait *at, uint8_t *dat
   return wait_line_callback(pt, at, data, len);
 }
 
+/*
+ * Callback for dotted quad matching. Match function filled in dotquadstr. Copy to status.
+ */
+static char dotquadstr[sizeof("255.255.255.255")];
+static
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  PT_BEGIN(pt);
+#if NETSTACK_CONF_WITH_IPV6
+  snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", dotquadstr);
+#else
+  snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", dotquadstr);
+#endif 
+  process_post(&a6at, at_match_event, at);
+  PT_END(pt);
+}
+
+/*
+ * Match functions. Return a negative number if current data string does
+ * not match search pattern. If there is a match, return number of bytes that 
+ * matched.
+ */
+
+/* Match byte: check one byte at a time */
+static int at_match_byte(struct at_wait *at, uint8_t *data, int len) {
+  if (*data == at->str[at->pos]) {
+    at->pos += 1;
+    if (at->str[at->pos] == '\0') {
+      return 1;
+    }
+  }
+  else { 
+   at->pos = 0;
+  }
+  return -1;
+}
+  
+static int at_match_null(struct at_wait *at, uint8_t *data, int len) {
+  return 0;
+}
+
+/* 
+ * Match an IPv4 address in dotted quad notation 
+ * Use at->pos to record how many chars have been recognized
+ * so far and stored.
+ */
+
+static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
+  int b1, b2, b3, b4;
+
+  if (*data == '\r' || *data == '\n') {
+    /* End of line -- have we collected a dotted quad in the buffer? */
+    if (at->pos < sizeof(dotquadstr)) {
+      dotquadstr[at->pos] = '\0';
+      /* Rough check -- look for 3 dots and 4 integers */ 
+      if (sscanf(dotquadstr, "%d.%d.%d.%d", &b1, &b2, &b3, &b4) == 4) {
+        return 1;
+      }
+      /* No dotted quad -- restart. */
+      at->pos = 0;
+    }
+  }
+  else if (at->pos < sizeof(dotquadstr)) {
+    /* One more char for the buffer */ 
+      dotquadstr[at->pos++] = *data;    
+  }
+  else {
+    /* too long -- restart. */
+    at->pos = 0;
+  }
+  /* Not done yet */
+  return -1;
+}
+
+char wait_fsm_debug = 0;
+
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
+  uint8_t i;
+  uint8_t datapos = 0;
+  static struct pt subpt;
+  static struct at_wait *at;
+  int match;
+  
+  PT_BEGIN(pt);
+  while (1) {
+    if (len > 0) {
+      for (datapos = 0; datapos < len; datapos++){
+        for (i = 0; i < NUMWAIT; i++) {
+          at = at_waitlist[i];
+          if (at->active) {
+            match = at->match(at, &data[datapos], len-datapos);
+            if (match >= 0) {
+              datapos += match; /* Consume matched chars */
+              if (wait_fsm_debug)
+                printf("Match last for '%s'!\n", at->str);
+              PT_INIT(&subpt);
+              while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
+                PT_YIELD(pt);
+              }
+              PT_RESTART(pt);
+            }
+          }
+        }
+      }
+    }
+    PT_YIELD(pt);
+  }
+  PT_END(pt);
+}
+
+PT_THREAD(old_wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   uint8_t i;
   uint8_t datapos = 0;
   static struct pt subpt;
@@ -466,8 +588,12 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
           at = at_waitlist[i];
           if (at->active) {
             if (data[datapos] == at->str[at->pos]) {
+              if (wait_fsm_debug)
+                printf("FSM match '%c'@%d with %c@%d\n", data[datapos], datapos, at->str[at->pos], at->pos);
                /* Matched one char -- was it the last?*/
               if (at->str[++at->pos] == '\0') {
+              if (wait_fsm_debug)
+                printf("Match last for '%s'!\n", at->str);
                 //printf("FSM matched '%s'\n", at->str);
                 PT_INIT(&subpt);
                 datapos++; /* consume last matched char */
@@ -478,6 +604,8 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
               }
             }
             else {
+              if (wait_fsm_debug)
+                printf("FSM mismatch '%c'@%d does not match %c@%d\n", data[datapos], datapos, at->str[at->pos], at->pos);
               /* Does not match current char. Restart. */
               at->pos = 0;
             }
@@ -489,6 +617,7 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   }
   PT_END(pt);
 }
+
 
 static void
 dumpstr(unsigned char *str) {
@@ -800,7 +929,22 @@ PROCESS_THREAD(a6at, ev, data) {
 
     try:
       printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+      wait_fsm_debug = 1;
+      ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_dotquad);
+      wait_fsm_debug = 0;
+      if (at == &wait_dotquad)  {
+        printf("GOT atline after CIFSR: '%s'\n", atline);
+        printf("IP is %s\n", status.ipaddr);
+      }
+      else
+        printf("No ATLINE\n");
+      DELAY(30);
       ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_ok);
+      if (at == &wait_ok) {
+        printf("Got OK\n");
+      }
+      else
+        printf("NO OK\n");
 
       ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
       ATSTR("AT+CIPSTATUS?\r");       ATWAIT2(2, &wait_ok);
