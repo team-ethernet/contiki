@@ -836,7 +836,7 @@ publish_stats(void)
     ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
 #ifdef MQTT_GPRS
-    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"<gprs>\"}", def_rt_str);
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", gprs_status()->ipaddr);
 #else
     PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);    
 #endif /* MQTT_GPRS */
@@ -1033,7 +1033,8 @@ state_machine(void)
     /* Continue */
   case STATE_REGISTERED:
 #ifdef MQTT_GPRS
-    if(1) {
+    if (gprs_status()->state == GPRS_STATE_ACTIVE) {
+      printf("MQTT: GPRS active\n");
 #else
     if(uip_ds6_get_global(ADDR_PREFERRED) != NULL) {
 #endif /* MQTT_GPRS */
@@ -1196,6 +1197,7 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
 #ifdef MQTT_GPRS
   gprs_init();
+#else
   PROCESS_WAIT_EVENT_UNTIL(ev == a6at_gprs_init);
   printf("Here is MQTT with GPRS again\n");
   /* Schedule next publication ASAP, to get state machinery going */
