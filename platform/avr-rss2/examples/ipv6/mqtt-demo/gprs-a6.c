@@ -91,7 +91,7 @@ extern struct process testapp;
 void
 gprs_init() {
   gprs_set_context(&gprs_context, PDPTYPE, APN);
-
+  memset(&gprs_statistics, 0, sizeof(gprs_statistics));
   process_start(&sc16is_reader, NULL);
   process_start(&a6at, NULL);
 }
@@ -484,7 +484,7 @@ PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data
 /*
  * Match functions. Return a negative number if current data string does
  * not match search pattern. If there is a match, return number of bytes that 
- * matched.
+ * were consumed in last call.
  */
 
 /* Match byte: check one byte at a time */
@@ -508,7 +508,8 @@ static int at_match_null(struct at_wait *at, uint8_t *data, int len) {
 /* 
  * Match an IPv4 address in dotted quad notation 
  * Use at->pos to record how many chars have been recognized
- * so far and stored.
+ * so far and stored. Matching is rough: wait for newline,
+ * and then check if the buffer appears to contain a dotted quad.
  */
 
 static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
@@ -538,8 +539,6 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
   return -1;
 }
 
-char wait_fsm_debug = 0;
-
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   uint8_t i;
   uint8_t datapos = 0;
@@ -557,8 +556,6 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
             match = at->match(at, &data[datapos], len-datapos);
             if (match >= 0) {
               datapos += match; /* Consume matched chars */
-              if (wait_fsm_debug)
-                printf("Match last for '%s'!\n", at->str);
               PT_INIT(&subpt);
               while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
                 PT_YIELD(pt);
@@ -573,51 +570,6 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   }
   PT_END(pt);
 }
-
-PT_THREAD(old_wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
-  uint8_t i;
-  uint8_t datapos = 0;
-  static struct pt subpt;
-  static struct at_wait *at;
-
-  PT_BEGIN(pt);
-  while (1) {
-    if (len > 0) {
-      for (datapos = 0; datapos < len; datapos++){
-        for (i = 0; i < NUMWAIT; i++) {
-          at = at_waitlist[i];
-          if (at->active) {
-            if (data[datapos] == at->str[at->pos]) {
-              if (wait_fsm_debug)
-                printf("FSM match '%c'@%d with %c@%d\n", data[datapos], datapos, at->str[at->pos], at->pos);
-               /* Matched one char -- was it the last?*/
-              if (at->str[++at->pos] == '\0') {
-              if (wait_fsm_debug)
-                printf("Match last for '%s'!\n", at->str);
-                //printf("FSM matched '%s'\n", at->str);
-                PT_INIT(&subpt);
-                datapos++; /* consume last matched char */
-                while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
-                  PT_YIELD(pt);
-                }
-                PT_RESTART(pt);
-              }
-            }
-            else {
-              if (wait_fsm_debug)
-                printf("FSM mismatch '%c'@%d does not match %c@%d\n", data[datapos], datapos, at->str[at->pos], at->pos);
-              /* Does not match current char. Restart. */
-              at->pos = 0;
-            }
-          }
-        }
-      }
-    }
-    PT_YIELD(pt);
-  }
-  PT_END(pt);
-}
-
 
 static void
 dumpstr(unsigned char *str) {
@@ -636,6 +588,7 @@ dumpstr(unsigned char *str) {
 
 void module_init(void)
 {
+  status.state = GPRS_STATE_NONE;
   if( i2c_probed & I2C_SC16IS ) {
     /* GPIO set output */
     sc16is_gpio_set_dir(G_RESET|G_PWR_KEY|G_SLEEP);
@@ -644,7 +597,9 @@ void module_init(void)
     baud = 115200;
     sc16is_uart_set_speed(baud);
     //sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT);
+    /* Fix baudrate */
     sc16is_tx((uint8_t *)"AT", sizeof("AT"-1));
+    status.state = GPRS_STATE_IDLE;
   }
 }
 
@@ -656,58 +611,22 @@ PROCESS_THREAD(sc16is_reader, ev, data)
 {
   PROCESS_BEGIN();
 
-#if 0
-  sc16is_input_event = process_alloc_event();
-  at_match_event = process_alloc_event();  
-
-  module_init();
-  leds_init();
-
-  /* Fix baudrate  */
-  sc16is_tx(at, sizeof(at));
-#endif
   printf ("here is reader\n");
   wait_init();
 
   while(1) {
     PROCESS_PAUSE();
-#if 0
-    start_atlist(&wait_creg, NULL);
-    
-    wait_fsm_pt(&wait_pt, (uint8_t *) "AVOK", 2);
-    wait_fsm_pt(&wait_pt, (uint8_t *) "+CRE", 4);
-    wait_fsm_pt(&wait_pt, (uint8_t *) "G: this is", 10);        
-    wait_fsm_pt(&wait_pt, (uint8_t *) "data\n", 5);            
-    {
-      static struct etimer et;
-      etimer_set(&et, CLOCK_SECOND*30);
-      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-      continue;
-    }        
-#endif    
     if( i2c_probed & I2C_SC16IS ) {
       len = sc16is_rx(buf, sizeof(buf));
       if (len) {
         buf[len] = '\0';
         dumpstr(buf);
         wait_fsm_pt(&wait_pt, buf, len);
-#if 0
-        match = matchwait(buf);
-        if (match != NULL) {
-          stopwait();
-          /* Tell other processes there was a match */
-          if (process_post(PROCESS_BROADCAST, at_match_event, match) == PROCESS_ERR_OK) {
-            PROCESS_WAIT_EVENT_UNTIL(ev == at_match_event);
-          }
-        }
-#endif
       }
     }
   }
   PROCESS_END();
 }
-
-static struct etimer et;
 
 static void
 sendbuf(unsigned char *buf, size_t len) {
@@ -717,6 +636,7 @@ sendbuf(unsigned char *buf, size_t len) {
   }
 }
 
+static struct etimer et;
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
 
 #define ATSTR(str) sendbuf((unsigned char *) str, strlen(str))
@@ -728,11 +648,8 @@ sendbuf(unsigned char *buf, size_t len) {
   start_atlist(__VA_ARGS__, NULL);            \
   printf("\n"); \
   etimer_set(&et, (SEC)*CLOCK_SECOND);                         \
-  /*PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) ||            \
-    ev == at_match_event); */                                  \
   while (1) { \
     PROCESS_WAIT_EVENT();                           \
-  /* printf("#####WAIYED\n"); */                  \
     if(etimer_expired(&et)) { \
       printf("---timeout:%d\n", __LINE__);                 \
       stop_atlist(__VA_ARGS__, NULL);                      \
@@ -747,7 +664,7 @@ sendbuf(unsigned char *buf, size_t len) {
     } \
     else { \
       if (GPRS_EVENT(ev)) { \
-        /* This is a event for us, but we can't do it now. \
+        /* This event is for us, but we can't do it now. \
          * Put it back on the event queue for later. \
          */ \
           process_post(PROCESS_CURRENT(), ev, data); \
@@ -756,15 +673,11 @@ sendbuf(unsigned char *buf, size_t len) {
   } \
   }
 
-#define ATWAIT(delay, ...)
-
 #define DELAY(SEC)   { \
-    /*printf("%d: DELAY(%d), clock_time() = %lu (CLOCK_SECOND = %d)\n", __LINE__, SEC, clock_time(), CLOCK_SECOND); */ \
   printf("%d: start etimer %lu, clock_time() = %lu\n", __LINE__, (clock_time_t) SEC*CLOCK_SECOND, clock_time()); \
     etimer_set(&et, SEC*CLOCK_SECOND); \
   while (1) { \
     PROCESS_WAIT_EVENT();                           \
-  /* printf("#####WAIYED\n"); */                  \
     if(etimer_expired(&et)) { \
       printf("%d: timeout: clock_time() = %lu\n", __LINE__, clock_time()); \
       break; \
@@ -792,8 +705,11 @@ event_init() {
 }
 
 PROCESS_THREAD(a6at, ev, data) {
+#define funkar
+#ifdef funkar
   //unsigned char *res;
   struct at_wait *at;
+  static uint8_t minor_tries, major_tries;
   char str[80];
   static struct gprs_connection *gprsconn;
   static struct tcp_socket_gprs *socket;
@@ -809,22 +725,6 @@ PROCESS_THREAD(a6at, ev, data) {
   sc16is_tx((uint8_t *) "AT", sizeof("at"-1));
   
  again:
-  if (0){
-
-  /* Reset module */
-  printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
-  sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
-  printf("Initializing... gpio == 0x%x\n", sc16is_gpio_get());
-  /* Power on */
-  sc16is_gpio_set(sc16is_gpio_get()|G_PWR_KEY|G_SLEEP); /* Power key on, no sleep */
-  printf("Probing2... gpio == 0x%x\n", sc16is_gpio_get());
-  DELAY(5);
-  sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
-  printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
-  ATWAIT2(30, &wait_ok);
-  goto again;
-  }
-
   {
     printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
     sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
@@ -840,28 +740,31 @@ PROCESS_THREAD(a6at, ev, data) {
   }
 
   /* Wait for registration status to become 1 (local registration)
-   * or 5 (roaming)
+   * or 5 (roaming) or 10 (roaming, non-preferred)
    */
-  while (1) {
+  major_tries = 0;
+  while (major_tries++ < 10) {
     static uint8_t creg;
-    DELAY(2);
-    ATSTR("AT+CIPSTATUS?\r");
-    ATWAIT2(10, &wait_cipstatus);
+
     ATSTR("AT+CREG?\r");
     ATWAIT2(10, &wait_creg);
     if (at == NULL)
       continue;
     creg = atoi((char *) atline /*foundbuf*/);
     printf("creg atoi(\"%s\") -> %d\n", atline, creg);
-    if (creg == 1 || creg == 5 || creg == 10) /* Wait for status == 1 (local registration) */
-      break; /* Wait for status == 1 (local registration) */    
+    if (creg == 1 || creg == 5 || creg == 10) /* Wait for registration */
+      status.state = GPRS_STATE_REGISTERED;
+      break; 
   }
+  if (major_tries >= 10)
+    goto again;
 
   /* Then activate context */
+  major_tries = 0;
+  while (major_tries++ < 10 && status.state != GPRS_STATE_ACTIVE)
   {
     static struct gprs_context *gcontext;
 
-    printf("GPRS Activate\n");
     gcontext = &gprs_context;
     /* Deactivate PDP context */
     sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
@@ -871,10 +774,9 @@ PROCESS_THREAD(a6at, ev, data) {
     ATSTR("AT+CGATT=1\r"); ATWAIT2(5, &wait_ok);
 
     ATSTR("AT+CIPMUX=0\r"); ATWAIT2(5, &wait_ok);
-
-    ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
       
-    while (1) {
+    minor_tries = 0;
+    while (minor_tries++ < 10) {
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
       ATSTR(str);        ATWAIT2(5, &wait_ok);
       ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
@@ -888,35 +790,31 @@ PROCESS_THREAD(a6at, ev, data) {
       else {
         printf("CGACT timeout\n");
       }
-      ATSTR("AT+CGACT?\r");  
-      ATWAIT2(5, &wait_ok);
-      ATSTR("AT+CGDCONT?\r");
-      ATWAIT2(5, &wait_ok);
-      ATSTR("AT+CREG?\r");      ATWAIT2(1, &wait_ok);
       DELAY(5);
-
     }
-
-    ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
+    if (minor_tries++ >= 10)
+      goto again;
       
-    while (1) {
+    minor_tries = 0;
+    while (minor_tries++ < 10) {
       ATSTR("AT+CIPSTATUS?\r"); 
       ATWAIT2(60, &wait_cipstatus);
       if (at == &wait_cipstatus) {
-        if (strncmp((char *) atline /*foundbuf*/, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
-          printf("GPRS is active\n");
+        if (strncmp((char *) atline, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
           gcontext->active = 1;
-          //process_post(PROCESS_BROADCAST, a6at_gprs_active, NULL);
+          status.state = GPRS_STATE_ACTIVE;
           break;
         }
       }
-      printf("GPRS not active, atline %s\n", atline);
-      printf("Got gpio 0x%x\n", sc16is_gpio_get());
-      ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
       DELAY(5);
     }
   } /* Context activated */
+  if (major_tries >= 10)
+    goto again;
 
+#endif /* funkar */
+
+  
   printf("Done---- init\n");
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
 
@@ -929,9 +827,7 @@ PROCESS_THREAD(a6at, ev, data) {
 
     try:
       printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-      wait_fsm_debug = 1;
       ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_dotquad);
-      wait_fsm_debug = 0;
       if (at == &wait_dotquad)  {
         printf("GOT atline after CIFSR: '%s'\n", atline);
         printf("IP is %s\n", status.ipaddr);

@@ -49,6 +49,13 @@ struct gprs_status {
 #endif /* NETSTACK_CONF_WITH_IPV6 */
 };
 
+struct gprs_statistics {
+  unsigned int at_timeouts;
+  unsigned int at_errors;
+  unsigned int at_retries;
+  unsigned int resets;
+} gprs_statistics;
+
 typedef int (* gprs_callback_t)(struct gprs_connection *, int);
 
 process_event_t sc16is_input_event;
