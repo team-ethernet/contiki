@@ -702,11 +702,51 @@ event_init() {
   
   at_match_event = process_alloc_event();
   sc16is_input_event = process_alloc_event();
+
+  printf("a6at_gprs_init = %d\n", a6at_gprs_init);
+  printf("a6at_gprs_connection = %d\\n", a6at_gprs_connection);
+  printf("a6at_gprs_send = %d\\n", a6at_gprs_send);
+  printf("a6at_gprs_close = %d\\n", a6at_gprs_close);
+  
+  printf("at_match_event = %d\\n", at_match_event);
+  printf("sc16is_input_event = %d\\n", sc16is_input_event);
+
+}
+
+#define GPRS_MAX_NEVENTS 8
+struct gprs_event {
+  process_event_t ev;
+  void *data;
+} gprs_event_queue[GPRS_MAX_NEVENTS];
+static int gprs_nevents;
+static int gprs_firstevent;
+
+static void
+init_event_queue() {
+  gprs_nevents = 0;
+}
+
+static void
+enqueue_event(process_event_t ev, void *data) {
+  int i;
+  if (gprs_nevents >= GPRS_MAX_NEVENTS) {
+    printf("Fatal error: GPRS event queue full\n");
+    return;
+  }
+  i = gprs_firstevent+gprs_nevents;
+  gprs_event_queue[i].ev = ev; gprs_event_queue[i].data = data;
+  gprs_nevents++;
+}
+
+static struct gprs_event *
+dequeue_event() {
+  if (gprs_nevents == 0)
+    return NULL;
+  gprs_nevents--;
+  return &gprs_event_queue[gprs_firstevent++];
 }
 
 PROCESS_THREAD(a6at, ev, data) {
-#define funkar
-#ifdef funkar
   //unsigned char *res;
   struct at_wait *at;
   static uint8_t minor_tries, major_tries;
@@ -714,7 +754,7 @@ PROCESS_THREAD(a6at, ev, data) {
   static struct gprs_connection *gprsconn;
   static struct tcp_socket_gprs *socket;
 
-  
+
   PROCESS_BEGIN();
   wait_init();
   module_init();
@@ -722,7 +762,7 @@ PROCESS_THREAD(a6at, ev, data) {
   event_init();
 
   /* Fix baudrate  */
-  sc16is_tx((uint8_t *) "AT", sizeof("at"-1));
+  ATSTR("AT");
   
  again:
   {
@@ -756,9 +796,14 @@ PROCESS_THREAD(a6at, ev, data) {
       status.state = GPRS_STATE_REGISTERED;
       break; 
   }
-  if (major_tries >= 10)
+  if (major_tries >= 10) {
+#ifdef GPRS_DEBUG
+    printf("GPRS registration timeout\n");
+#endif /* GPRS_DEBUG */
+    gprs_statistics.resets += 1;
     goto again;
-
+  }
+  
   /* Then activate context */
   major_tries = 0;
   while (major_tries++ < 10 && status.state != GPRS_STATE_ACTIVE)
@@ -785,15 +830,18 @@ PROCESS_THREAD(a6at, ev, data) {
         break;
       }
       if (at == &wait_cmeerror) {
+#ifdef GPRS_DEBUG
         printf("CGACT failed with CME ERROR:%s\n", atline);
+#endif /* GPRS_DEBUG */
+        gprs_statistics.at_errors += 1;
       }
       else {
-        printf("CGACT timeout\n");
+        gprs_statistics.at_timeouts += 1;
       }
       DELAY(5);
     }
     if (minor_tries++ >= 10)
-      goto again;
+      continue;
       
     minor_tries = 0;
     while (minor_tries++ < 10) {
@@ -808,81 +856,83 @@ PROCESS_THREAD(a6at, ev, data) {
       }
       DELAY(5);
     }
+    if (minor_tries++ >= 10)
+      continue;
+
   } /* Context activated */
-  if (major_tries >= 10)
+  if (major_tries >= 10) {
+    gprs_statistics.resets += 1;
     goto again;
+  }
 
-#endif /* funkar */
-
-  
+  /* Get IP address */
+  ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_dotquad);
+  if (at == NULL)  {
+    gprs_statistics.at_timeouts += 1;
+  }
   printf("Done---- init\n");
+#ifdef GPRS_DEBUG
+  printf("GPRS initialised\n");  
+#endif /* GPRS_DEBUG */
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
 
+  /* Main loop. Wait for GPRS command and execute them */
   while(1) {
   nextcommand:
     PROCESS_WAIT_EVENT();
+
     if (ev == a6at_gprs_connection) {
       printf("A6AT GPRS Connection\n");
       gprsconn = (struct gprs_connection *) data;
 
     try:
-      printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-      ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_dotquad);
-      if (at == &wait_dotquad)  {
-        printf("GOT atline after CIFSR: '%s'\n", atline);
-        printf("IP is %s\n", status.ipaddr);
-      }
-      else
-        printf("No ATLINE\n");
-      DELAY(30);
-      ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_ok);
-      if (at == &wait_ok) {
-        printf("Got OK\n");
-      }
-      else
-        printf("NO OK\n");
-
-      ATSTR("AT+CREG?\r");       ATWAIT2(2, &wait_ok);
-      ATSTR("AT+CIPSTATUS?\r");       ATWAIT2(2, &wait_ok);
-      
-      sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
-      ATSTR(str);
-      ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
-      if (at == &wait_connectok) {
-        call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
-        goto nextcommand;
-      }
-      else if (at == &wait_commandnoresponse) {
-        /* Give it some more time. It happens that the connection succeeds after COMMAND NO RESPONSE! */
-        ATWAIT2(15, &wait_connectok);
+      minor_tries = 0;
+      while (minor_tries++ < 10) {
+        printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+        sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+        ATSTR(str);
+        ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
         if (at == &wait_connectok) {
-          ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_ok);
+          gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
         }
-      }
-      /* If we ended up here, we failed to set up connection */
-      if (at == NULL) {
-        /* Timeout */
+        else if (at == &wait_commandnoresponse) {
+          /* Give it some more time. It happens that the connection succeeds seconds after COMMAND NO RESPONSE! */
+          ATWAIT2(15, &wait_connectok);
+          if (at == &wait_connectok) {
+            gprs_statistics.connections += 1;
+            call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
+            goto nextcommand;
+          }
+        }
+        /* If we ended up here, we failed to set up connection */
+        if (at == NULL) {
+          /* Timeout */
+          gprs_statistics.connfailed += 1;
           ATSTR("AT+CIPCLOSE\r");
           ATWAIT2(5, &wait_ok);
           ATSTR("AT+CIPSHUT\r");
           ATWAIT2(5, &wait_ok);
           call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
           goto nextcommand;
-      }        
-      else if (at == &wait_cmeerror) {
-        /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
-        /* Seen +CME ERROR:53 */
-        /* After CME ERROR:53, seen CIPSTATUS stuck at IP START */
-        printf("CIPSTART failed\n");
-        ATSTR("AT+CREG?\r");           ATWAIT2(2, &wait_ok);
-        ATSTR("AT+CIPCLOSE\r");            ATWAIT2(5, &wait_ok);
-        ATSTR("AT+CIPSHUT\r");            ATWAIT2(5, &wait_ok);
-        goto try;
+        }        
+        else if (at == &wait_cmeerror) {
+          /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
+          /* Seen +CME ERROR:53 */
+          printf("CIPSTART failed\n");
+          ATSTR("AT+CREG?\r");           ATWAIT2(2, &wait_ok);
+          gprs_statistics.at_errors += 1;
+          ATSTR("AT+CIPCLOSE\r");       ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok, &wait_cmeerror);
+          ATSTR("AT+CIPSHUT\r");       ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
+          continue;
+        }
+      } /* minor_tries */
+      if (minor_tries >= 10) {
+        gprs_statistics.connfailed += 1;
+        call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
+        goto nextcommand;
       }
-
-      /* */;
     } /* ev == a6at_gprs_connection */
     else if (ev == a6at_gprs_send) {
       static uint16_t remain;
@@ -900,26 +950,13 @@ PROCESS_THREAD(a6at, ev, data) {
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
         ATWAIT2(5, &wait_sendprompt);
         if (at == NULL) {
-          printf("NO SENDPROMPT\n");
+          gprs_statistics.at_timeouts += 1;
           goto failed;
         }
-        if (0){
-          int i;
-          printf("ATBUF: '");
-          for (i = 0; i < len; i++) {
-            printf("%c", socket->output_data_ptr[socket->output_data_len-remain+len]);
-          }
-          printf("'\n");
-        }
         ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
-#ifdef notdef
-        sprintf((char *) buf, "AT+CIPSEND=%d,", len-1);
-        ATSTR((char *) buf); /* sometimes CME ERROR:516 */
-        ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
-        ATSTR((char *) "\r"); /* sometimes CME ERROR:516 */
-#endif 
         ATWAIT2(30, &wait_ok, &wait_commandnoresponse);
         if (at == NULL || at == &wait_commandnoresponse) {
+          gprs_statistics.at_timeouts += 1;
           goto failed;
         }        
 
@@ -941,11 +978,13 @@ PROCESS_THREAD(a6at, ev, data) {
       socket = gprsconn->socket;
 
       ATSTR("AT+CIPCLOSE\r");
+      //ATWAIT2(15, &wait_ok, &wait_cmeerror);
       ATWAIT2(15, &wait_ok);
       if (at == &wait_ok) {
         call_event(socket, TCP_SOCKET_CLOSED);
       }
       else {
+        gprs_statistics.at_timeouts += 1;
         call_event(socket, TCP_SOCKET_TIMEDOUT);
       }
     } /* ev == a6at_gprs_close */
@@ -963,6 +1002,3 @@ PROCESS_THREAD(a6at, ev, data) {
   }
   PROCESS_END();
 }
-
-
-

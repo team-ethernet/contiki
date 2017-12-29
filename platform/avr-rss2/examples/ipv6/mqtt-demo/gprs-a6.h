@@ -1,6 +1,13 @@
 #ifndef GPRS_A6_H
 #define GPRS_A6_H
 
+
+//#define GPRS_MAX_SEND_LEN 1024
+#define GPRS_MAX_SEND_LEN 128
+#define GPRS_MAX_RECV_LEN 1024
+
+#define GPRS_DEBUG
+
 typedef enum {
   GPRS_CONN_CONNECTED,
   GPRS_CONN_SOCKET_CLOSED,
@@ -13,12 +20,7 @@ process_event_t a6at_gprs_init;
 process_event_t a6at_gprs_activate;
 process_event_t a6at_gprs_connection;
 
-//#define GPRS_MAX_SEND_LEN 1024
-#define GPRS_MAX_SEND_LEN 128
-#define GPRS_MAX_RECV_LEN 1024
-
 #define GPRS_MAX_APN_LEN 32
-
 struct gprs_context {
   uint8_t active; /* Context active? */
   char *pdptype; /* allowed values: "IP" and "IPV6" */
@@ -54,6 +56,8 @@ struct gprs_statistics {
   unsigned int at_errors;
   unsigned int at_retries;
   unsigned int resets;
+  unsigned int connections;     /* Connections succeeded */
+  unsigned int connfailed;      /* Connections failed */
 } gprs_statistics;
 
 typedef int (* gprs_callback_t)(struct gprs_connection *, int);
