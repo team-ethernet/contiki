@@ -80,12 +80,7 @@ static struct gprs_status status;
 #define min(A, B) ((A) <= (B) ? (A) : (B))
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_reader, "I2C UART input process");
-//PROCESS(sc16is_at, "I2C UART AT emitter");
 PROCESS(a6at, "GPRS A6 module");
-extern struct process testapp;
-//AUTOSTART_PROCESSES(&sc16is_reader);
-//AUTOSTART_PROCESSES(&sc16is_reader, &a6at, &testapp); //&sc16is_at);
-//AUTOSTART_PROCESSES(&sc16is_reader, &a6at);
 
 /*---------------------------------------------------------------------------*/
 void
@@ -611,7 +606,6 @@ PROCESS_THREAD(sc16is_reader, ev, data)
 {
   PROCESS_BEGIN();
 
-  printf ("here is reader\n");
   wait_init();
 
   while(1) {
@@ -667,7 +661,6 @@ static struct etimer et;
         /* This event is for us, but we can't do it now. \
          * Put it on the event queue for later. \
          */ \
-printf("WAIT2: postpone event %d\n", ev); \
           enqueue_event(ev, data); \
       } \
     } \
@@ -688,7 +681,6 @@ printf("WAIT2: postpone event %d\n", ev); \
         /* This is a event for us, but we can't do it now. \
          * Put it on the event queue for later. \
          */ \
-printf("DELAY: postpone event %d\n", ev); \
           enqueue_event(ev, data); \
       } \
     } \
@@ -704,15 +696,6 @@ event_init() {
   
   at_match_event = process_alloc_event();
   sc16is_input_event = process_alloc_event();
-
-  printf("a6at_gprs_init = %d ", a6at_gprs_init);
-  printf("a6at_gprs_connection = %d ", a6at_gprs_connection);
-  printf("a6at_gprs_send = %d ", a6at_gprs_send);
-  printf("a6at_gprs_close = %d ", a6at_gprs_close);
-  
-  printf("at_match_event = %d ", at_match_event);
-  printf("sc16is_input_event = %d\n", sc16is_input_event);
-
 }
 
 #define GPRS_MAX_NEVENTS 8
@@ -737,9 +720,7 @@ enqueue_event(process_event_t ev, void *data) {
     return;
   }
   index = (gprs_firstevent+gprs_nevents) % GPRS_MAX_NEVENTS;
-  printf("enqueue event %d at %d (first %d)\n", ev, index, gprs_firstevent);
   gprs_event_queue[index].ev = ev; gprs_event_queue[index].data = data;
-  printf("first event is %d at %d\n", gprs_event_queue[gprs_firstevent].ev, gprs_firstevent);
   gprs_nevents++;
 }
 
@@ -748,7 +729,6 @@ dequeue_event() {
   struct gprs_event *gprs_event;
   if (gprs_nevents == 0)
     return NULL;
-  printf("dequeue event %d at %d\n", gprs_event_queue[gprs_firstevent].ev, gprs_firstevent);
   gprs_event = &gprs_event_queue[gprs_firstevent];
   gprs_nevents--;
   gprs_firstevent = (gprs_firstevent + 1) % GPRS_MAX_NEVENTS;
@@ -766,7 +746,6 @@ PROCESS_THREAD(a6at, ev, data) {
 
   PROCESS_BEGIN();
   wait_init();
-  module_init();
   leds_init();
   event_init();
   event_queue_init();
@@ -774,6 +753,7 @@ PROCESS_THREAD(a6at, ev, data) {
   ATSTR("AT");
   
  again:
+  module_init();
   {
     printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
     sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
@@ -882,7 +862,7 @@ PROCESS_THREAD(a6at, ev, data) {
   if (at == NULL)  {
     gprs_statistics.at_timeouts += 1;
   }
-  printf("Done---- init\n");
+
 #ifdef GPRS_DEBUG
   printf("GPRS initialised\n");  
 #endif /* GPRS_DEBUG */
@@ -899,17 +879,17 @@ PROCESS_THREAD(a6at, ev, data) {
           enqueue_event(ev, data);
       goto nextcommand;
     }
-    printf("GPRS proc got queued event %d\n", gprs_event->ev);
 
     if (gprs_event->ev == a6at_gprs_connection) {
+#ifdef GPRS_DEBUG
       printf("A6AT GPRS Connection\n");
-      gprsconn = (struct gprs_connection *) gprs_event->data;
+#endif /* GPRS_DEBUG */
 
-    try:
+      gprsconn = (struct gprs_connection *) gprs_event->data;
       minor_tries = 0;
       while (minor_tries++ < 10) {
         printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-        sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port+10));
+        sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
         ATSTR(str);
         ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
         if (at == &wait_connectok) {
@@ -958,8 +938,9 @@ PROCESS_THREAD(a6at, ev, data) {
       static uint16_t remain;
       static uint16_t len;
 
+#ifdef GPRS_DEBUG
       printf("A6AT GPRS Send\n");
-
+#endif /* GPRS_DEBUG */
       gprsconn = (struct gprs_connection *) gprs_event->data;
       socket = gprsconn->socket;
       remain = socket->output_data_len;
@@ -992,32 +973,34 @@ PROCESS_THREAD(a6at, ev, data) {
     } /* ev == a6at_gprs_send */
     else if (gprs_event->ev == a6at_gprs_close) {
 
+#ifdef GPRS_DEBUG
       printf("A6AT GPRS Close\n");
-
+#endif /* GPRS_DEBUG */
       gprsconn = (struct gprs_connection *) gprs_event->data;
       socket = gprsconn->socket;
 
       ATSTR("AT+CIPCLOSE\r");
-      //ATWAIT2(15, &wait_ok, &wait_cmeerror);
-      ATWAIT2(15, &wait_ok);
+      ATWAIT2(15, &wait_ok, &wait_cmeerror);
       if (at == &wait_ok) {
-        call_event(socket, TCP_SOCKET_CLOSED);
+        /* call_event(socket, TCP_SOCKET_CLOSED); */
       }
       else {
         gprs_statistics.at_timeouts += 1;
-        call_event(socket, TCP_SOCKET_TIMEDOUT);
+        /* call_event(socket, TCP_SOCKET_CLOSED);*/
       }
     } /* ev == a6at_gprs_close */
+#ifdef GPRS_DEBUG
     else {
       printf("A6AT GPRS Unknown event %d\n", gprs_event->ev);
     }
+#endif /* GPRS_DEBUG */
     continue;
   failed:
     /* Timeout */
     ATSTR("AT+CIPCLOSE\r");
-    ATWAIT2(5, &wait_ok);
+    ATWAIT2(5, &wait_ok, &wait_cmeerror);
     ATSTR("AT+CIPSHUT\r");
-    ATWAIT2(5, &wait_ok);
+    ATWAIT2(5, &wait_ok, &wait_cmeerror);
     call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
   }
   PROCESS_END();
