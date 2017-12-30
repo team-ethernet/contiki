@@ -184,10 +184,8 @@ gprs_status() {
 }
 /*---------------------------------------------------------------------------*/
 
-struct at_wait;
-
+struct at_wait; /* forward declaration */
 typedef char (* at_callback_t)(struct pt *, struct at_wait *, uint8_t *data, int len);
-
 struct at_wait {
   char *str;
   at_callback_t callback;
@@ -198,104 +196,45 @@ struct at_wait {
 static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
-PT_THREAD(wait_basic_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
-PT_THREAD(wait_line_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
-static
-PT_THREAD(wait_cipstatus_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
-static
-PT_THREAD(wait_cmeerror_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
-static
-PT_THREAD(wait_creg_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
 PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 
 static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
-static int at_match_null(struct at_wait *at, uint8_t *buf, int len);
 static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
 
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
-struct at_wait wait_ok = {"OK", wait_basic_callback, at_match_byte};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_cipstatus_callback, at_match_byte};
-struct at_wait wait_creg = {"+CREG: ", wait_creg_callback, at_match_byte};
-struct at_wait wait_connectok = {"CONNECT OK", wait_basic_callback, at_match_byte};
-struct at_wait wait_cmeerror = {"+CME ERROR:", wait_cmeerror_callback, at_match_byte};
-struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_callback, at_match_byte};
-struct at_wait wait_sendprompt = {">", wait_basic_callback, at_match_byte};
+struct at_wait wait_ok = {"OK", wait_simple_callback, at_match_byte};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback, at_match_byte};
+struct at_wait wait_creg = {"+CREG: ", wait_readline_callback, at_match_byte};
+struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback, at_match_byte};
+struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_byte};
+struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback, at_match_byte};
+struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
 
-struct pt wait_pt;
 static char atline[80];
 
-#define MAXWAIT 5
-struct at_wait *at_waitlist2[MAXWAIT];
-
-uint8_t at_numwait;
-uint8_t at_numwait_permanent;
-
 static void
-start_at(struct at_wait *at) {
-  if (at_numwait >= MAXWAIT) {
-    printf("Error starting %s: too many at_waits (%d)\n", at->str, at_numwait);
-  }
-  at_waitlist2[at_numwait] = at;
-  at_numwait++;
-  at->pos = 0;
-}
+start_at(struct at_wait *at); /* forward declaration */
 
-static void
-stop_at(struct at_wait *at) {
-  at->pos = 0;
-}
-
-static void start_atlist(struct at_wait *at, ...) { //char *str, char *end) {
-  va_list valist;
-  
-  va_start(valist, at);
-  while (at) {
-    printf(" %s ", at->str);
-    start_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-}
-
-static void stop_atlist(struct at_wait *at, ...) { //char *str, char *end) {
-  va_list valist;
-  
-  va_start(valist, at);
-  while (at) {
-    stop_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-  at_numwait = at_numwait_permanent;
-}
-
-
-static void
-wait_init() {
-  int i;
-
-  at_numwait = 0;
-  /* The following two are to detect async events -- permanently active */
-  start_at(&wait_ciprcv);
-  start_at(&wait_tcpclosed);  
-  at_numwait_permanent = at_numwait;
-  PT_INIT(&wait_pt);
-}
-
+/*
+ * Simple match -- matched input string (like "OK"). Post 
+ * an event to signal the match.
+ */
 static
-PT_THREAD(wait_basic_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
   PT_BEGIN(pt);
   process_post(&a6at, at_match_event, at);
   PT_END(pt);
 }
 
-static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
-static uint16_t rcvlen;
-
+/* This probably belongs in tcp socket adaptation layer */ 
 static void
 newdata(struct tcp_socket_gprs *s, uint16_t len, uint8_t *dataptr) 
 {
@@ -335,6 +274,8 @@ newdata(struct tcp_socket_gprs *s, uint16_t len, uint8_t *dataptr)
   } while(len > 0);
 }
 
+static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
+static uint16_t rcvlen;
 static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
   static uint16_t nbytes;
@@ -372,29 +313,26 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   PT_END(pt);
 }
 
-static
-PT_THREAD(wait_line_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
   static int atpos;
   int done = 0;
-  int datapos = 0;
+  static int datapos;
 
   PT_BEGIN(pt);
+  datapos = 0;
   atpos = 0; 
   while (done == 0) {
     while (datapos < len && done == 0) {
       if (data[datapos] == '\n' || data[datapos] == '\r') {
-        //printf("-seen EOL-");
         done = 1;
       }
       else {
-        //printf("-%d %c %d+ ", atpos, data[datapos], datapos);
         atline[atpos++] = (char ) data[datapos++];
         if (atpos == sizeof(atline))
           done = 1;
       }
     }
     if (!done) {
-      //printf(" --NOT DONE\n");
       /* Reached end of input data but have not seen end of line. 
        * Yield here and wait for next invocation.
        */ 
@@ -403,64 +341,35 @@ PT_THREAD(wait_line_callback(struct pt *pt, struct at_wait *at, uint8_t *data, i
   }
   /* done -- mark end of string */
   atline[atpos] = '\0';
-  process_post(&a6at, at_match_event, at);
   PT_END(pt);
 }
 
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
-  static int atpos;
+  char ret;
   struct gprs_connection *gprsconn;
-  int done = 0;
-  int datapos = 0;
-
-  printf("Here is tcpclosed\n");
-  PT_BEGIN(pt);
-  atpos = 0; 
-  while (done == 0) {
-    while (datapos < len && done == 0) {
-      if (data[datapos] == '\n' || data[datapos] == '\r') {
-        //printf("-seen EOL-");
-        done = 1;
-      }
-      else {
-        //printf("-%d %c %d+ ", atpos, data[datapos], datapos);
-        atline[atpos++] = (char ) data[datapos++];
-        if (atpos == sizeof(atline))
-          done = 1;
-      }
-    }
-    if (!done) {
-      //printf(" --NOT DONE\n");
-      /* Reached end of input data but have not seen end of line. 
-       * Yield here and wait for next invocation.
-       */ 
-      PT_YIELD(pt);
+  ret = wait_readline_pt(pt, at, data, len);
+  if (ret == PT_ENDED) {
+    start_at(&wait_tcpclosed); /* restart */
+    gprsconn = find_gprs_connection();
+    if (gprsconn && gprsconn->socket) {
+      call_event(gprsconn->socket, TCP_SOCKET_CLOSED);
     }
   }
-  /* done -- mark end of string */
-  atline[atpos] = '\0';
-  gprsconn = find_gprs_connection();
-  if (gprsconn && gprsconn->socket) {
-    call_event(gprsconn->socket, TCP_SOCKET_CLOSED);
-  }
-  PT_END(pt);
+  return ret;
 }
 
+/*
+ * Callback function to read the remainder of the line until
+ * EOL, and the post an event to signal the match
+ */
 static
-PT_THREAD(wait_cipstatus_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
-  return wait_line_callback(pt, at, data, len);
-}
-
-static
-PT_THREAD(wait_creg_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
-  return wait_line_callback(pt, at, data, len);
-}
-
-
-static
-PT_THREAD(wait_cmeerror_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
-  return wait_line_callback(pt, at, data, len);
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  char ret;
+  ret = wait_readline_pt(pt, at, data, len);
+  if (ret == PT_ENDED)
+    process_post(&a6at, at_match_event, at);
+  return ret;
 }
 
 /*
@@ -533,6 +442,69 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
   return -1;
 }
 
+#define MAXWAIT 5
+struct at_wait *at_waitlist2[MAXWAIT];
+
+uint8_t at_numwait;
+uint8_t at_numwait_permanent;
+
+static void
+start_at(struct at_wait *at) {
+  if (at_numwait >= MAXWAIT) {
+    printf("Error starting %s: too many at_waits (%d)\n", at->str, at_numwait);
+  }
+  at_waitlist2[at_numwait] = at;
+  at_numwait++;
+  at->pos = 0;
+}
+
+static void
+stop_at(struct at_wait *at) {
+  at->pos = 0;
+}
+
+static void
+start_atlist(struct at_wait *at, ...) {
+  va_list valist;
+  
+  va_start(valist, at);
+  while (at) {
+    printf(" %s ", at->str);
+    start_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+}
+
+static void
+stop_atlist(struct at_wait *at, ...) {
+  va_list valist;
+  
+  va_start(valist, at);
+  while (at) {
+    stop_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+  at_numwait = at_numwait_permanent;
+}
+
+
+static void
+wait_init() {
+
+  at_numwait = 0;
+  /* The following are to detect async events -- permanently active */
+  start_at(&wait_ciprcv);
+  start_at(&wait_tcpclosed);  
+  at_numwait_permanent = at_numwait;
+}
+
+/*
+ * Main loop for input matching. Take one byte at a time, and call each
+ * active matching state machine. 
+ * If one state mechine returns a non-negative value, it is a complete match. 
+ * Then call the corresponding callback protothread with the remaining
+ * input data.
+ */
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   uint8_t i;
   static uint8_t datapos;
@@ -601,10 +573,13 @@ uint8_t buf[200];
 
 PROCESS_THREAD(sc16is_reader, ev, data)
 {
+  static struct pt wait_pt;
+
   PROCESS_BEGIN();
 
   wait_init();
-
+  PT_INIT(&wait_pt);
+  
   while(1) {
     PROCESS_PAUSE();
     if( i2c_probed & I2C_SC16IS ) {
@@ -839,7 +814,6 @@ PROCESS_THREAD(a6at, ev, data) {
           break;
         }
       }
-      DELAY(5);
     }
     if (minor_tries++ >= 10) {
       /* Failed to activate */
@@ -945,9 +919,13 @@ PROCESS_THREAD(a6at, ev, data) {
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
         sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
-        ATWAIT2(5, &wait_sendprompt);
+        ATWAIT2(5, &wait_sendprompt, &wait_cmeerror);
         if (at == NULL) {
           gprs_statistics.at_timeouts += 1;
+          goto failed;
+        }
+        else if (at == &wait_cmeerror) {
+          gprs_statistics.at_errors += 1;
           goto failed;
         }
         ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
