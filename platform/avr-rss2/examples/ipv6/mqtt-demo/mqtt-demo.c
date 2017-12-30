@@ -805,6 +805,10 @@ publish_stats(void)
   /* Circle through different statistics -- one for each publish */
   enum {
     STATS_DEVICE,
+#define GPRS_CONF_STATS 1
+#if GPRS_CONF_STATS
+    STATS_GPRS,
+#endif /* GPRS_CONF_STATS */
     STATS_RPL,
   };
 #define STARTSTATS STATS_DEVICE
@@ -904,6 +908,42 @@ publish_stats(void)
     remaining -= len;
     buf_ptr += len;
     break;
+#define GPRS_CONF_STATS 1
+#if GPRS_CONF_STATS
+  case STATS_GPRS:
+    PUTFMT(",{\"n\":\"gprs;at_timeouts\",\"v\":%u}", gprs_statistics.at_timeouts);
+    PUTFMT(",{\"n\":\"gprs;at_errors\",\"v\":%u}", gprs_statistics.at_errors);
+    PUTFMT(",{\"n\":\"gprs;at_retries\",\"v\":%u}", gprs_statistics.at_retries);
+    PUTFMT(",{\"n\":\"gprs;resets\",\"v\":%u}", gprs_statistics.resets);
+    PUTFMT(",{\"n\":\"gprs;connections\",\"v\":%u}", gprs_statistics.connections);
+    PUTFMT(",{\"n\":\"gprs;connfailed\",\"v\":%u}", gprs_statistics.connfailed);
+    {
+      struct gprs_status *status;
+      status = gprs_status();
+      PUTFMT(",{\"n\":\"gprs;status\",\"vs\":"); 
+      switch (status->state) {
+      case GPRS_STATE_NONE:
+        PUTFMT("\"none\"}");
+        break;
+      case GPRS_STATE_IDLE:
+        PUTFMT("\"idle\"}");
+        break;
+      case GPRS_STATE_REGISTERED:
+        PUTFMT("\"registered\"}");
+        break;
+      case GPRS_STATE_ACTIVE:
+        PUTFMT("\"active\"}");
+        break;
+      default:
+        PUTFMT("\"unknown (%d)\"}", status->state);
+        break;
+      }
+      if (status->state == GPRS_STATE_ACTIVE) {
+        PUTFMT(",{\"n\":\"gprs;local_ip\",\"vs\":\"%s\"}", status->ipaddr); 
+      }
+    }
+    break;
+#endif /* GPRS_CONF_STATS */
   }
   PUTFMT("]");
 

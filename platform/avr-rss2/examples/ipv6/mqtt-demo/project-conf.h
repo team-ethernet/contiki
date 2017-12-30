@@ -100,6 +100,10 @@
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
 
+#ifdef MQTT_GPRS
+#define GPRS_CONF_STATS 1
+#endif /* MQTT_GPRS */
+
 /* PMSx003 sensors -- I2C and/or UART*/
 #define PMS5003_CONF_SERIAL_I2C 1
 #define PMS5003_CONF_SERIAL_UART 0
