@@ -192,7 +192,6 @@ struct at_wait {
   char *str;
   at_callback_t callback;
   int (* match)(struct at_wait *, uint8_t *, int);
-  uint8_t active;
   uint8_t pos;
 };
  
@@ -227,24 +226,28 @@ struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_basic_call
 struct at_wait wait_sendprompt = {">", wait_basic_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
-struct at_wait *at_waitlist[] = {&wait_ciprcv, &wait_ok, &wait_cipstatus,
-                                 &wait_creg, &wait_connectok, &wait_cmeerror,
-                                 &wait_commandnoresponse, &wait_sendprompt,
-                                 &wait_tcpclosed, &wait_dotquad};
-#define NUMWAIT (sizeof(at_waitlist)/sizeof(struct at_wait *))
 
 struct pt wait_pt;
 static char atline[80];
 
+#define MAXWAIT 5
+struct at_wait *at_waitlist2[MAXWAIT];
+
+uint8_t at_numwait;
+uint8_t at_numwait_permanent;
+
 static void
 start_at(struct at_wait *at) {
-  at->active = 1;
+  if (at_numwait >= MAXWAIT) {
+    printf("Error starting %s: too many at_waits (%d)\n", at->str, at_numwait);
+  }
+  at_waitlist2[at_numwait] = at;
+  at_numwait++;
   at->pos = 0;
 }
 
 static void
 stop_at(struct at_wait *at) {
-  at->active = 0;
   at->pos = 0;
 }
 
@@ -267,19 +270,19 @@ static void stop_atlist(struct at_wait *at, ...) { //char *str, char *end) {
     stop_at(at);
     at = va_arg(valist, struct at_wait *);
   }
+  at_numwait = at_numwait_permanent;
 }
 
 
 static void
 wait_init() {
   int i;
-  printf("Here is WWAIT_NIT\n");
-  for (i = 0; i < NUMWAIT; i++) {
-    stop_at(at_waitlist[i]);
-  }
-  /* The following two are to detect async events -- always active */
+
+  at_numwait = 0;
+  /* The following two are to detect async events -- permanently active */
   start_at(&wait_ciprcv);
   start_at(&wait_tcpclosed);  
+  at_numwait_permanent = at_numwait;
   PT_INIT(&wait_pt);
 }
 
@@ -495,10 +498,6 @@ static int at_match_byte(struct at_wait *at, uint8_t *data, int len) {
   }
   return -1;
 }
-  
-static int at_match_null(struct at_wait *at, uint8_t *data, int len) {
-  return 0;
-}
 
 /* 
  * Match an IPv4 address in dotted quad notation 
@@ -536,7 +535,7 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
 
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   uint8_t i;
-  uint8_t datapos = 0;
+  static uint8_t datapos;
   static struct pt subpt;
   static struct at_wait *at;
   int match;
@@ -545,18 +544,16 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   while (1) {
     if (len > 0) {
       for (datapos = 0; datapos < len; datapos++){
-        for (i = 0; i < NUMWAIT; i++) {
-          at = at_waitlist[i];
-          if (at->active) {
-            match = at->match(at, &data[datapos], len-datapos);
-            if (match >= 0) {
-              datapos += match; /* Consume matched chars */
-              PT_INIT(&subpt);
-              while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
-                PT_YIELD(pt);
-              }
-              PT_RESTART(pt);
+        for (i = 0; i < at_numwait; i++) {
+          at = at_waitlist2[i];
+          match = at->match(at, &data[datapos], len-datapos);
+          if (match >= 0) {
+            datapos += match; /* Consume matched chars */
+            PT_INIT(&subpt);
+            while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
+              PT_YIELD(pt);
             }
+            PT_RESTART(pt);
           }
         }
       }
@@ -745,7 +742,6 @@ PROCESS_THREAD(a6at, ev, data) {
 
 
   PROCESS_BEGIN();
-  wait_init();
   leds_init();
   event_init();
   event_queue_init();
