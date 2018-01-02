@@ -91,7 +91,7 @@ gprs_init() {
   process_start(&a6at, NULL);
 }
 /*---------------------------------------------------------------------------*/
-static struct gprs_connection *
+struct gprs_connection *
 alloc_gprs_connection() {
   return &gprs_connections[GPRS_MAX_CONNECTION-1];
 }
@@ -132,11 +132,16 @@ gprs_set_context(struct gprs_context *gcontext, char *pdptype, char *apn) {
 /* Do we need this */
 int
 gprs_register(struct gprs_connection *gconn,
-              struct tcp_socket_gprs *socket,
-              void *callback) {
+              void *callback_arg,
+              void *callback,
+              gprs_data_callback_t input_callback,
+              gprs_event_callback_t event_callback) {
 
-  gconn->socket = socket;
+  gconn->socket = callback_arg;
   gconn->callback = callback;
+  gconn->callback_arg = callback_arg;
+  gconn->input_callback = input_callback;
+  gconn->event_callback = event_callback;  
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -145,15 +150,18 @@ int
 gprs_unregister(struct gprs_connection *gconn) {
 
   gconn->socket = NULL;
+  gconn->callback_arg = NULL;
   return 0;
 }
 /*---------------------------------------------------------------------------*/
 struct gprs_connection *
-gprs_connection(const char *proto, const char *ipaddr, uint16_t port,
+gprs_connection(struct gprs_connection *gprsconn,
+                const char *proto, const char *ipaddr, uint16_t port,
                 struct tcp_socket_gprs *socket) {
-  struct gprs_connection *gprsconn;
-  if ((gprsconn = alloc_gprs_connection()) == NULL)
+
+  if (gprsconn == NULL) {
     return NULL;
+  }
   gprsconn->context = &gprs_context;
   gprsconn->proto = proto;
   gprsconn->socket = socket;
@@ -274,40 +282,79 @@ newdata(struct tcp_socket_gprs *s, uint16_t len, uint8_t *dataptr)
   } while(len > 0);
 }
 
-static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
-static uint16_t rcvlen;
+/*
+ * CIPRCV:len,<data>
+ */
 static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
+  static uint16_t rcvlen;
   static uint16_t nbytes;
   static int rcvpos;
-  int datapos = 0;
+  static int datapos = 0;
   struct gprs_connection *gprsconn;
   
   PT_BEGIN(pt);
+  datapos = 0;
   nbytes = 0;
+  /* Get length as a decimal number followed by a comma ','
+   */
   while (datapos < len && data[datapos] != ',') {
     nbytes = nbytes*10 + (data[datapos++] - '0');
     if (datapos == len) {
+      /* Out of data -- yield and wait for more */
       PT_YIELD(pt);
+      datapos = 0;
     }
   }
+
+  /* Consume the comma ',' in input */
   if (nbytes > 0 && ++datapos == len) {
+    /* Out of data -- yield and wait for more */
     PT_YIELD(pt);
+    datapos = 0;
   }
-  rcvlen = min(nbytes, GPRS_MAX_RECV_LEN);
+  if (nbytes > GPRS_MAX_RECV_LEN)
+    nbytes = GPRS_MAX_RECV_LEN;
+  rcvlen = nbytes;
   rcvpos = 0;
+  while (nbytes > 0) {
+    int ncopy = min(nbytes, len-datapos);
+    memcpy(&rcvdata[rcvpos], &data[datapos], ncopy);
+    { int i;
+      printf("Copy %d bytes to 0x%x: \"", ncopy, (unsigned) &rcvdata[rcvpos]);
+      for (i = 0; i < ncopy; i++) {
+        printf("%c", data[datapos+i]);
+      }
+      printf("\"\n");
+    }
+    nbytes -= ncopy;
+    rcvpos += ncopy;
+    datapos += ncopy;
+    if (nbytes > 0) {
+      /* Out of data -- yield and wait for more */
+      PT_YIELD(pt);
+      datapos = 0;
+    }
+  }
+#if 0
   while (nbytes-- > 0) {
     if (rcvpos < GPRS_MAX_RECV_LEN)
       rcvdata[rcvpos] = data[datapos];
     rcvpos++; datapos++;
     if (datapos == len) {
       PT_YIELD(pt);
+      datapos = 0;
     }
   }
-  rcvdata[rcvpos] = '\0'; 
+#endif
+  //rcvdata[rcvpos] = '\0'; 
   start_at(&wait_ciprcv); /* restart */
   gprsconn = find_gprs_connection();
-  if (gprsconn && gprsconn->socket) {
+  if (gprsconn) {
+    gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, rcvlen);
+  }
+  if (0 && gprsconn && gprsconn->socket) {
     newdata(gprsconn->socket, rcvlen, rcvdata);
   }
   PT_END(pt);

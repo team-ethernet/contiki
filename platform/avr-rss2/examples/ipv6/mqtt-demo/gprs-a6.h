@@ -27,6 +27,16 @@ struct gprs_context {
   char apn[GPRS_MAX_APN_LEN+1];
 };
 
+struct gprs_connection; /* Forward declaration */
+typedef int (* gprs_callback_t)(struct gprs_connection *, int);
+typedef void (* gprs_data_callback_t)(struct gprs_connection *gprsconn,
+                                      void *callback_arg,
+                                      const uint8_t *input_data_ptr,
+                                      int input_data_len);
+typedef void (* gprs_event_callback_t)(struct gprs_connection *gprsconn,
+                                       void *callback_arg,
+                                       gprs_conn_event_t event);
+
 #define GPRS_MAX_CONNECTION 1
 struct gprs_connection {
   struct gprs_context *context;
@@ -35,6 +45,9 @@ struct gprs_connection {
   uint16_t port;
   void *callback; 
   struct tcp_socket_gprs *socket;
+  void *callback_arg;
+  gprs_data_callback_t input_callback;
+  gprs_event_callback_t event_callback;
 };
 
 struct gprs_status {
@@ -74,19 +87,31 @@ process_event_t a6at_gprs_close;
 void
 gprs_init();
 
+struct gprs_connection *
+alloc_gprs_connection();
+
 int
 gprs_set_context(struct gprs_context *gcontext, char *pdptype, char *apn);
 
 struct gprs_connection *
-gprs_connection(const char *proto, const char *ipaddr, uint16_t port, struct tcp_socket_gprs *socket);
+gprs_connection(struct gprs_connection *gprsconn, const char *proto, const char *ipaddr,
+                uint16_t port, struct tcp_socket_gprs *socket);
 
 void
 gprs_send(struct tcp_socket_gprs *socket);
 
+#if 0
 int
 gprs_register(struct gprs_connection *gconn,
               struct tcp_socket_gprs *socket,
               void *callback);
+#endif
+int
+gprs_register(struct gprs_connection *gconn,
+              void *callback_arg,
+              void *callback,
+              gprs_data_callback_t input_callback,
+              gprs_event_callback_t event_callback);
 
 int
 gprs_unregister(struct gprs_connection *gconn);

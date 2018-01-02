@@ -240,6 +240,59 @@ gprs_callback() {
   return;
 }
 /*---------------------------------------------------------------------------*/
+static void
+gprs_input_callback(struct gprs_connection *gprsconn, void *callback_arg,
+                   const uint8_t *input_data_ptr, int input_data_len)
+{
+  struct tcp_socket_gprs *s;
+  uint16_t len, copylen, bytesleft;
+  const uint8_t *dataptr;
+
+  len = input_data_len;
+  dataptr = input_data_ptr;
+  printf("HERE IS newdata %d @0x%x: '", len, (unsigned) dataptr);
+
+  /* We have a segment with data coming in. We copy as much data as
+     possible into the input buffer and call the input callback
+     function. The input callback returns the number of bytes that
+     should be retained in the buffer, or zero if all data should be
+     consumed. If there is data to be retained, the highest bytes of
+     data are copied down into the input buffer. */
+  s = callback_arg;
+  if (0){
+    int i;
+    printf("newdata %d @0x%x: '", len, (unsigned) dataptr);
+    for (i = 0; i < len; i++)
+      printf("%c", (char ) dataptr[i]);
+    printf("'\n");
+  }
+  do {
+    copylen = MIN(len, s->input_data_maxlen);
+    memcpy(s->input_data_ptr, dataptr, copylen);
+    if(s->input_callback) {
+      bytesleft = s->input_callback(s, s->ptr,
+				    s->input_data_ptr, copylen);
+    } else {
+      bytesleft = 0;
+    }
+    if(bytesleft > 0) {
+      printf("tcp: newdata, bytesleft > 0 (%d) not implemented\n", bytesleft);
+    }
+    dataptr += copylen;
+    len -= copylen;
+
+  } while(len > 0);
+
+  return;
+}
+/*---------------------------------------------------------------------------*/
+static void
+gprs_event_callback(struct gprs_connection *gprsconn, void *callback_arg,
+                    gprs_conn_event_t event)
+{
+  return;
+}
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(tcp_socket_gprs_process, ev, data)
 {
   PROCESS_BEGIN();
@@ -271,8 +324,14 @@ tcp_socket_gprs_register(struct tcp_socket_gprs *s, void *ptr,
 		    tcp_socket_gprs_data_callback_t input_callback,
 		    tcp_socket_gprs_event_callback_t event_callback)
 {
+  struct gprs_connection *gprsconn;
+
   init();
-  
+
+  gprsconn = alloc_gprs_connection();
+  if (gprsconn == NULL){
+    return -1;
+  }
   if(s == NULL) {
     return -1;
   }
@@ -289,7 +348,14 @@ tcp_socket_gprs_register(struct tcp_socket_gprs *s, void *ptr,
   s->flags = TCP_SOCKET_FLAGS_NONE;
 
   list_add(socketlist_gprs, s);
-  return 1;
+  if (gprs_register(gprsconn, s, gprs_callback,
+                    gprs_input_callback, gprs_event_callback) < 0) {
+    return -1;
+  }
+  else {
+    s->g_c = gprsconn;
+    return 1;
+  }
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -307,7 +373,8 @@ tcp_socket_gprs_connect_strhost(struct tcp_socket_gprs *s,
 #endif
 
   PROCESS_CONTEXT_BEGIN(&tcp_socket_gprs_process);
-  s->g_c = gprs_connection("TCP", host, uip_htons(port), s);
+  //s->g_c = gprs_connection("TCP", host, uip_htons(port), s);
+  gprs_connection(s->g_c, "TCP", host, uip_htons(port), s);
   PROCESS_CONTEXT_END();
   if(s->g_c == NULL) {
     return -1;
