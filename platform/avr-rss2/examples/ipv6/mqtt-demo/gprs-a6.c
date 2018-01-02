@@ -115,6 +115,15 @@ call_event(struct tcp_socket_gprs *s, tcp_socket_gprs_event_t event)
   }
 }
 /*---------------------------------------------------------------------------*/
+
+static void
+gprs_call_event(struct gprs_connection *gprsconn, gprs_conn_event_t event)
+{
+  if(gprsconn != NULL && gprsconn->event_callback != NULL) {
+    gprsconn->event_callback(gprsconn, gprsconn->callback_arg, event);
+  }
+}
+/*---------------------------------------------------------------------------*/
 int
 gprs_set_context(struct gprs_context *gcontext, char *pdptype, char *apn) {
     
@@ -177,8 +186,9 @@ gprs_connection(struct gprs_connection *gprsconn,
 }
 /*---------------------------------------------------------------------------*/
 void
-gprs_send(struct tcp_socket_gprs *socket) {
-  (void) process_post(&a6at, a6at_gprs_send, socket->g_c);
+//gprs_send(struct tcp_socket_gprs *socket) {
+gprs_send(struct gprs_connection *gprsconn) {
+  (void) process_post(&a6at, a6at_gprs_send, gprsconn);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -590,8 +600,10 @@ dumpstr(unsigned char *str) {
   while (*s) {
     if (*s == '\n')
       printf("\n    ");
-    else
+    else if (*s >= ' ' && *s <= '~')
       printf("%c", *s);
+    else
+      printf("*");
     s++;
   }
   printf("\n");
@@ -642,17 +654,30 @@ PROCESS_THREAD(sc16is_reader, ev, data)
 }
 
 static void
-sendbuf(unsigned char *buf, size_t len) {
+sendbuf_fun (unsigned char *buf, size_t len) {
   size_t remain = len;
+
   while (remain > 0) {
     remain -= sc16is_tx(&buf[len - remain], remain); 
   }
 }
 
+static size_t sendbuf_remain;
+#define sendbuf(buf, len) { \
+  sendbuf_remain = len; \
+  while (sendbuf_remain > 0) { \
+    sendbuf_remain -= sc16is_tx(&(buf)[len - sendbuf_remain], sendbuf_remain); \
+    continue; \
+    if ((sendbuf_remain > 0)) {   \
+      CLOCKDELAY(CLOCK_SECOND/128); \
+    }                             \
+  } \
+}
+
 static struct etimer et;
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
 
-#define ATSTR(str) sendbuf((unsigned char *) str, strlen(str))
+#define ATSTR(str) sendbuf_fun(((unsigned char *) str), strlen(str))
 #define ATBUF(buf, len) sendbuf(buf, len)
 
 #define ATWAIT2(SEC, ...)  {                    \
@@ -686,9 +711,9 @@ static struct etimer et;
   } \
   }
 
-#define DELAY(SEC)   { \
-  printf("%d: start etimer %lu, clock_time() = %lu\n", __LINE__, (clock_time_t) SEC*CLOCK_SECOND, clock_time()); \
-    etimer_set(&et, SEC*CLOCK_SECOND); \
+#define CLOCKDELAY(ticks) {\
+  printf("%d: start clock etimer %u, clock_time() = %lu\n", __LINE__, ticks, clock_time()); \
+  etimer_set(&et, (ticks));                                             \
   while (1) { \
     PROCESS_WAIT_EVENT();                           \
     if(etimer_expired(&et)) { \
@@ -704,6 +729,11 @@ static struct etimer et;
       } \
     } \
   } \
+  }
+
+#define DELAY(SEC) {\
+  printf("%d: start etimer %lu, clock_time() = %lu\n", __LINE__, (clock_time_t) SEC*CLOCK_SECOND, clock_time()); \
+  CLOCKDELAY((SEC)*CLOCK_SECOND);                                 \
   }
 
 static void
@@ -860,6 +890,9 @@ PROCESS_THREAD(a6at, ev, data) {
           status.state = GPRS_STATE_ACTIVE;
           break;
         }
+        else {
+          DELAY(5);
+        }
       }
     }
     if (minor_tries++ >= 10) {
@@ -954,43 +987,58 @@ PROCESS_THREAD(a6at, ev, data) {
     else if (gprs_event->ev == a6at_gprs_send) {
       static uint16_t remain;
       static uint16_t len;
-
+      static uint8_t *ptr;
 #ifdef GPRS_DEBUG
       printf("A6AT GPRS Send\n");
 #endif /* GPRS_DEBUG */
       gprsconn = (struct gprs_connection *) gprs_event->data;
-      socket = gprsconn->socket;
-      remain = socket->output_data_len;
+      ptr = gprsconn->output_data_ptr;
+      //socket = gprsconn->socket;
+      //remain = socket->output_data_len;
+      remain = gprsconn->output_data_len;
+      ATSTR("ATE0\r\n");
+      ATWAIT2(5, &wait_ok);
       while (remain > 0) {
-        
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
+        printf("Send %d bytes @0x%x\n", len, (unsigned) &ptr[gprsconn->output_data_len-remain]);
         sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
         ATWAIT2(5, &wait_sendprompt, &wait_cmeerror);
         if (at == NULL) {
           gprs_statistics.at_timeouts += 1;
+          ATSTR("ATE1\r\n");
+          ATWAIT2(5, &wait_ok);
           goto failed;
         }
         else if (at == &wait_cmeerror) {
           gprs_statistics.at_errors += 1;
+          ATSTR("ATE1\r\n");
+          ATWAIT2(5, &wait_ok);
           goto failed;
         }
-        ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
+        //ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
+        ATBUF(&ptr[gprsconn->output_data_len-remain], len);
         ATWAIT2(30, &wait_ok, &wait_commandnoresponse);
         if (at == NULL || at == &wait_commandnoresponse) {
           gprs_statistics.at_timeouts += 1;
           goto failed;
         }        
-
+        
+#if 0
         if (remain > len) {
           memcpy(&socket->output_data_ptr[0],
                  &socket->output_data_ptr[len],
                  remain - len);
         }
         socket->output_data_len -= len;
+#endif
         remain -= len;
       }
-      call_event(socket, TCP_SOCKET_DATA_SENT);
+      ATSTR("ATE1\r\n");
+      ATWAIT2(5, &wait_ok);
+
+      //call_event(socket, TCP_SOCKET_DATA_SENT);
+      gprs_call_event(gprsconn, GPRS_CONN_DATA_SENT);      
     } /* ev == a6at_gprs_send */
     else if (gprs_event->ev == a6at_gprs_close) {
 

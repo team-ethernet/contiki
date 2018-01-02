@@ -2,8 +2,8 @@
 #define GPRS_A6_H
 
 
-//#define GPRS_MAX_SEND_LEN 1024
-#define GPRS_MAX_SEND_LEN 128
+#define GPRS_MAX_SEND_LEN 1024
+//#define GPRS_MAX_SEND_LEN 512
 #define GPRS_MAX_RECV_LEN 1024
 
 #define GPRS_DEBUG
@@ -48,6 +48,11 @@ struct gprs_connection {
   void *callback_arg;
   gprs_data_callback_t input_callback;
   gprs_event_callback_t event_callback;
+  uint8_t *input_data_ptr;
+  uint8_t *output_data_ptr;
+
+  uint16_t input_data_len;
+  uint16_t output_data_len;
 };
 
 struct gprs_status {
@@ -98,7 +103,7 @@ gprs_connection(struct gprs_connection *gprsconn, const char *proto, const char 
                 uint16_t port, struct tcp_socket_gprs *socket);
 
 void
-gprs_send(struct tcp_socket_gprs *socket);
+gprs_send(struct gprs_connection *gprsconn);
 
 #if 0
 int

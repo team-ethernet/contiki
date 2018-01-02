@@ -57,6 +57,7 @@ call_event(struct tcp_socket_gprs *s, tcp_socket_gprs_event_t event)
   }
 }
 /*---------------------------------------------------------------------------*/
+#if 0
 static void
 senddata(struct tcp_socket_gprs *s)
 {
@@ -66,6 +67,28 @@ senddata(struct tcp_socket_gprs *s)
     len = MIN(s->output_senddata_len, len);
     s->output_data_send_nxt = len;
     uip_send(s->output_data_ptr, len);
+  }
+}
+#endif
+/* 
+ * Unlike tcp-socket.c:senddata(), gprs_send() will send all data before 
+ * generating a callback() confirming data sent. 
+ */
+static void
+senddata(struct tcp_socket_gprs *s)
+{
+  struct gprs_connection *gprsconn;
+  //int len = MIN(s->output_data_max_seg, uip_mss());
+  int len = GPRS_MAX_SEND_LEN; /* Not really MSS...*/
+
+  if(s->output_senddata_len > 0) {
+    len = MIN(s->output_senddata_len, len);
+    len = s->output_senddata_len;
+    s->output_data_send_nxt = len;
+    gprsconn = s->g_c;
+    gprsconn->output_data_ptr = s->output_data_ptr;
+    gprsconn->output_data_len = len;
+    gprs_send(gprsconn);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -82,11 +105,11 @@ acked(struct tcp_socket_gprs *s)
              s->output_data_maxlen - s->output_data_send_nxt);
     }
     if(s->output_data_len < s->output_data_send_nxt) {
-      PRINTF("tcp: acked assertion failed s->output_data_len (%d) < s->output_data_send_nxt (%d)\n",
+      PRINTF("tcp-gprs: acked assertion failed s->output_data_len (%d) < s->output_data_send_nxt (%d)\n",
              s->output_data_len,
              s->output_data_send_nxt);
-      tcp_markconn(uip_conn, NULL);
-      uip_abort();
+      //tcp_markconn(uip_conn, NULL);
+      //uip_abort();
       call_event(s, TCP_SOCKET_ABORTED);
       relisten(s);
       return;
@@ -96,6 +119,12 @@ acked(struct tcp_socket_gprs *s)
     s->output_data_send_nxt = 0;
 
     call_event(s, TCP_SOCKET_DATA_SENT);
+    /* Unlike tcp-socket.c, there is no polling from "below", so
+     * activate sending of any remaining data from here.
+     */
+    if (s->output_senddata_len > 0) {
+      senddata(s);
+    }
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -290,7 +319,21 @@ static void
 gprs_event_callback(struct gprs_connection *gprsconn, void *callback_arg,
                     gprs_conn_event_t event)
 {
-  return;
+  struct tcp_socket_gprs *s;
+  switch (event) {
+  case GPRS_CONN_CONNECTED:
+    break;
+  case GPRS_CONN_SOCKET_CLOSED:
+    break;
+  case GPRS_CONN_SOCKET_TIMEDOUT:
+    break;
+  case GPRS_CONN_ABORTED:
+    break;
+  case GPRS_CONN_DATA_SENT:
+    s = (struct tcp_socket_gprs *) callback_arg;
+    acked(s);
+    break;
+  }
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(tcp_socket_gprs_process, ev, data)
@@ -341,6 +384,9 @@ tcp_socket_gprs_register(struct tcp_socket_gprs *s, void *ptr,
   s->output_data_len = 0;
   s->output_data_ptr = output_databuf;
   s->output_data_maxlen = output_databuf_len;
+  s->output_senddata_len = 0;
+  s->output_data_send_nxt = 0;
+
   s->input_callback = input_callback;
   s->event_callback = event_callback;
 
@@ -460,7 +506,7 @@ tcp_socket_gprs_send(struct tcp_socket_gprs *s,
                 const uint8_t *data, int datalen)
 {
   int len;
-
+  
   if(s == NULL) {
     return -1;
   }
@@ -473,11 +519,11 @@ tcp_socket_gprs_send(struct tcp_socket_gprs *s,
 
   if(s->output_senddata_len == 0) {
     s->output_senddata_len = s->output_data_len;
+    senddata(s);
   }
 
-  gprs_send(s);
+  //gprs_send(s);
   //tcpip_poll_tcp(s->c);
-
   return len;
 }
 /*---------------------------------------------------------------------------*/
