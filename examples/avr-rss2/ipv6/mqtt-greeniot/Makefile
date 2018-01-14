@@ -1,5 +1,5 @@
 DEFINES+=PROJECT_CONF_H=\"project-conf.h\"
-all: mqtt-demo
+all: mqtt-greeniot
 
 CONTIKI_WITH_IPV6 = 1
 
@@ -26,5 +26,5 @@ CUSTOM_RULE_LINK = 1
 	$(LD) $(LDFLAGS) $(TARGET_STARTFILES) ${filter-out %.a,$^} ${filter %.a,$^} $(TARGET_LIBFILES) -o $@ $(CLIBS)
 
 
-CONTIKI=../../../../..
+CONTIKI=../../../..
 include $(CONTIKI)/Makefile.include
