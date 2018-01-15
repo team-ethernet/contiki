@@ -46,6 +46,7 @@
 
 #if defined(__AVR__)
 #include <avr/io.h>
+#include <dev/watchdog.h>
 
 //_delay_us has the potential to use floating point which brings the 256 byte clz table into RAM
 //#include <util/delay.h>
@@ -94,8 +95,6 @@
 static bool is_promiscuous;
 #endif
 
-bool rf230_blackhole_rx = 0;
-
 /* Poll mode disabled by default */
 uint8_t poll_mode = 0;
 
@@ -104,13 +103,9 @@ uint8_t poll_mode = 0;
 #ifndef RF230_CONF_FRAME_RETRIES
 #ifdef RF230_CONF_AUTORETRIES /* Support legacy definition. */
 #define RF230_CONF_FRAME_RETRIES RF230_CONF_AUTORETRIES
-  uint8_t rf230_frame_retries = RF230_CONF_FRAME_RETRIES;
 #else
 #define RF230_CONF_FRAME_RETRIES 0 /* Extended mode disabled by default. */
-  uint8_t rf230_frame_retries = 0;
 #endif
-#else
-  uint8_t rf230_frame_retries = RF230_CONF_FRAME_RETRIES;
 #endif
 
 /* In extended mode (FRAME_RETRIES>0) the tx routine waits for hardware
@@ -137,9 +132,7 @@ uint8_t ack_pending,ack_seqnum;
  * over several channel check periods! */
 /* Used only if RF230_CONF_FRAME_RETRIES > 0. */
 #ifndef RF230_CONF_CSMA_RETRIES
-  uint8_t rf230_csma_retries = 5;
-#else
-  uint8_t rf230_csma_retries = RF230_CONF_CSMA_RETRIES;
+#define RF230_CONF_CSMA_RETRIES 5
 #endif
 
 //Automatic and manual CRC both append 2 bytes to packets 
@@ -153,6 +146,8 @@ uint8_t ack_pending,ack_seqnum;
 #if AUX_LEN != CHECKSUM_LEN
 #warning RF230 Untested Configuration!
 #endif
+
+static rtimer_clock_t rf230_last_rx_packet_timestamp;
 
 struct timestamp {
   uint16_t time;
@@ -246,11 +241,6 @@ typedef enum{
     TIME_TRX_OFF_TO_PLL_ACTIVE       = 180, /**<  Transition time from TRX_OFF to: RX_ON, PLL_ON, TX_ARET_ON and RX_AACK_ON. */
     TIME_STATE_TRANSITION_PLL_ACTIVE = 1,   /**<  Transition time from PLL active state to another. */
 }radio_trx_timing_t;
-
-#if RF230_DEBUG
-uint16_t count_no_ack;
-uint16_t count_cca_fail;
-#endif
 /*---------------------------------------------------------------------------*/
 PROCESS(rf230_process, "RF230 driver");
 /*---------------------------------------------------------------------------*/
@@ -294,7 +284,7 @@ get_poll_mode(void)
   return poll_mode;
 }
 
-void
+static void
 set_frame_filtering(bool i)
 {
   if(i)
@@ -313,7 +303,7 @@ get_frame_filtering(void)
   return 1;
 }
 
-void
+static void
 set_auto_ack(bool i)
 {
   if(i)
@@ -330,6 +320,73 @@ get_auto_ack(void)
     return 0;
   return 1;
 }
+
+uint16_t
+rf230_get_panid(void)
+{
+  unsigned pan;
+  uint8_t byte;
+
+  byte = hal_register_read(RG_PAN_ID_1);
+  pan = byte;
+  byte = hal_register_read(RG_PAN_ID_0);
+  pan = (pan << 8) + byte;
+
+  return pan;
+}
+
+static void
+rf230_set_panid(uint16_t pan)
+{
+  hal_register_write(RG_PAN_ID_1, (pan >> 8));
+  hal_register_write(RG_PAN_ID_0, (pan & 0xFF));
+}
+
+static uint16_t
+rf230_get_short_addr(void)
+{
+  unsigned char a0, a1;
+  a0 = hal_register_read(RG_SHORT_ADDR_0);
+  a1 = hal_register_read(RG_SHORT_ADDR_1);
+  return (a1 << 8) | a0;
+}
+
+static void
+rf230_set_short_addr(uint16_t addr)
+{
+  hal_register_write(RG_SHORT_ADDR_0, (addr & 0xFF));
+  hal_register_write(RG_SHORT_ADDR_1, (addr >> 8));
+}
+
+#define RSSI_BASE_VAL (-90)
+
+/* Returns the current CCA threshold in dBm */
+static radio_value_t
+rf230_get_cca_threshold()
+{
+  radio_value_t cca_thresh = 0;
+
+  cca_thresh = hal_subregister_read(SR_CCA_ED_THRES);
+  cca_thresh = RSSI_BASE_VAL + 2 * cca_thresh;
+  return cca_thresh;
+}
+
+/* Sets the CCA threshold in dBm */
+static radio_value_t
+rf230_set_cca_threshold(radio_value_t cca_thresh)
+{
+
+  if(cca_thresh > -60)  /* RSSI_BASE_VAL - 2 * 0xF */
+    cca_thresh = -60;
+  
+  cca_thresh = (RSSI_BASE_VAL - cca_thresh)/2;
+  if(cca_thresh < 0)
+    cca_thresh = - cca_thresh;
+
+  hal_subregister_write(SR_CCA_ED_THRES, cca_thresh);
+  return cca_thresh;
+}
+
 /*---------------------------------------------------------------------------*/
 static radio_result_t
 get_value(radio_param_t param, radio_value_t *value)
@@ -340,21 +397,18 @@ get_value(radio_param_t param, radio_value_t *value)
 
   switch(param) {
   case RADIO_PARAM_POWER_MODE:
-    /* *value = (REG(RFCORE_XREG_RXENABLE) && RFCORE_XREG_RXENABLE_RXENMASK) == 0 )? 
-       RADIO_POWER_MODE_OFF : RADIO_POWER_MODE_ON;  */
+    *value = rf230_is_sleeping() ?  RADIO_POWER_MODE_OFF : RADIO_POWER_MODE_ON; 
     return RADIO_RESULT_OK;
-
   case RADIO_PARAM_TX_MODE:
     return RADIO_RESULT_OK;
-
   case RADIO_PARAM_CHANNEL:
     *value = (radio_value_t)rf230_get_channel();
     return RADIO_RESULT_OK;
   case RADIO_PARAM_PAN_ID:
-    /* *value = get_pan_id(); */
+    *value = rf230_get_panid();
     return RADIO_RESULT_OK;
   case RADIO_PARAM_16BIT_ADDR:
-    /* *value = get_short_addr(); */
+    *value = rf230_get_short_addr(); 
     return RADIO_RESULT_OK;
   case RADIO_PARAM_RX_MODE:
     *value = 0;
@@ -372,7 +426,7 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = rf230_get_txpower();
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CCA_THRESHOLD:
-    /* *value = get_cca_threshold(); */
+    *value = rf230_get_cca_threshold();
     return RADIO_RESULT_OK;
   case RADIO_PARAM_RSSI:
     *value = rf230_get_raw_rssi();
@@ -423,10 +477,11 @@ set_value(radio_param_t param, radio_value_t value)
     return RADIO_RESULT_OK;
 
   case RADIO_PARAM_PAN_ID:
-    /* set_pan_id(value & 0xffff); */
+    rf230_set_panid(value & 0xffff);
     return RADIO_RESULT_OK;
+
   case RADIO_PARAM_16BIT_ADDR:
-    /* set_short_addr(value & 0xffff); */
+    rf230_set_short_addr(value & 0xffff);
     return RADIO_RESULT_OK;
   case RADIO_PARAM_RX_MODE:
 
@@ -440,6 +495,7 @@ set_value(radio_param_t param, radio_value_t value)
     return RADIO_RESULT_OK;
 
   case RADIO_PARAM_TXPOWER:
+    /* MIN = 15, MAX = 0 */
     if(value > TX_PWR_MIN || value < TX_PWR_MAX) {
       return RADIO_RESULT_INVALID_VALUE;
     }
@@ -447,7 +503,7 @@ set_value(radio_param_t param, radio_value_t value)
     return RADIO_RESULT_OK;
 
   case RADIO_PARAM_CCA_THRESHOLD:
-    /* set_cca_threshold(value); */
+    rf230_set_cca_threshold(value);
     return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
@@ -457,6 +513,14 @@ set_value(radio_param_t param, radio_value_t value)
 static radio_result_t
 get_object(radio_param_t param, void *dest, size_t size)
 {
+  if(param == RADIO_PARAM_LAST_PACKET_TIMESTAMP) {
+    if(size != sizeof(rtimer_clock_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    *(rtimer_clock_t *)dest = rf230_last_rx_packet_timestamp;
+
+    return RADIO_RESULT_OK;
+  }
   return RADIO_RESULT_NOT_SUPPORTED;
 }
 /*---------------------------------------------------------------------------*/
@@ -548,8 +612,7 @@ radio_get_trx_state(void)
  *                      states.
  *  \retval     false   The radio transceiver is not sleeping.
  */
-#if 0
-static bool radio_is_sleeping(void)
+static bool rf230_is_sleeping(void)
 {
     bool sleeping = false;
 
@@ -561,7 +624,6 @@ static bool radio_is_sleeping(void)
 
     return sleeping;
 }
-#endif
 /*----------------------------------------------------------------------------*/
 /** \brief  This function will reset the state machine (to TRX_OFF) from any of
  *          its states, except for the SLEEP state.
@@ -1064,17 +1126,16 @@ void rf230_warm_reset(void) {
   PORTB &= ~(1<<7);
   DDRB  &= ~(1<<7);
 #endif
-
+  
   hal_subregister_write(SR_IRQ_MASK, RF230_SUPPORTED_INTERRUPT_MASK);
 
   /* Set up number of automatic retries 0-15
    * (0 implies PLL_ON sends instead of the extended TX_ARET mode */
   hal_subregister_write(SR_MAX_FRAME_RETRIES,
-      (rf230_frame_retries > 0) ? (rf230_frame_retries - 1) : 0 );
-//      (RF230_CONF_FRAME_RETRIES > 0) ? (RF230_CONF_FRAME_RETRIES - 1) : 0 );
+      (RF230_CONF_FRAME_RETRIES > 0) ? (RF230_CONF_FRAME_RETRIES - 1) : 0 );
  
  /* Set up carrier sense/clear channel assesment parameters for extended operating mode */
-  hal_subregister_write(SR_MAX_CSMA_RETRIES, rf230_csma_retries );//highest allowed retries
+  hal_subregister_write(SR_MAX_CSMA_RETRIES, RF230_CONF_CSMA_RETRIES );//highest allowed retries
   hal_register_write(RG_CSMA_BE, 0x80);       //min backoff exponent 0, max 8 (highest allowed)
   hal_register_write(RG_CSMA_SEED_0,hal_register_read(RG_PHY_RSSI) );//upper two RSSI reg bits RND_VALUE are random in rf231
  // hal_register_write(CSMA_SEED_1,42 );
@@ -1306,19 +1367,11 @@ rf230_transmit(unsigned short payload_len)
   } else if (tx_result==3) {        //CSMA channel access failure
     DEBUGFLOW('m');
     RIMESTATS_ADD(contentiondrop);
-#if RF230_DEBUG
-    count_cca_fail++;
-    PRINTF("Aggregated count of CHANNEL_ACCESS_FAILURE: %u\n",count_cca_fail);
-#endif
     PRINTF("rf230_transmit: Transmission never started\n");
     tx_result = RADIO_TX_COLLISION;
   } else if (tx_result==5) {        //Expected ACK, none received
     DEBUGFLOW('n');
     tx_result = RADIO_TX_NOACK;
-#if RF230_DEBUG
-    count_no_ack++;
-    PRINTF("Aggregated count of NO_ACK: %u\n",count_no_ack);
-#endif
     PRINTF("rf230_transmit: ACK not received\n");
     RIMESTATS_ADD(badackrx);		//ack was requested but not received
   } else if (tx_result==7) {        //Invalid (Can't happen since waited for idle above?)
@@ -1471,12 +1524,11 @@ rf230_get_channel(void)
 void
 rf230_set_channel(uint8_t c)
 {
+ /* Wait for any transmission to end. */
   PRINTF("rf230: Set Channel %u\n",c);
-  /* Initialize new chan hard for TSCH etc */
-  radio_off();
+  rf230_waitidle();
   channel=c;
   hal_subregister_write(SR_CHANNEL, c);
-  radio_on();
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -1489,38 +1541,15 @@ rf230_listen_channel(uint8_t c)
 }
 /*---------------------------------------------------------------------------*/
 
-unsigned 
-rf230_get_panid(void) 
-{
-  unsigned pan;
-  uint8_t byte;
-
-  byte = hal_register_read(RG_PAN_ID_1);
-  pan = byte;
-  byte = hal_register_read(RG_PAN_ID_0);
-  pan = (pan << 8) + byte;
-
-  return pan;
-}
-
 void
 rf230_set_pan_addr(unsigned pan,
                     unsigned addr,
                     const uint8_t ieee_addr[8])
-//rf230_set_pan_addr(uint16_t pan,uint16_t addr,uint8_t *ieee_addr)
 {
   PRINTF("rf230: PAN=%x Short Addr=%x\n",pan,addr);
   
-  uint8_t abyte;
-  abyte = pan & 0xFF;
-  hal_register_write(RG_PAN_ID_0,abyte);
-  abyte = (pan >> 8*1) & 0xFF;
-  hal_register_write(RG_PAN_ID_1, abyte);
-
-  abyte = addr & 0xFF;
-  hal_register_write(RG_SHORT_ADDR_0, abyte);
-  abyte = (addr >> 8*1) & 0xFF;
-  hal_register_write(RG_SHORT_ADDR_1, abyte);  
+  rf230_set_panid(pan);
+  rf230_set_short_addr(addr);
 
   if (ieee_addr != NULL) {
     PRINTF("MAC=%x",*ieee_addr);
@@ -1542,6 +1571,14 @@ rf230_set_pan_addr(unsigned pan,
     PRINTF("\n");
   }
 }
+
+/* From ISR context */
+void
+rf230_get_last_rx_packet_timestamp(void)
+{
+    rf230_last_rx_packet_timestamp = RTIMER_NOW();
+}
+
 /*---------------------------------------------------------------------------*/
 /*
  * Interrupt leaves frame intact in FIFO.
@@ -1735,14 +1772,6 @@ rf230_read(void *buf, unsigned short bufsize)
     return 0;
   }
 
-  if(rf230_blackhole_rx) {
-    DEBUGFLOW('v');
-    //PRINTF("blackhole RX\n");
-    flushrx();
-    RIMESTATS_ADD(badsynch);
-    return 0;
-  }
-
  /* Transfer the frame, stripping the footer, but copying the checksum */
   framep=&(rxframe[rxframe_head].data[0]);
   memcpy(buf,framep,len-AUX_LEN+CHECKSUM_LEN);
@@ -1845,53 +1874,6 @@ rf230_get_txpower(void)
 		power = hal_subregister_read(SR_TX_PWR);
 	}
 	return power;
-}
-
-/*---------------------------------------------------------------------------*/
-void
-rf230_set_frame_retries(uint8_t frame_retries)
-{
-  if ((frame_retries >= 0) && (frame_retries <= 16)) {
-    rf230_frame_retries = frame_retries;
-    rf230_warm_reset();
-  }
-  else
-    PRINTF("ERROR: MAX_FRAME_RETRIES must be 0-16\n");
-}
-/*---------------------------------------------------------------------------*/
-uint8_t
-rf230_get_frame_retries(void)
-{
-  uint8_t  frame_retries = 16;
-  if (hal_get_slptr()) {
-    PRINTF("rf230_get_frame_retries:Sleeping");
-  } else {
-    frame_retries = hal_subregister_read(SR_MAX_FRAME_RETRIES);
-  }
-  return frame_retries;
-}
-/*---------------------------------------------------------------------------*/
-void
-rf230_set_csma_retries(uint8_t csma_retries)
-{
-  if ((csma_retries >= 0) && (csma_retries <= 7)) {
-    rf230_csma_retries = csma_retries;
-    rf230_warm_reset();
-  }
-  else
-    PRINTF("ERROR: MAX_CSMA_RETRIES must be 0-7\n");
-}
-/*---------------------------------------------------------------------------*/
-uint8_t
-rf230_get_csma_retries(void)
-{
-  uint8_t  csma_retries = 6;
-  if (hal_get_slptr()) {
-    PRINTF("rf230_get_csma_retries:Sleeping");
-  } else {
-    csma_retries = hal_subregister_read(SR_MAX_CSMA_RETRIES);
-  }
-  return csma_retries;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -2119,4 +2101,183 @@ void rf230_start_sneeze(void) {
  // while (hal_register_read(0x0f)!=1) {continue;}  //wait for pll lock-hangs
     hal_register_write(0x02,0x02);       //Set TRX_STATE to TX_START
 }
+
 #endif
+
+#ifdef AES_128_HW_CONF
+#define IEEE_VECT 0
+
+extern unsigned char aes_key[16];
+extern unsigned char aes_p[];
+extern unsigned char aes_c[];
+extern unsigned char aes_s[];
+extern unsigned char tmp[16];
+
+/*
+  After PWR_SAVE sleep key is lost. We'll lock en/decyption to avoid
+  not to forced in to sleep while doing crypto. Also the key is hold
+  be the user so AES block should be reentrant. Encode/Docode och 128bit
+  (16 bytes) is promised to be less than 24us. 
+  Note! Radio must be on to use the HW crypto engine. --ro
+*/
+
+static void
+rf230_aes_write_key(unsigned char *key)
+{
+  uint8_t i;
+  for(i = 0; i < 16; i++) {
+    hal_subregister_write(SR_AES_KEY, key[i]);
+  }
+}
+static void
+rf230_aes_read_key(unsigned char *key)
+{
+  uint8_t i;
+  for(i = 0; i < 16; i++) {
+    key[i] = hal_subregister_read(SR_AES_KEY);
+  }
+}
+static void
+rf230_aes_write_state(unsigned char *state)
+{
+  uint8_t i;
+  for(i = 0; i < 16; i++) {
+    hal_subregister_write(SR_AES_STATE, state[i]);
+  }
+}
+static void
+rf230_aes_read_state(unsigned char *state)
+{
+  uint8_t i;
+  for(i = 0; i < 16; i++) {
+    state[i] = hal_subregister_read(SR_AES_STATE);
+  }
+}
+
+static int
+crypt(void)
+{
+  uint8_t status;
+
+  hal_subregister_write(SR_AES_CNTRL_REQUEST, 1); /* Kick */
+
+  do {
+    watchdog_periodic();
+    status = hal_subregister_read(SR_AES_STATUS);
+  } while(status == 0);
+
+  if (hal_subregister_read(SR_AES_STATUS_ERR)) {
+      PRINTF("AES ERR\n");
+      return 0;
+  }
+  if (hal_subregister_read(SR_AES_STATUS_DONE)) {
+      PRINTF("AES DONE\n");
+      return 1;
+  }
+  return 0; /* Unknown */
+}
+
+int
+rf230_aes_encrypt_cbc(unsigned char *key, unsigned char *plain, int len, unsigned char *mic)
+{
+  uint8_t i;
+  uint8_t sreg;
+  int res;
+
+  sreg = SREG;
+  cli();
+  rf230_aes_write_key(key);
+  hal_subregister_write(SR_AES_CNTRL_MODE, 0); /* AES_MODE=0 -> ECB  for 1:st block*/
+  hal_subregister_write(SR_AES_CNTRL_DIR, 0); /* AES_DIR=0 -> encryption */
+
+  /* write string to encrypt into buffer */
+  for(i = 0; i < 16; i++) {
+    AES_STATE = plain[i] ^ IEEE_VECT;
+  }
+  res = crypt();
+  if(!res)
+    goto out;
+
+  len -= 16;
+  /* Swiitch Mode */
+  hal_subregister_write(SR_AES_CNTRL_MODE, 1); /* AES_MODE=1 -> CBC */
+  hal_subregister_write(SR_AES_CNTRL_DIR, 0); /* AES_DIR=0 -> encryption */
+
+  while(len > 0) {
+    rf230_aes_write_state(plain);
+    res = crypt();
+    if(!res)
+      goto out;
+
+    len -= 16;
+  }
+  /* Read and retrun cipher */
+  rf230_aes_read_state(mic);
+
+out:
+  SREG = sreg;
+  return res;
+}
+
+/* Electonic Code Block */
+int
+rf230_aes_encrypt_ebc(unsigned char *key, unsigned char *plain, unsigned char *cipher)
+{
+  int res;
+  uint8_t sreg;
+
+  sreg = SREG;
+  cli();
+  rf230_aes_write_key(key);
+  hal_subregister_write(SR_AES_CNTRL_MODE, 0); /* AES_MODE=0 -> ECB  for 1:st block*/
+  hal_subregister_write(SR_AES_CNTRL_DIR, 0); /* AES_DIR=0 -> encryption */
+  rf230_aes_write_state(plain);   /* write string to encrypt into buffer */
+  res = crypt();
+  if(!res)
+    goto out;
+  rf230_aes_read_state(cipher); /* Read and return cipher */
+
+out:
+  SREG = sreg;
+  return res;
+}
+
+int
+rf230_aes_decrypt_ebc(unsigned char *key, unsigned char *cipher, unsigned char *plain)
+{
+  int res;
+  uint8_t sreg;
+  /*
+     Dummy encryption of 0 w. original key
+     to get last round key to be used decrytion
+   */
+
+  sreg = SREG;
+  cli();
+
+  rf230_aes_write_key(key);
+  hal_subregister_write(SR_AES_CNTRL_MODE, 0); /* AES_MODE=0 -> ECB  for 1:st block*/
+  hal_subregister_write(SR_AES_CNTRL_DIR, 0); /* AES_DIR=0 -> encryption */
+  memset(tmp, 0, sizeof(tmp)); /* Setup for last round */
+  rf230_aes_write_state(tmp);
+  res = crypt();
+  if(!res)
+    goto out;
+
+  rf230_aes_read_key(tmp);/* Save the last round key */
+  /* And use as decrytion key */
+  rf230_aes_write_key(tmp);
+  hal_subregister_write(SR_AES_CNTRL_MODE, 0); /* AES_MODE=0 -> ECB  for 1:st block*/
+  hal_subregister_write(SR_AES_CNTRL_DIR, 1); /* AES_DIR=1 -> decryption */
+  /* Write string to decrypt into buffer */
+  rf230_aes_write_state(cipher);
+  res = crypt();
+  if(!res)
+    goto out;
+  rf230_aes_read_state(plain);   /* Read plaintext into string */
+
+out:
+  SREG = sreg;
+  return res;
+}
+#endif /* AES_128_HW_CONF */
