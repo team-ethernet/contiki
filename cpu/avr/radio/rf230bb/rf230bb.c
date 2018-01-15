@@ -95,6 +95,8 @@
 static bool is_promiscuous;
 #endif
 
+bool rf230_blackhole_rx = 0;
+
 /* Poll mode disabled by default */
 uint8_t poll_mode = 0;
 
@@ -247,6 +249,12 @@ typedef enum{
     TIME_TRX_OFF_TO_PLL_ACTIVE       = 180, /**<  Transition time from TRX_OFF to: RX_ON, PLL_ON, TX_ARET_ON and RX_AACK_ON. */
     TIME_STATE_TRANSITION_PLL_ACTIVE = 1,   /**<  Transition time from PLL active state to another. */
 }radio_trx_timing_t;
+
+#if RF230_DEBUG
+uint16_t count_no_ack;
+uint16_t count_cca_fail;
+#endif
+
 /*---------------------------------------------------------------------------*/
 PROCESS(rf230_process, "RF230 driver");
 /*---------------------------------------------------------------------------*/
@@ -265,6 +273,7 @@ static int rf230_send(const void *data, unsigned short len);
 static int rf230_receiving_packet(void);
 static int rf230_pending_packet(void);
 static int rf230_cca(void);
+static bool rf230_is_sleeping(void);
 
 uint8_t rf230_last_correlation,rf230_last_rssi,rf230_smallest_rssi;
 
@@ -618,7 +627,8 @@ radio_get_trx_state(void)
  *                      states.
  *  \retval     false   The radio transceiver is not sleeping.
  */
-static bool rf230_is_sleeping(void)
+static 
+bool rf230_is_sleeping(void)
 {
     bool sleeping = false;
 
