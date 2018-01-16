@@ -67,6 +67,7 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+#include <dev/watchdog.h>
 #ifndef RF230_DEBUG
 #define RF230_DEBUG 0
 #else
