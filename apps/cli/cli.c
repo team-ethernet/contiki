@@ -493,7 +493,10 @@ handle_serial_input(const char *line)
       } else if(!strcmp(p, "cs") || !strcmp(p, "csma") || !strcmp(p, "csma_retries")) {
 	radio_get_csma_retries();
       } else if(!strcmp(p, "re") || !strcmp(p, "reb") || !strcmp(p, "reboot")) {
+#if CONTIKI_TARGET_AVR_RSS2
+	void print_mcusr(uint8_t reg);
 	print_mcusr(GPIOR0);
+#endif
       } else if(!strcmp(p, "up") || !strcmp(p, "upt") || !strcmp(p, "uptime")) {
 	printf("Uptime %lu sec\n", clock_seconds());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
