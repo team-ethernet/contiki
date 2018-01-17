@@ -206,6 +206,7 @@ i2c_probe(void)
   int p = 0;
   const char *del = ",";
   uint16_t probed = 0;
+
   watchdog_periodic();
   if(!i2c_start(I2C_AT24MAC_ADDR)) {
     i2c_stop();
@@ -230,6 +231,13 @@ i2c_probe(void)
     probed |= I2C_BME280;
     print_delim(p++, "BME280", del);
   }
+ watchdog_periodic();
+  if(!i2c_start(I2C_BME680_ADDR)) {
+    i2c_stop();
+    probed |= I2C_BME680;
+    print_delim(p++, "BME680", del);
+  }
+
   watchdog_periodic();
   if(!i2c_start(I2C_PMS5003_ADDR)) {
     i2c_stop();
