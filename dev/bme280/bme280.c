@@ -43,6 +43,7 @@
 #include "bme280.h"
 #include "bme280-arch.h"
 #include "lib/sensors.h"
+#include "i2c.h"
 
 static struct {
   unsigned short dig_t1;
@@ -169,6 +170,10 @@ bme280_init(uint8_t mode)
   if(buf[0] != BME280_CHIP_ID) {
     return 0;
   }
+
+#if CONTIKI_TARGET_AVR_RSS2
+  i2c_probed &= ~I2C_BME680;
+#endif
 
   bme280_arch_i2c_write_mem(BME280_ADDR, BME280_CNTL_RESET, 0xB6);
 

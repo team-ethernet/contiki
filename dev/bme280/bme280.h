@@ -59,6 +59,7 @@ void bme280_read(uint8_t mode);
 #define BMP085_CHIP_ID                 0x55  /* And also BMP180 */
 #define BMP280_CHIP_ID                 0x58
 #define BME280_CHIP_ID                 0x60
+#define BME680_CHIP_ID                 0x61
 
 /* Address map */
 #define BME280_DIG_T1_ADDR             0x88
