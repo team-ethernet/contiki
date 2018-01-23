@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = broker-avr-rss2 client-avr-rss2
+CONTIKI_PROJECT = pubsub-broker pubsub-client
 
 all: $(CONTIKI_PROJECT)
 
@@ -24,6 +24,6 @@ APPS += coap-pubsub
 
 #CFLAGS += -DUIP_CONF_BUFFER_SIZE=1300
 CONTIKI_WITH_IPV6 = 1
-CONTIKI=../../..
+CONTIKI=../../../..
 include $(CONTIKI)/Makefile.include
 

@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = coap-pubsub-broker-example coap-pubsub-client-example client-rabbitmq coap-pubsub-combined-example
+CONTIKI_PROJECT = coap-pubsub-broker-example coap-pubsub-client-example coap-pubsub-combined-example
 
 all: $(CONTIKI_PROJECT)
 
@@ -9,6 +9,6 @@ APPS += rest-engine
 APPS += coap-pubsub
 
 CONTIKI_WITH_IPV6 = 1
-CONTIKI=../..
+CONTIKI=../../..
 include $(CONTIKI)/Makefile.include
 
