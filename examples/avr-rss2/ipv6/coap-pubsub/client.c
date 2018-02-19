@@ -115,7 +115,6 @@ PROCESS_THREAD(coap_client, ev, data)
     PROCESS_WAIT_EVENT();
 
     if(etimer_expired(&publish_timer)){
-
       if(!found_broker){
     
 	  PRINTF("Trying server ");
@@ -150,7 +149,6 @@ PROCESS_THREAD(coap_client, ev, data)
                 PRINTF("Temperature topic created\n");
 
                 found_broker = 1;
-                break;
               }
             }
           }
