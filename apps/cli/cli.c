@@ -288,9 +288,9 @@ show_dag(void)
     printf("DAG_ID: ");
     uip_debug_ipaddr_print(&dag->dag_id);
 
-    printf("\nDAG: rank:%d version:%d\n", dag->rank, dag->version);
-    printf("DAG: grounded:%d preferenc:%d\n", dag->grounded, dag->preference);
-    printf("DAG: used:%d joined:%d\n", dag->used, dag->joined);
+    printf("\nDAG: rank:%u version:%u\n", dag->rank, dag->version);
+    printf("DAG: grounded:%u preferenc:%u\n", dag->grounded, dag->preference);
+    printf("DAG: used:%u joined:%u\n", dag->used, dag->joined);
     printf("DAG: lifetime:%lu\n", dag->lifetime);
 
 #if 0
@@ -305,11 +305,11 @@ show_dag(void)
 #endif
 
     instance = dag->instance;
-    printf("INSTANCE: instance_id: %d used; %d\n",
+    printf("INSTANCE: instance_id: %u used; %u\n",
            instance->instance_id, instance->used);
 
 #if RPL_CONF_STATS
-    printf("    dio_sent: %d dio_recv: %d dio_totint: %d\n",
+    printf("    dio_sent: %u dio_recv: %u dio_totint: %u\n",
            instance->dio_totsend, instance->dio_totrecv,
            instance->dio_totint);
 #endif
