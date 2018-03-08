@@ -785,18 +785,6 @@ publish_sensors(void)
   topic = construct_topic("sensors");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-
-/*
-  if(lc.cca_test) {
-    int i; 
-    do_all_chan_cca(cca);
-    printf(" CCA: ");
-    for(i = 0; i < 16; i++) {
-      printf(" %3d", 100-cca[i]);
-    }
-    printf("\n");
-  }
-*/
 }
 
 static void
@@ -944,10 +932,17 @@ publish_cca_test(void)
 
   /* Publish MQTT topic not in SenML format */
 
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
+  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"cca_test\",\"v\":\"");
+
     PUTFMT("%d", 100-cca[0]);
   for(i = 1; i < 16; i++) {
     PUTFMT(" %d", 100-cca[i]);
   }
+
+  PUTFMT("\"}");
+  PUTFMT("]");
 
   //DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   printf("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
