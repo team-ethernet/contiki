@@ -59,6 +59,7 @@
 #define NETSTACK_CONF_FRAMER      framer_802154
 #define NETSTACK_CONF_RADIO       rf230_driver
 
+#define COAP_CONF_PUBLISH_INTERVAL  (3 * CLOCK_SECOND)
 
 /* The observer URL length needs to be set long enough to conation the topic URL. */
 /* This needs to be set in /apps/er-coap/er-coap-observe.h for the time being. */

@@ -25,6 +25,7 @@ APPS += coap-pubsub
 MODULES += dev/bme280
 MODULES += dev/bme680
 MODULES += dev/pms5003
+MODULES += dev/pm2105
 
 
 #CFLAGS += -DUIP_CONF_BUFFER_SIZE=1300
