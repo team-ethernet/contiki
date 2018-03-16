@@ -67,6 +67,7 @@
 
 #define RPL_CONF_ACCEPT_DEFAULT_INSTANCE_ONLY 1
 #define NULLRDC_CONF_802154_AUTOACK_HW  1
+#define NULLRDC_CONF_FRAME_RETRIES_SW 1
 
 //#define TESTBED_UPWIS_CONF 1
 /* uncomment the line above to use UPWIS configuration */

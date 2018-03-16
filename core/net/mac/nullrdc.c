@@ -116,6 +116,11 @@ send_one_packet(mac_callback_t sent, void *ptr)
   int ret;
   int last_sent_ok = 0;
 
+#ifdef NULLRDC_CONF_FRAME_RETRIES_SW 
+  rtimer_clock_t target_time;
+  uint8_t tx_attempts = 0;
+#endif /* NULLRDC_CONF_FRAME_RETRIES_SW */
+
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
 #if NULLRDC_802154_AUTOACK || NULLRDC_802154_AUTOACK_HW
   packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
@@ -210,6 +215,14 @@ send_one_packet(mac_callback_t sent, void *ptr)
 
 #else /* ! NULLRDC_802154_AUTOACK */
 
+#ifdef NULLRDC_CONF_FRAME_RETRIES_SW 
+  int is_broadcast;
+  is_broadcast = packetbuf_holds_broadcast();
+
+  do {
+    tx_attempts++;
+#endif /* NULLRDC_CONF_FRAME_RETRIES_SW */
+
     switch(NETSTACK_RADIO.send(packetbuf_hdrptr(), packetbuf_totlen())) {
     case RADIO_TX_OK:
       ret = MAC_TX_OK;
@@ -225,12 +238,25 @@ send_one_packet(mac_callback_t sent, void *ptr)
       break;
     }
 
+#ifdef NULLRDC_CONF_FRAME_RETRIES_SW 
+#ifdef CONTIKI_TARGET_AVR_RSS2 /* for avr-rss2 platform: using rf230bb radio */
+  } while ((!is_broadcast) && (tx_attempts < RF230_CONF_FRAME_RETRIES) && ((ret == MAC_TX_NOACK) || (ret == MAC_TX_COLLISION)));
+#else
+  /* TODO: here is for other platforms. Now set to 1 (no retransmission) */
+  } while ((!is_broadcast) && (tx_attempts < 1) && ((ret == MAC_TX_NOACK) || (ret == MAC_TX_COLLISION)));
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
+#endif /* NULLRDC_CONF_FRAME_RETRIES_SW */
+
 #endif /* ! NULLRDC_802154_AUTOACK */
   }
   if(ret == MAC_TX_OK) {
     last_sent_ok = 1;
   }
+#ifdef NULLRDC_CONF_FRAME_RETRIES_SW 
+  mac_call_sent_callback(sent, ptr, ret, tx_attempts);
+#else
   mac_call_sent_callback(sent, ptr, ret, 1);
+#endif /* NULLRDC_CONF_FRAME_RETRIES_SW */
   return last_sent_ok;
 }
 /*---------------------------------------------------------------------------*/
