@@ -78,6 +78,9 @@
 
 extern void handle_serial_input(const char *line);
 
+#ifdef CONTIKI_TARGET_AVR_RSS2
+extern uint16_t unused_stack;
+#endif
 /*---------------------------------------------------------------------------*/
 /*
  * IBM server: messaging.quickstart.internetofthings.ibmcloud.com
@@ -852,6 +855,7 @@ publish_stats(void)
 #endif
 
 #ifdef CONTIKI_TARGET_AVR_RSS2
+    PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
     /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
     if (seq_nr_value < 40) {
       PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
@@ -944,11 +948,8 @@ publish_cca_test(void)
   PUTFMT("\"}");
   PUTFMT("]");
 
-  //DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
-  printf("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   topic = construct_topic("cca_test");
-  printf("TOPIC: %s\n", topic);
-  printf("PAYLOAD: %s\n", app_buffer);
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }

@@ -127,6 +127,9 @@ uint16_t node_id; /* Can be set by cooja */
 uint16_t ledtimer_red, ledtimer_yellow;
 uint16_t i2c_probed; /* i2c devices we have probed */
 
+#if STACKMONITOR
+uint16_t unused_stack;
+#endif
 
 /*-------------------------------------------------------------------------*/
 /*----------------------Configuration of the .elf file---------------------*/
@@ -628,7 +631,8 @@ main(void)
         uint16_t p = (uint16_t)&__bss_end;
         do {
           if(*(uint16_t *)p != 0x4242) {
-            PRINTF("Never-used stack > %d bytes\n", p - (uint16_t)&__bss_end);
+            PRINTF("Never-used stack > %u bytes\n", p - (uint16_t)&__bss_end);
+	    unused_stack = p - (uint16_t)&__bss_end;
             break;
           }
           p += 10;
