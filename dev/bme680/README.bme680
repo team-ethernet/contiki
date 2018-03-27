@@ -1,26 +1,23 @@
 
-Contiki implementation for Bosch Sensortec BME280 sensor. 
-BME280 is compact and fast and includes temp, RH, and pressure. 
-Chip uses I2C or SPI. This implementation and follow Contiki 
-device API and I2C.
+Contiki implementation for Bosch Sensortec BME680 sensor. 
+BME680 is compact and fast and includes temp, RH, and pressure
+and gas resistance targeted for indoor air quality. IAQ.
 
-For better performance and less chip warm up and less I2C transactions
-burst read is recommended. Here all T/RH/P is read in one single 
-I2C read and kept the measurements have the same time. 
+Chip uses I2C or SPI. This implementation and follow Contiki device 
+API and I2C.
 
-The burst read is stored in struct bme280_mea which accessible from 
-the Contiki. Also note that the full chip resolution is available. 
-The variables are overscaled to give the app full controlover resolution.
+Example should be generic for most platforms:
+examples/avr-rss2/bme680-test
 
-See bme280.h
-
-The pressure can be calculated with 32 or 64. The define BME280_64BIT
-controls this. Typically in your project-conf.h
+See bme680.h
  
-Implemented according to datasheet Rev 1.1.
+Implemented according to datasheet Rev 1.0. July 2017
 
-Limitations:
-Implementation implements Weather Mode which uses forced one-shot 
-mode no oversampling nor filters and reads all T/RH/P in one read.
+Future work:
+Mapping between gas resistance and IAQ is need. Also the impact of 
+gas heater with respect on T/RH/P. A method for the IAQ use together 
+with the meteorological measurements would be nice.
+
+
 
 
