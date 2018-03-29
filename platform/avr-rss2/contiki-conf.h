@@ -181,6 +181,9 @@ typedef unsigned short uip_stats_t;
 #ifndef UIP_CONF_TCP
 #define UIP_CONF_TCP              1
 #endif
+#ifndef UIP_CONF_TCP_MSS
+#define UIP_CONF_TCP_MSS         64
+#endif
 #define NETSTACK_CONF_NETWORK     sicslowpan_driver
 #define SICSLOWPAN_CONF_COMPRESSION SICSLOWPAN_COMPRESSION_HC06
 #else
