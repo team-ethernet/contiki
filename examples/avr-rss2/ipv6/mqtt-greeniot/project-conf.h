@@ -90,6 +90,7 @@
 
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
+#define MQTT_CONF_KEEP_ALIVE_TIMER 120
 
 /* PMSx003 sensors -- I2C and/or UART*/
 #define PMS5003_CONF_SERIAL_I2C 1
