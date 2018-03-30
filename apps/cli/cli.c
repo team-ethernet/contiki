@@ -288,9 +288,9 @@ show_dag(void)
     printf("DAG_ID: ");
     uip_debug_ipaddr_print(&dag->dag_id);
 
-    printf("\nDAG: rank:%d version:%d\n", dag->rank, dag->version);
-    printf("DAG: grounded:%d preferenc:%d\n", dag->grounded, dag->preference);
-    printf("DAG: used:%d joined:%d\n", dag->used, dag->joined);
+    printf("\nDAG: rank:%u version:%u\n", dag->rank, dag->version);
+    printf("DAG: grounded:%u preferenc:%u\n", dag->grounded, dag->preference);
+    printf("DAG: used:%u joined:%u\n", dag->used, dag->joined);
     printf("DAG: lifetime:%lu\n", dag->lifetime);
 
 #if 0
@@ -305,11 +305,11 @@ show_dag(void)
 #endif
 
     instance = dag->instance;
-    printf("INSTANCE: instance_id: %d used; %d\n",
+    printf("INSTANCE: instance_id: %u used; %u\n",
            instance->instance_id, instance->used);
 
 #if RPL_CONF_STATS
-    printf("    dio_sent: %d dio_recv: %d dio_totint: %d\n",
+    printf("    dio_sent: %u dio_recv: %u dio_totint: %u\n",
            instance->dio_totsend, instance->dio_totrecv,
            instance->dio_totint);
 #endif
@@ -501,12 +501,14 @@ handle_serial_input(const char *line)
 	printf("Uptime %lu sec\n", clock_seconds());
       } else if(!strcmp(p, "v") || !strcmp(p, "ver")) {
         printf("PROJECT: %s\nCLI: %s", CLI_PROJECT, CLI_VERSION);
+#ifdef PMS5003_CONF_SERIAL_I2C
       } else if(!strcmp(p, "pm_w") || !strcmp(p, "pm_warmup")) {
         printf("PMS5003 warmup: %d sec\n", pms5003_get_warmup_interval());
       } else if(!strcmp(p, "pm_p") || !strcmp(p, "pm_period")) {
         printf("PMS5003 period: %d sec\n", pms5003_get_sample_period());
       } else if(!strcmp(p, "no2") || !strcmp(p, "NO2")) {
         printf("NO2 %-4.2f, a2 %-4.2f\n", no2(), adc_read_a2());
+#endif
       }
     }
   }
@@ -553,6 +555,7 @@ handle_serial_input(const char *line)
 	int csma_retries = atoi(p);
         radio_set_csma_retries((uint8_t) csma_retries);
     }
+#ifdef PMS5003_CONF_SERIAL_I2C
   } else if(!strcmp(p, "pm_w") || !strcmp(p, "pm_warmup")) {
     p = strtok(NULL, (const char *)delim);
     if (p) {
@@ -565,6 +568,7 @@ handle_serial_input(const char *line)
       int period = atoi(p);
       pms5003_config_sample_period(period);
     }
+#endif
   }
 
 #endif

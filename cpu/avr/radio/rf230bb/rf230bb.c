@@ -111,7 +111,11 @@ uint8_t poll_mode = 0;
   uint8_t rf230_frame_retries = 0;
 #endif
 #else
+#ifdef RF230_CONF_FRAME_RETRIES_SW
+  uint8_t rf230_frame_retries = 1; /* extended mode but no hardware retry */
+#else
   uint8_t rf230_frame_retries = RF230_CONF_FRAME_RETRIES;
+#endif /* RF230_CONF_FRAME_RETRIES_SW */
 #endif
 
 /* In extended mode (FRAME_RETRIES>0) the tx routine waits for hardware

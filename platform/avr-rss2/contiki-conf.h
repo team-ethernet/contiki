@@ -181,6 +181,9 @@ typedef unsigned short uip_stats_t;
 #ifndef UIP_CONF_TCP
 #define UIP_CONF_TCP              1
 #endif
+#ifndef UIP_CONF_TCP_MSS
+#define UIP_CONF_TCP_MSS         64
+#endif
 #define NETSTACK_CONF_NETWORK     sicslowpan_driver
 #define SICSLOWPAN_CONF_COMPRESSION SICSLOWPAN_COMPRESSION_HC06
 #else
@@ -270,6 +273,15 @@ typedef unsigned short uip_stats_t;
 /* A 0 here means non-extended mode; 1 means extended mode with no retry, >1 for retrys */
 /* Contikimac strobes on its own, but hardware retries are faster */
 #define RF230_CONF_FRAME_RETRIES  5
+/* In extended mode, we don't get statistic on how many retransmission is done */
+/* This may lead to wrong ETX calculation. We may want to retransmit in software instead */
+/* We add NULLRDC_CONF_FRAME_RETRIES_SW as a generic parameter for this in nullrdc case */
+/* It is expected to be used together with NULLRDC_CONF_802154_AUTOACK_HW */
+/* We also add RF230_CONF_FRAME_RETRIES_SW for radio hardware specific configuration */
+/* If NULLRDC_CONF_FRAME_RETRIES_SW is set, then we configure the radio accordingly */
+#ifdef NULLRDC_CONF_FRAME_RETRIES_SW
+#define RF230_CONF_FRAME_RETRIES_SW
+#endif
 /* Long csma backoffs will compromise radio cycling; set to 0 for 1 csma */
 #define RF230_CONF_CSMA_RETRIES   5
 #define SICSLOWPAN_CONF_FRAG      1

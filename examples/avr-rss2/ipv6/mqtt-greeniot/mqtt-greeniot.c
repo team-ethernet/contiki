@@ -78,6 +78,9 @@
 
 extern void handle_serial_input(const char *line);
 
+#ifdef CONTIKI_TARGET_AVR_RSS2
+extern uint16_t unused_stack;
+#endif
 /*---------------------------------------------------------------------------*/
 /*
  * IBM server: messaging.quickstart.internetofthings.ibmcloud.com
@@ -738,6 +741,7 @@ publish_sensors(void)
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
   PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
 
 #ifdef CO2
   PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
@@ -785,18 +789,6 @@ publish_sensors(void)
   topic = construct_topic("sensors");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-
-/*
-  if(lc.cca_test) {
-    int i; 
-    do_all_chan_cca(cca);
-    printf(" CCA: ");
-    for(i = 0; i < 16; i++) {
-      printf(" %3d", 100-cca[i]);
-    }
-    printf("\n");
-  }
-*/
 }
 
 static void
@@ -864,6 +856,7 @@ publish_stats(void)
 #endif
 
 #ifdef CONTIKI_TARGET_AVR_RSS2
+    PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
     /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
     if (seq_nr_value < 40) {
       PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
@@ -944,16 +937,20 @@ publish_cca_test(void)
 
   /* Publish MQTT topic not in SenML format */
 
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
+  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"cca_test\",\"v\":\"");
+
     PUTFMT("%d", 100-cca[0]);
   for(i = 1; i < 16; i++) {
     PUTFMT(" %d", 100-cca[i]);
   }
 
-  //DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
-  printf("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  PUTFMT("\"}");
+  PUTFMT("]");
+
+  DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   topic = construct_topic("cca_test");
-  printf("TOPIC: %s\n", topic);
-  printf("PAYLOAD: %s\n", app_buffer);
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }
