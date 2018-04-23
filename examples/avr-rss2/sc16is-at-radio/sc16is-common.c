@@ -38,7 +38,7 @@
  * \file
  *         Commons for sc16is I2C UART & GPIO
  *         Example uses avr-rss2 platform
- *         
+ *
  */
 
 #include "contiki.h"
@@ -53,42 +53,38 @@
 void
 toggle_bit(uint8_t *s, uint8_t bit)
 {
-    if(*s & bit) {
-      *s &= ~bit;
-    }
-    else 
-      *s |= bit;
+  if(*s & bit) {
+    *s &= ~bit;
+  } else {
+    *s |= bit;
+  }
 }
-
 void
 set_bit(uint8_t *s, uint8_t bit)
 {
-      *s |= bit;
+  *s |= bit;
 }
-
 void
 clr_bit(uint8_t *s, uint8_t bit)
 {
   *s &= ~bit;
 }
-
 void
-set_board_5v(uint8_t on) 
+set_board_5v(uint8_t on)
 {
-    uint8_t s = sc16is_gpio_get();
-    uint8_t d = sc16is_gpio_get_dir();
+  uint8_t s = sc16is_gpio_get();
+  uint8_t d = sc16is_gpio_get_dir();
 
-    printf("set_5V on=%d\n", on);
-    printf("GPIO=0x%02x\n", s);
-    printf("GPIO_DIR=0x%02x\n", d);
+  printf("set_5V on=%d\n", on);
+  printf("GPIO=0x%02x\n", s);
+  printf("GPIO_DIR=0x%02x\n", d);
 
-    if (on) {
-      set_bit(&d, G_U_5V_CTRL);
-      clr_bit(&s, G_U_5V_CTRL);
-    }
-    else {
-      clr_bit(&d, G_U_5V_CTRL);
-    }
-    sc16is_gpio_set_dir(d);
-    sc16is_gpio_set(s);
+  if(on) {
+    set_bit(&d, G_U_5V_CTRL);
+    clr_bit(&s, G_U_5V_CTRL);
+  } else {
+    clr_bit(&d, G_U_5V_CTRL);
+  }
+  sc16is_gpio_set_dir(d);
+  sc16is_gpio_set(s);
 }

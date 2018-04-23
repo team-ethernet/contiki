@@ -27,7 +27,7 @@ extern void sc16is_echo_test(void);
 #define SC16IS_XTAL 14745600UL
 #endif
 
-#define RG(x) (x<<3)
+#define RG(x) (x << 3)
 #define SC16IS_RHR    RG(0x00)
 #define SC16IS_THR    RG(0x00)
 #define SC16IS_IER    RG(0x01)
@@ -55,27 +55,27 @@ extern void sc16is_echo_test(void);
 #define SC16IS_XOFF1  RG(0x06)
 #define SC16IS_XOFF2  RG(0x07)
 
-#define SC16IS_FCR_FIFO_BIT (1<<0)
-#define SC16IS_FCR_RXRESET_BIT (1<<1)
-#define SC16IS_FCR_TXRESET_BIT (1<<2)
-#define SC16IS_FCR_RXLVLL_BIT (1<<6)
-#define SC16IS_FCR_RXLVLH_BIT (1<<7)
-#define SC16IS_LCR_DLAB_BIT (1<<7)
+#define SC16IS_FCR_FIFO_BIT (1 << 0)
+#define SC16IS_FCR_RXRESET_BIT (1 << 1)
+#define SC16IS_FCR_TXRESET_BIT (1 << 2)
+#define SC16IS_FCR_RXLVLL_BIT (1 << 6)
+#define SC16IS_FCR_RXLVLH_BIT (1 << 7)
+#define SC16IS_LCR_DLAB_BIT (1 << 7)
 #define SC16IS_LCR_WORD_LEN_8 (0x03)
 #define SC16IS_LCR_CONF_MODE_A  SC16IS_LCR_DLAB_BIT
 #define SC16IS_LCR_CONF_MODE_B  0xBF
-#define SC16IS_MCR_TCRTLR_BIT (1<<2)
-#define SC16IS_MCR_CLKSEL_BIT (1<<7)
-#define SC16IS_EFCR_RXDISABLE_BIT (1<<1)
-#define SC16IS_EFCR_TXDISABLE_BIT (1<<2)
-#define SC16IS_EFR_AUTORTS_BIT (1<<6)
-#define SC16IS_EFR_AUTOCTS_BIT (1<<7)
-#define SC16IS_EFR_ENABLE_BIT (1<<4)
+#define SC16IS_MCR_TCRTLR_BIT (1 << 2)
+#define SC16IS_MCR_CLKSEL_BIT (1 << 7)
+#define SC16IS_EFCR_RXDISABLE_BIT (1 << 1)
+#define SC16IS_EFCR_TXDISABLE_BIT (1 << 2)
+#define SC16IS_EFR_AUTORTS_BIT (1 << 6)
+#define SC16IS_EFR_AUTOCTS_BIT (1 << 7)
+#define SC16IS_EFR_ENABLE_BIT (1 << 4)
 
-#define SC16IS_TCR_RX_HALT(words) ((((words) / 4) & 0x0f)<<0)
-#define SC16IS_TCR_RX_RESUME(words) ((((words) / 4) & 0x0f)<<4)
+#define SC16IS_TCR_RX_HALT(words) ((((words) / 4) & 0x0f) << 0)
+#define SC16IS_TCR_RX_RESUME(words) ((((words) / 4) & 0x0f) << 4)
 
-#define SC16IS_LSR_DR_BIT   (1<<0)
-#define SC16IS_IER_SLEEP_BIT  (1<<4)
+#define SC16IS_LSR_DR_BIT   (1 << 0)
+#define SC16IS_IER_SLEEP_BIT  (1 << 4)
 
 #endif /* SC16IS_H */

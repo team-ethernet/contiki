@@ -29,7 +29,7 @@
  *
  * This file is part of the Contiki operating system.
  *
- * Implementation for NXP SC16IS7XX chip for bridge I2C/SPI to USRT/GPIO 
+ * Implementation for NXP SC16IS7XX chip for bridge I2C/SPI to USRT/GPIO
  * I2C support only
  * REF: NXP Datasheet SC16IS740/750/760  Rev. 06 - 13 May 2008
  *
@@ -146,7 +146,7 @@ sc16is_uart_set_speed(uint32_t baud)
     div = div >> 4;
   }
 
- /* Sleep mode should not be used when sett DLL/DLH registers */
+  /* Sleep mode should not be used when sett DLL/DLH registers */
   sc16is_sleep_mode(0);
 
   sc16is_arch_i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_LCR, &lcr, 1);
@@ -156,7 +156,7 @@ sc16is_uart_set_speed(uint32_t baud)
 #ifdef HW_FLOW_NONE
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT);
 #else
-  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT|SC16IS_EFR_AUTORTS_BIT|SC16IS_EFR_AUTOCTS_BIT);
+  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT | SC16IS_EFR_AUTORTS_BIT | SC16IS_EFR_AUTOCTS_BIT);
 #endif
   /* LCR to Normal mode */
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, lcr);
@@ -172,9 +172,8 @@ sc16is_uart_set_speed(uint32_t baud)
   /* Restore mode */
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_LCR, lcr);
 
- /* Sleep mode should not be used when sett DLL/DLH registers */
+  /* Sleep mode should not be used when sett DLL/DLH registers */
   sc16is_sleep_mode(1);
-
 }
 uint8_t
 sc16is_tx_fifo(void)
@@ -196,10 +195,11 @@ sc16is_sleep_mode(uint8_t sleep)
   uint8_t val;
 
   sc16is_arch_i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_IER, &val, 1);
-  if(sleep) 
-    val |= SC16IS_IER_SLEEP_BIT;    
-  else
-    val &= ~SC16IS_IER_SLEEP_BIT;    
+  if(sleep) {
+    val |= SC16IS_IER_SLEEP_BIT;
+  } else {
+    val &= ~SC16IS_IER_SLEEP_BIT;
+  }
 
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IER, val);
 }
@@ -208,7 +208,7 @@ sc16is_init(void)
 {
   uint8_t val;
 
-  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IOCONTROL, (1<<3)); /* Software reset */
+  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_IOCONTROL, (1 << 3)); /* Software reset */
   clock_delay_usec(10);
 
   /*  We use chip FIFO mode  */
@@ -223,9 +223,9 @@ sc16is_init(void)
 #ifdef HW_FLOW_NONE
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT);
 #else
-  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT|SC16IS_EFR_AUTORTS_BIT|SC16IS_EFR_AUTOCTS_BIT);
+  sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_EFR, SC16IS_EFR_ENABLE_BIT | SC16IS_EFR_AUTORTS_BIT | SC16IS_EFR_AUTOCTS_BIT);
 #endif
- /* Enable TCL/TLR */
+  /* Enable TCL/TLR */
   sc16is_arch_i2c_read_mem(I2C_SC16IS_ADDR, SC16IS_MCR, &val, 1);
   val |= SC16IS_MCR_TCRTLR_BIT;
   sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_MCR, val);

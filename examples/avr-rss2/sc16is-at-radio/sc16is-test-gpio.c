@@ -38,7 +38,7 @@
  * \file
  *         A test program for sc16is I2C UART & GPIO
  *         Example uses avr-rss2 platform
- *         
+ *
  */
 
 #include "contiki.h"
@@ -56,32 +56,31 @@ AUTOSTART_PROCESSES(&blink);
 static struct etimer et;
 
 int on;
-uint8_t at[] = {'A', 'T', 0xd };
+uint8_t at[] = { 'A', 'T', 0xd };
 
 int
 module_init(uint32_t baud)
 {
-  if( i2c_probed & I2C_SC16IS ) {
+  if(i2c_probed & I2C_SC16IS) {
 
     sc16is_init();
-    sc16is_gpio_set_dir(G_RESET|G_PWR|G_U_5V_CTRL|G_SET|G_LED_YELLOW|G_LED_RED|G_GPIO7);
+    sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
     sc16is_gpio_set(G_LED_RED);
     sc16is_uart_set_speed(baud);
-    //sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT);
+    /* sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT); */
     sc16is_tx(at, sizeof(at));
     return 1;
   }
   return 0;
 }
-
 PROCESS_THREAD(blink, ev, data)
 {
   unsigned char s;
   PROCESS_BEGIN();
   module_init(115200);
 
-  while (1) {
-    etimer_set(&et, CLOCK_SECOND*4);
+  while(1) {
+    etimer_set(&et, CLOCK_SECOND * 4);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
 
     s = sc16is_gpio_get();

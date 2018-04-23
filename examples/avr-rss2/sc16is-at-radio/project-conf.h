@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB  
+ * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
 
-//#define NETSTACK_CONF_MAC         csma_driver
-//#define NETSTACK_CONF_RDC         contikimac_driver
+/* #define NETSTACK_CONF_MAC         csma_driver */
+/* #define NETSTACK_CONF_RDC         contikimac_driver */
 
 #endif /* PROJECT_CONF_H_ */
