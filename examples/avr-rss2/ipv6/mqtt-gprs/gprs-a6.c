@@ -791,8 +791,6 @@ PROCESS_THREAD(a6at, ev, data) {
   leds_init();
   event_init();
   event_queue_init();
-  /* Fix baudrate  */
-  ATSTR("AT");
   
  again:
   module_init(115200);
@@ -800,17 +798,18 @@ PROCESS_THREAD(a6at, ev, data) {
     uint8_t s;
 
     set_board_5v(0); /* Power cycle the board */
+    DELAY(2);
+    set_board_5v(1);
 
     s = sc16is_gpio_get();
     printf("LOOP GPIO=0x%02x\n", sc16is_gpio_get());
-        clr_bit(&s, G_PWR);
+    clr_bit(&s, G_PWR);
     set_bit(&s, G_RESET);
     sc16is_gpio_set(s);
     DELAY(2);
     clr_bit(&s, G_RESET);
     sc16is_gpio_set(s);
     /* start */
-    set_board_5v(1);
     DELAY(2);
     printf("Start Radio\n");
     s = sc16is_gpio_get();
