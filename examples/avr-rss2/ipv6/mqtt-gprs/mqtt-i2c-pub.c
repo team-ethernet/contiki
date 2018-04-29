@@ -80,6 +80,10 @@ mqtt_i2c_pub(char *buf, int bufsize)  {
   PUTFMT("%s\"PMS5003\"", delim);
   delim = ",";
 }
+  if (i2c_probed & I2C_SC16IS) {
+  PUTFMT("%s\"SC16IS\"", delim);
+  delim = ",";
+}
   PUTFMT("]}");
   return buf_ptr - buf;
 }
