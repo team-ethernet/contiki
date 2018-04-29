@@ -800,6 +800,7 @@ PROCESS_THREAD(a6at, ev, data) {
     set_board_5v(0); /* Power cycle the board */
     DELAY(2);
     set_board_5v(1);
+    DELAY(2);
 
     s = sc16is_gpio_get();
     printf("LOOP GPIO=0x%02x\n", sc16is_gpio_get());
