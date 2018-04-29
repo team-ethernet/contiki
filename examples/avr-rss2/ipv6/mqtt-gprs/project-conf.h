@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2012, Texas Instruments Incorporated - http://www.ti.com/
  * All rights reserved.
@@ -53,7 +54,7 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
 
 #ifdef MQTT_GPRS
-#define MQTT_CONF_PUBLISH_INTERVAL    (10 * CLOCK_SECOND)
+#define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
 #else
 #define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
 #endif /* MQTT_GPRS */
@@ -82,7 +83,6 @@
 #define IEEE802154_CONF_PANID 0x5EE9
 #define CHANNEL_CONF_802_15_4 20
 #elif defined(MQTT_GPRS) /* Native MQTT over GPRS */
-#define MQTT_CONF_PUBLISH_INTERVAL (10 * CLOCK_SECOND)
 #define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
 #define MQTT_DEMO_BROKER_IP_ADDR "192.16.125.234" /* 192.16.125.234 */
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
