@@ -771,11 +771,16 @@ publish_sensors(void)
     }
 
   }
+
   if( i2c_probed & I2C_BME280 ) {
-    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_TEMP));
-    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%d}", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%d.%d}", bme280_sensor.value(BME280_SENSOR_PRESSURE)/10,
-	   bme280_sensor.value(BME280_SENSOR_PRESSURE) % 10);
+    bme280_sensor.value(BME280_SENSOR_TEMP);
+    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%4.2f}", (double)bme280_mea.t_overscale100/100.0);
+    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%4.2f}", (double)bme280_mea.h_overscale1024 / 1024.0);
+#ifdef BME280_64BIT
+    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p_overscale256/ (256.0*100));
+#else
+    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p);
+#endif
   }
 
   PUTFMT("]");
