@@ -947,6 +947,7 @@ publish_stats(void)
       if (status->state == GPRS_STATE_ACTIVE) {
         PUTFMT(",{\"n\":\"gprs;local_ip\",\"vs\":\"%s\"}", status->ipaddr); 
       }
+      PUTFMT(",{\"n\":\"gprs;rssi\",\"v\":%u}", status->rssi);
     }
     break;
 #endif /* GPRS_CONF_STATS */

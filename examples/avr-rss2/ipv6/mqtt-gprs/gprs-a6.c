@@ -228,6 +228,7 @@ struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_cal
 struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
+struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
 
 static char atline[80];
 
@@ -1080,6 +1081,13 @@ PROCESS_THREAD(a6at, ev, data) {
       printf("A6AT GPRS Unknown event %d\n", gprs_event->ev);
     }
 #endif /* GPRS_DEBUG */
+
+    ATSTR("AT+CSQ\r"); ATWAIT2(5, &wait_csq);
+    if (at == NULL)
+      continue;
+    status.rssi = atoi((char *) atline /*foundbuf*/);
+    printf("rssi atoi(\"%s\") -> %d\n", atline, status.rssi);
+
     continue;
   failed:
     /* Timeout */

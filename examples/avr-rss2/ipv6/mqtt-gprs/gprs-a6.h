@@ -67,6 +67,7 @@ struct gprs_status {
 #else
   char ipaddr[sizeof("255.255.255.255")];  
 #endif /* NETSTACK_CONF_WITH_IPV6 */
+  int8_t rssi;
 };
 
 struct gprs_statistics {
