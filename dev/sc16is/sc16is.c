@@ -59,6 +59,21 @@ sc16is_gpio_set(uint8_t set)
   return;
 }
 void
+sc16is_gpio_set_bit(uint8_t bit)
+{ 
+  sc16is_gpio_set(sc16is_gpio_get()|bit); 
+}
+void
+sc16is_gpio_clr_bit(uint8_t bit)
+{ 
+  sc16is_gpio_set(sc16is_gpio_get()&~bit); 
+}
+void
+sc16is_gpio_toggle_bit(uint8_t bit)
+{ 
+  sc16is_gpio_set(sc16is_gpio_get()^bit); 
+}
+void
 sc16is_gpio_set_dir(uint8_t set)
 {
 

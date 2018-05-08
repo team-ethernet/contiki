@@ -20,6 +20,9 @@ extern void sc16is_gpio_set_irq(uint8_t set);
 extern uint8_t sc16is_gpio_get_irq(void);
 extern void sc16is_sleep_mode(uint8_t sleep);
 extern void sc16is_echo_test(void);
+extern void sc16is_gpio_set_bit(uint8_t bit);
+extern void sc16is_gpio_clr_bit(uint8_t bit);
+extern void sc16is_gpio_toggle_bit(uint8_t bit);
 
 #ifdef SC66IS_CONF_XTAL
 #define SC16IS_XTAL SC16IS_CONF_XTAL
