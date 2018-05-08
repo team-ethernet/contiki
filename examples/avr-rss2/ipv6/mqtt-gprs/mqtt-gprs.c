@@ -926,6 +926,7 @@ publish_stats(void)
     {
       struct gprs_status *status;
       status = gprs_status();
+      PUTFMT(",{\"n\":\"gprs;module\",\"v\":%u}", status->module);
       PUTFMT(",{\"n\":\"gprs;status\",\"vs\":"); 
       switch (status->state) {
       case GPRS_STATE_NONE:
@@ -948,6 +949,10 @@ publish_stats(void)
         PUTFMT(",{\"n\":\"gprs;local_ip\",\"vs\":\"%s\"}", status->ipaddr); 
       }
       PUTFMT(",{\"n\":\"gprs;rssi\",\"v\":%u}", status->rssi);
+      PUTFMT(",{\"n\":\"gprs;gps_longi\",\"v\":%f}", status->longi);
+      PUTFMT(",{\"n\":\"gprs;gps_lat\",\"v\":%f}", status->lat);
+      PUTFMT(",{\"n\":\"gprs;gps_speed\",\"v\":%f}", status->speed);
+      PUTFMT(",{\"n\":\"gprs;gps_course\",\"v\":%f}", status->course);
     }
     break;
 #endif /* GPRS_CONF_STATS */
