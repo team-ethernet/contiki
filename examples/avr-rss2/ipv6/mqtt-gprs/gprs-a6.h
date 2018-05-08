@@ -68,6 +68,17 @@ struct gprs_status {
   char ipaddr[sizeof("255.255.255.255")];  
 #endif /* NETSTACK_CONF_WITH_IPV6 */
   int8_t rssi;
+
+  enum int8_t {
+    GPRS_MODULE_UNNKOWN = -1,
+    GPRS_MODULE_A6 = 6,
+    GPRS_MODULE_A7
+  } module;
+
+  double longi;
+  double lat;
+  double speed;
+  double course;
 };
 
 struct gprs_statistics {

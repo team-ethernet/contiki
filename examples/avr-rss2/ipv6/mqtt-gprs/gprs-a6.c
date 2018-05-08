@@ -76,6 +76,11 @@ static struct gprs_status status;
 PROCESS(sc16is_reader, "I2C UART input process");
 PROCESS(a6at, "GPRS A6 module");
 
+
+/* LED debugging process */
+PROCESS(yled, "Yellow LED");
+static clock_time_t yled_interval = CLOCK_SECOND/2;
+
 /*---------------------------------------------------------------------------*/
 void
 gprs_init() {
@@ -83,6 +88,7 @@ gprs_init() {
   memset(&gprs_statistics, 0, sizeof(gprs_statistics));
   process_start(&sc16is_reader, NULL);
   process_start(&a6at, NULL);
+  process_start(&yled, NULL);
 }
 /*---------------------------------------------------------------------------*/
 struct gprs_connection *
@@ -211,9 +217,13 @@ PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
 static
 PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 static
 PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+static
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
 
 static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
 static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
@@ -229,6 +239,9 @@ struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
 struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
+struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
+
+struct at_wait wait_ati = {"Ai Thinker", wait_readlines_callback, at_match_byte};
 
 static char atline[80];
 
@@ -395,6 +408,39 @@ PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int
   PT_END(pt);
 }
 
+PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  static int atpos;
+  int done = 0;
+  static int datapos;
+
+  PT_BEGIN(pt);
+  datapos = 0;
+  atpos = 0;
+  while (done == 0) {
+    while (datapos < len && done == 0) {
+      if (data[datapos] == '\n' || data[datapos] == '\r') {
+        data[datapos] = ' ';
+      }
+      else {
+        atline[atpos++] = (char ) data[datapos++];
+        if (atpos == sizeof(atline))
+          done = 1;
+	if (data[datapos] == 0)
+          done = 1;
+      }
+    }
+    if (!done) {
+      /* Reached end of input data but have not seen end of line. 
+       * Yield here and wait for next invocation.
+       */ 
+      PT_YIELD(pt);
+    }
+  }
+  /* done -- mark end of string */
+  atline[atpos] = '\0';
+  PT_END(pt);
+}
+
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
   char ret;
@@ -420,6 +466,105 @@ PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *dat
   ret = wait_readline_pt(pt, at, data, len);
   if (ret == PT_ENDED)
     process_post(&a6at, at_match_event, at);
+  return ret;
+}
+
+/*
+ * Callback function to read all lines until full buffer is full
+ * and the post an event to signal the match
+ */
+
+static
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+  char ret;
+  ret = wait_readlines_pt(pt, at, data, len);
+  if (ret == PT_ENDED)
+    process_post(&a6at, at_match_event, at);
+  return ret;
+}
+
+static
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+
+  char ret, *valid;
+  /* 
+     unsigned int year, mon, day, hour, min, sec; 
+     char  foo[6], c[1];
+  */
+  char *p, *time, *s1, *s2, *date;
+
+  /* 
+     A7 NMEA sentence
+     PGSV,3,2,11,20,52,092,23,10,33,169,,08,23,291,,30,11,344,*7B*
+     $GPGSV,3,3,11,07,17,318,,26,22,189,,21,55,086,*4B*
+     $GPRMC,112547.000,A,5951.05612,N,01736.86381,E,0.00,0.00,300182,,,A*6D*
+     $GPVTG,0.00,T,,
+     M,0.00,N,0.00,K,A*3D*
+  */
+
+  ret = wait_readlines_pt(pt, at, data, len);
+  printf("GPS=%s\n", atline);
+
+  const char *delim = " \t\r,";
+  time = strtok((char *)&atline[0], (const char *) delim);
+
+  if(time) printf("time %s\n", time);
+  
+  valid = strtok(NULL, delim);
+  if(valid) printf("valid %s\n", valid);
+  
+  p = strtok(NULL, delim);
+  if(p) {
+    status.lat = strtod(p, NULL);
+    status.lat = status.lat/100.;
+  }
+
+  s1 = strtok(NULL, delim);
+  if(p) printf("s1 %s\n", s1);
+
+  p = strtok(NULL, delim);
+  if(p) {
+    status.longi = strtod(p, NULL);
+    status.longi = status.longi/100.;
+  }
+
+  s2 = strtok(NULL, delim);
+  if(p) printf("s2 %s\n", s2);
+
+  p = strtok(NULL, delim);
+  if(p) status.speed = strtod(p, NULL);
+#define KNOT_TO_KMPH 1.852 
+  status.speed = status.speed * KNOT_TO_KMPH;
+
+  p = strtok(NULL, delim);
+  if(p) status.course = strtod(p, NULL);
+
+  date = strtok(NULL, delim);
+  if(p) printf("date %s\n", date);
+
+  if((!strcmp(valid, "A"))) {
+    /* Fix */
+    sc16is_gpio_clr_bit(G_LED_RED);
+    printf("valid=%s lon=%-lf lat=%-lf speed=%-6.2lf course=%-lf\n", 
+	   valid, status.lat, status.longi, status.speed, status.course);
+    /* year += 2000; */
+  } 
+  else {
+    /* No fix */
+    sc16is_gpio_set_bit(G_LED_RED);
+    status.longi = -1;
+    status.lat = -1;
+    status.speed = -1;
+    status.course = -1;
+  }
+
+#if 0
+    /* Old. Decode $GPRMC sentense */
+    res = sscanf(atline,"%2d%2d%2d.%3c,%1c,%lf,%1c,%lf,%1c,%lf,%lf,%2d%2d%2d",
+		 &hour, &min, &sec, foo, &valid, &lat, c, &longi, c, &speed, &course, &day, &mon, &year);
+#endif    
+      //nmew_time(year, mon, day, hour, min, sec );
+
   return ret;
 }
 
@@ -541,11 +686,11 @@ stop_atlist(struct at_wait *at, ...) {
 
 static void
 wait_init() {
-
   at_numwait = 0;
   /* The following are to detect async events -- permanently active */
   start_at(&wait_ciprcv);
   start_at(&wait_tcpclosed);  
+  start_at(&wait_gpsrd);  
   at_numwait_permanent = at_numwait;
 }
 
@@ -610,7 +755,7 @@ module_init(uint32_t baud)
 
     sc16is_init();
     sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
-    sc16is_gpio_set(G_LED_RED);
+    sc16is_gpio_set((G_LED_RED|G_LED_YELLOW));
     sc16is_uart_set_speed(baud);
     /* sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT); */
     status.state = GPRS_STATE_IDLE;
@@ -802,11 +947,13 @@ PROCESS_THREAD(a6at, ev, data) {
     DELAY(2);
     set_board_5v(1);
     DELAY(2);
-
     s = sc16is_gpio_get();
     printf("LOOP GPIO=0x%02x\n", sc16is_gpio_get());
     clr_bit(&s, G_PWR);
     set_bit(&s, G_RESET);
+
+    set_bit(&s, G_LED_RED); /*OFF */
+    set_bit(&s, G_LED_YELLOW);
     sc16is_gpio_set(s);
     DELAY(2);
     clr_bit(&s, G_RESET);
@@ -818,20 +965,52 @@ PROCESS_THREAD(a6at, ev, data) {
     set_bit(&s, G_PWR);
     sc16is_gpio_set(s);
 
-#if 0
-    printf("Resetting... gpio == 0x%x\n", sc16is_gpio_get());
-    sc16is_gpio_set(sc16is_gpio_get()|G_RESET); /* Reset on */
-    printf("Sleeping... gpio == 0x%x\n", sc16is_gpio_get());
-    DELAY(5);
-    sc16is_gpio_set((sc16is_gpio_get()&~G_RESET)|G_PWR_KEY|G_SLEEP); /* Toggle reset, power key on, no sleep */
-    printf("Probing2... gpio == 0x%x\n", sc16is_gpio_get());
-    DELAY(5); 
-    sc16is_gpio_set(sc16is_gpio_get()&~G_PWR_KEY); /* Toggle power key (power will remain on) */
-    printf("Probing3... gpio == 0x%x\n", sc16is_gpio_get());
-#endif
-
     ATSTR("AT\r");
     DELAY(5);
+
+    status.module = GPRS_MODULE_UNNKOWN;
+    ATSTR("ATI\r");
+    ATWAIT2(10, &wait_ati);
+    if (at == NULL) {
+      printf("No module version found\n");
+    }
+    else {
+      int i;
+      const char *delim = " \t\r,";
+      char *p = strtok((char *)&atline[0], (const char *) delim);
+      for(i=0; i <  sizeof(atline); i++) {
+	p = strtok(NULL, delim);
+	if(!strcmp(p, "A6")) {
+	  status.module = GPRS_MODULE_A6;
+	  break;
+	}
+	if(!strcmp(p, "A7")) {
+	  status.module = GPRS_MODULE_A7;
+	  break;
+	}
+      }
+    }
+    printf("Module version %d\n", status.module);
+
+    if(status.module == GPRS_MODULE_A7) {
+      ATSTR("AT+GPS=0\r");
+      ATWAIT2(10, &wait_ok);
+      if (at == NULL) {
+	printf("GPS not disabled\n");
+      }
+      
+      ATSTR("AT+GPS=1\r");
+      ATWAIT2(10, &wait_ok);
+      if (at == NULL) {
+	printf("GPS not enabled\n");
+      }
+      
+      ATSTR("AT+GPSRD=30\r");
+      ATWAIT2(10, &wait_gpsrd);
+      if (at == NULL) {
+	printf("GPSRD not enabled\n");
+      }
+    }
   }
 
   /* Wait for registration status to become 1 (local registration)
@@ -872,7 +1051,6 @@ PROCESS_THREAD(a6at, ev, data) {
     ATWAIT2(20, &wait_ok);
       
     ATSTR("AT+CGATT=1\r"); ATWAIT2(5, &wait_ok);
-
     ATSTR("AT+CIPMUX=0\r"); ATWAIT2(5, &wait_ok);
       
     minor_tries = 0;
@@ -936,6 +1114,19 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif /* GPRS_DEBUG */
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
 
+  if(status.module == GPRS_MODULE_A7) {
+    ATSTR("AT+AGPS=1\r");
+    ATWAIT2(25, &wait_ok);
+    if (at == NULL) {
+      printf("AGPS not enabled\n");
+    }
+    ATSTR("AT+GPSRD=30\r");
+    ATWAIT2(10, &wait_gpsrd);
+    if (at == NULL) {
+      printf("GPSRD not enabled\n");
+    }
+  }
+
   /* Main loop. Wait for GPRS command and execute them */
   while(1) {
     static struct gprs_event *gprs_event;
@@ -953,6 +1144,10 @@ PROCESS_THREAD(a6at, ev, data) {
       printf("A6AT GPRS Connection\n");
 #endif /* GPRS_DEBUG */
 
+
+      yled_interval = CLOCK_SECOND*2;
+      process_post(&yled, 3, &yled_interval);
+
       gprsconn = (struct gprs_connection *) gprs_event->data;
       minor_tries = 0;
       while (minor_tries++ < 10) {
@@ -963,6 +1158,8 @@ PROCESS_THREAD(a6at, ev, data) {
         if (at == &wait_connectok) {
           gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
+	  yled_interval = CLOCK_SECOND/4;
+	  process_post(&yled, 3, &yled_interval);
           goto nextcommand;
         }
         else if (at == &wait_commandnoresponse) {
@@ -971,6 +1168,8 @@ PROCESS_THREAD(a6at, ev, data) {
           if (at == &wait_connectok) {
             gprs_statistics.connections += 1;
             call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
+	    yled_interval = CLOCK_SECOND/2;
+	    process_post(&yled, 3, &yled_interval);
             goto nextcommand;
           }
         }
@@ -1096,6 +1295,37 @@ PROCESS_THREAD(a6at, ev, data) {
     ATSTR("AT+CIPSHUT\r");
     ATWAIT2(5, &wait_ok, &wait_cmeerror);
     call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
+  }
+  PROCESS_END();
+}
+
+static struct etimer yled_timer;
+
+PROCESS_THREAD(yled, ev, data) 
+{
+  PROCESS_BEGIN();
+
+  sc16is_gpio_set_bit(G_LED_YELLOW);
+
+  while (1) { 
+    PROCESS_WAIT_EVENT();
+    if(etimer_expired(&yled_timer)) { 
+      etimer_stop(&yled_timer); 
+      sc16is_gpio_toggle_bit(G_LED_YELLOW);
+      etimer_set(&yled_timer, yled_interval);
+    }
+    else if(ev == 1) {
+      etimer_stop(&yled_timer); 
+      sc16is_gpio_set_bit(G_LED_YELLOW);
+    }
+    else if(ev == 2) {
+      etimer_stop(&yled_timer); 
+      sc16is_gpio_clr_bit(G_LED_YELLOW);
+    }
+    else if(ev == 3) {
+      etimer_stop(&yled_timer); 
+      etimer_set(&yled_timer, yled_interval);
+    }
   }
   PROCESS_END();
 }
