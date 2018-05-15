@@ -783,6 +783,17 @@ publish_sensors(void)
 #endif
   }
 
+#ifdef MQTT_GPRS
+  {
+    struct gprs_status *status;
+    int lb = -113;
+    status = gprs_status();
+    if((status->rssi) > 0 )
+      lb += (status->rssi)*2;  /* In dBm acording to A6/A7 datasheet */
+    PUTFMT(",{\"n\":\"gprs;linkbudget\",\"v\":%d}", lb);
+  }
+#endif
+
   PUTFMT("]");
 
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));

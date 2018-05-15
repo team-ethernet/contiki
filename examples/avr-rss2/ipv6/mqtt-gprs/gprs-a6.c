@@ -53,9 +53,7 @@
 #include "tcp-socket-gprs.h"
 #include "gprs-a6.h"
 
-
-//#define APN "online.telia.se"
-#define APN "4g.tele2.se"
+#define APN GPRS_CONF_APN
 #define PDPTYPE "IP"
 //#define PDPTYPE "IPV6"
 
@@ -990,6 +988,8 @@ PROCESS_THREAD(a6at, ev, data) {
 	}
       }
     }
+    status.module = GPRS_MODULE_A6; /* To avoid GPS with A7 */
+
     printf("Module version %d\n", status.module);
 
     if(status.module == GPRS_MODULE_A7) {

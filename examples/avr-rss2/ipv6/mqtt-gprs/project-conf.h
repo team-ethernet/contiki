@@ -54,10 +54,20 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
 
 #ifdef MQTT_GPRS
-#define MQTT_CONF_PUBLISH_INTERVAL    (120 * CLOCK_SECOND)
+#define MQTT_CONF_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
 #else
 #define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
 #endif /* MQTT_GPRS */
+
+#define URBAN_ICT_CONF  1
+
+#ifdef URBAN_ICT_CONF 
+#define GPRS_CONF_APN "vnl"
+#elif defined(GPRS_TELIA) 
+#define GPRS_CONF_APN "online.telia.se"
+#else
+#define GPRS_CONF_APN "4g.tele2.se"
+#endif
 
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
