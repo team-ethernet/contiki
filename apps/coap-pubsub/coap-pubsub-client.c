@@ -177,14 +177,13 @@ process_discovery_response(void *response)
 
   do {
     links_remaining = parse_next_link((char *)url_buffer, &parameters, !more);
-
     if(url_buffer[0]) {
-
       /* Checks for pubsub function set if one hasn't been found yet */
-      if(broker->base_url[0] == '\0' && parameters.ct == APPLICATION_LINK_FORMAT
-         && strncmp(parameters.rt, "\"core.ps\"", LINK_RT_MAX_SIZE) == 0) {
-        strncpy(broker->base_url, url_buffer, COAP_PUBSUB_MAX_URL_LEN);
-        PRINTF("Found broker function set at /%s\n", (char *)(broker->base_url));
+      if(broker->base_url[0]== '\0' && parameters.ct == APPLICATION_LINK_FORMAT
+	 && ((strncmp(parameters.rt, "core.ps", LINK_RT_MAX_SIZE) == 0) || 
+	     (strncmp(parameters.rt, "core.ps.discover", LINK_RT_MAX_SIZE) == 0))) {
+	   strncpy(broker->base_url, url_buffer, COAP_PUBSUB_MAX_URL_LEN);
+	   PRINTF("Found broker function set at /%s\n", (char *)(broker->base_url));
       } else {
         broker_base_len = strlen(broker->base_url);
         if(broker_base_len > 0
