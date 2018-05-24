@@ -752,7 +752,8 @@ module_init(uint32_t baud)
   if(i2c_probed & I2C_SC16IS) {
 
     sc16is_init();
-    sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
+    //sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
+    sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_LED_YELLOW | G_LED_RED | G_GPIO7);
     sc16is_gpio_set((G_LED_RED|G_LED_YELLOW));
     sc16is_uart_set_speed(baud);
     /* sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT); */
