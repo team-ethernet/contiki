@@ -194,7 +194,7 @@ PROCESS_THREAD(coap_client, ev, data)
 	}
       }
       else {
-	if(i2c_probed & I2C_BME680) {
+	if(0 && i2c_probed & I2C_BME680) {
 	  remaining = COAP_PUBSUB_MAX_CREATE_MESSAGE_LEN;
 	  buf_ptr = (char *) topic_bme.content;
 	  /* Trigger burst read */
@@ -213,6 +213,8 @@ PROCESS_THREAD(coap_client, ev, data)
 	  }
 	}
 	else if (i2c_probed & I2C_BME280) {
+	  remaining = COAP_PUBSUB_MAX_CREATE_MESSAGE_LEN;
+	  buf_ptr = (char *) topic_bme.content;
 	  /* Trigger burst read */
 	  bme280_sensor.value(BME280_SENSOR_TEMP);
 	  PUTFMT("%-5.2f ", (double)bme280_mea.t_overscale100 / 100.);
