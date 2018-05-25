@@ -133,7 +133,7 @@ PROCESS_THREAD(coap_client, ev, data)
   PRINTF("Node-ID=%s\n", topic_dir.url);
 
   strcpy(topic_bme.url, topic_dir.url);
-  sprintf(((char *)&topic_bme.url) + strlen(topic_dir.url) * sizeof(char), "/bme");
+  sprintf(((char *)&topic_bme.url) + strlen(topic_dir.url) * sizeof(char), "/bmetrhp");
   PRINTF("BME topic url = %s\n", topic_bme.url);
 
   strcpy(topic_pm.url, topic_dir.url);
