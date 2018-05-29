@@ -302,6 +302,8 @@ coap_pubsub_setup_create(client_topic_t *topic)
 {
   char *base_topic_name;
   size_t url_base_len, url_path_len;
+  char buf[COAP_PUBSUB_MAX_URL_LEN];
+
   handled_topic = topic;
 
   topic->last_response_code = 0;
@@ -316,6 +318,14 @@ coap_pubsub_setup_create(client_topic_t *topic)
     base_topic_name += 1 * sizeof(char); /* Add 1 to go past the last separator */
   }
 
+  memcpy(buf,topic->url,strlen(topic->url));
+  buf[strlen(topic->url)-1]=0;
+
+  char* q = strrchr(buf, '/');
+  if(q == 0) 
+    q = (char *)&buf;
+  else q++;
+
   url_base_len = strlen(topic->broker->base_url);
   url_path_len = (base_topic_name - (char *)&topic->url) * sizeof(char);
 
@@ -328,9 +338,15 @@ coap_pubsub_setup_create(client_topic_t *topic)
   strncpy(&url_buffer[url_base_len + 1], (char *)&topic->url, url_path_len);
 
   snprintf((char *)&payload_buffer, COAP_PUBSUB_MAX_CREATE_MESSAGE_LEN,
-           "<%s>;ct=%u", base_topic_name, topic->content_type);
+           "<%s>;ct=%u", q, topic->content_type);
+  
+  memcpy(buf, url_buffer, strlen(url_buffer));
+  char *p = strrchr((char *)&buf, '/');
+  *p = 0;
+  p = strrchr((char *)&buf, '/');
+  *p = 0;
 
-  coap_set_header_uri_path(request, (const char *)&url_buffer);
+  coap_set_header_uri_path(request, (const char *)&buf);
   coap_set_payload(request, &payload_buffer, strlen((char *)&payload_buffer));
   coap_set_header_content_format(request, APPLICATION_LINK_FORMAT);
 
