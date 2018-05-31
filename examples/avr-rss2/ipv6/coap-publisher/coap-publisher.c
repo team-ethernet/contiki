@@ -133,11 +133,12 @@ PROCESS_THREAD(coap_client, ev, data)
   PRINTF("Node-ID=%s\n", topic_dir.url);
 
   strcpy(topic_bme.url, topic_dir.url);
-  sprintf(((char *)&topic_bme.url) + strlen(topic_dir.url) * sizeof(char), "/bmetrhp");
+  //sprintf(((char *)&topic_bme.url) + strlen(topic_dir.url) * sizeof(char), "bmetrhp/");
+  sprintf(((char *)&topic_bme.url) + strlen(topic_dir.url) * sizeof(char), "topic1/");
   PRINTF("BME topic url = %s\n", topic_bme.url);
 
   strcpy(topic_pm.url, topic_dir.url);
-  sprintf(((char *)&topic_pm.url) + strlen(topic_dir.url) * sizeof(char), "/pm");
+  sprintf(((char *)&topic_pm.url) + strlen(topic_dir.url) * sizeof(char), "pm/");
   PRINTF("PM topic url = %s\n", topic_pm.url);
 
 #ifdef COAP_CONF_PUBLISH_INTERVAL
@@ -167,6 +168,7 @@ PROCESS_THREAD(coap_client, ev, data)
 	  PRINTF("Broker function set at: %s\n", broker.base_url);
 	  PRINTF("CREATE dir topic\n");
 	  COAP_PUBSUB_CREATE(&topic_dir);
+	  PRINTF("CREATE topic_dir_url=%s\n", topic_dir.url);
 	  PRINTF("CREATE finished, return code %d\n", topic_dir.last_response_code);
 	  
 	  if(topic_dir.last_response_code == CREATED_2_01 
@@ -175,13 +177,13 @@ PROCESS_THREAD(coap_client, ev, data)
 	    
 	    PRINTF("CREATE bmeerature topic\n");
 	    COAP_PUBSUB_CREATE(&topic_bme);
+	    PRINTF("CREATE topic_bme_url=%s\n", topic_bme.url);
 	    PRINTF("CREATE finished, return code %d\n", topic_bme.last_response_code);
 	    if(topic_bme.last_response_code == CREATED_2_01 
 	       || topic_bme.last_response_code == FORBIDDEN_4_03){
 	      PRINTF("Bmeerature topic created\n");
 	      found_broker = 1;
 	    }
-
 	    PRINTF("CREATE PM topic\n");
 	    COAP_PUBSUB_CREATE(&topic_pm);
 	    PRINTF("CREATE finished, return code %d\n", topic_pm.last_response_code);
