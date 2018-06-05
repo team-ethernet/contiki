@@ -106,7 +106,7 @@
 #define SERIAL_LINE_CONF_HUMAN 1
 
 /* Use MQTT CLI? */
-#define MQTT_CLI	1
+//#define MQTT_CLI	1
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
