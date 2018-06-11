@@ -226,9 +226,6 @@ abort_connection(struct mqtt_connection *conn)
   memset(&conn->out_packet, 0, sizeof(conn->out_packet));
 
   tcp_socket_close(&conn->socket);
-  tcp_socket_unregister(&conn->socket);
-
-  memset(&conn->socket, 0, sizeof(conn->socket));
 
   conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
 }
@@ -371,7 +368,7 @@ keep_alive_callback(void *ptr)
   /* The flag is set when the PINGREQ has been sent */
   if(conn->waiting_for_pingresp) {
     PRINTF("MQTT - Disconnect due to no PINGRESP from broker.\n");
-    disconnect_tcp(conn);
+    abort_connection(conn);
     return;
   }
 
@@ -779,6 +776,7 @@ static void
 handle_pingresp(struct mqtt_connection *conn)
 {
   DBG("MQTT - Got RINGRESP\n");
+  ctimer_restart(&conn->keep_alive_timer);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1122,7 +1120,10 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
     conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
     ctimer_stop(&conn->keep_alive_timer);
     call_event(conn, MQTT_EVENT_DISCONNECTED, &event);
-    abort_connection(conn);
+    
+    /* Clear socket */
+    tcp_socket_unregister(&conn->socket);
+    memset(&conn->socket, 0, sizeof(conn->socket));
 
     /* If connecting retry */
     if(conn->auto_reconnect == 1) {
