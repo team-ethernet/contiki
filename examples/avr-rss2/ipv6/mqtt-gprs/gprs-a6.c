@@ -43,6 +43,7 @@
 
 #include "contiki.h"
 #include "sys/etimer.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -200,7 +201,8 @@ gprs_status() {
 /*---------------------------------------------------------------------------*/
 
 struct at_wait; /* forward declaration */
-typedef char (* at_callback_t)(struct pt *, struct at_wait *, uint8_t *data, int len);
+typedef char (* at_callback_t)(struct pt *, struct at_wait *, uint8_t
+*data, int len, int *consumed);
 struct at_wait {
   char *str;
   at_callback_t callback;
@@ -209,19 +211,19 @@ struct at_wait {
 };
  
 static
-PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
-PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len));
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 
 static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
 static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
@@ -235,7 +237,7 @@ struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_
 struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback, at_match_byte};
 struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
-struct at_wait wait_dotquad = {"" /* not used */, wait_dotquad_callback, at_match_dotquad};
+struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback, at_match_dotquad};
 struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
 struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
 
@@ -251,9 +253,10 @@ start_at(struct at_wait *at); /* forward declaration */
  * an event to signal the match.
  */
 static
-PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   PT_BEGIN(pt);
   process_post(&a6at, at_match_event, at);
+  *consumed = 0;
   PT_END(pt);
 }
 
@@ -301,7 +304,7 @@ newdata(struct tcp_socket_gprs *s, uint16_t len, uint8_t *dataptr)
  * CIPRCV:len,<data>
  */
 static
-PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
   static uint16_t rcvlen;
   static uint16_t nbytes;
@@ -315,6 +318,14 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   /* Get length as a decimal number followed by a comma ','
    */
   while (datapos < len && data[datapos] != ',') {
+    if (!isdigit(data[datapos]) || nbytes > GPRS_MAX_RECV_LEN) {
+      /* Error: bad len */
+      printf("ciprcv_callback: bad len\n");
+      start_at(&wait_ciprcv); /* restart */
+      *consumed = datapos;
+      PT_EXIT(pt);
+    }
+
     nbytes = nbytes*10 + (data[datapos++] - '0');
     if (datapos == len) {
       /* Out of data -- yield and wait for more */
@@ -339,7 +350,7 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
     { int i;
       printf("Copy %d bytes to 0x%x: \"", ncopy, (unsigned) &rcvdata[rcvpos]);
       for (i = 0; i < ncopy; i++) {
-        printf("%c", data[datapos+i]);
+        printf("%c", isprint(data[datapos+i]) ? data[datapos+i] : '*');
       }
       printf("\"\n");
     }
@@ -364,6 +375,7 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   }
 #endif
   //rcvdata[rcvpos] = '\0'; 
+  *consumed = datapos;
   start_at(&wait_ciprcv); /* restart */
   gprsconn = find_gprs_connection();
   if (gprsconn) {
@@ -375,7 +387,7 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   PT_END(pt);
 }
 
-PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   static int atpos;
   int done = 0;
   static int datapos;
@@ -389,9 +401,10 @@ PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int
         done = 1;
       }
       else {
-        atline[atpos++] = (char ) data[datapos++];
-        if (atpos == sizeof(atline))
-          done = 1;
+        if (atpos < sizeof(atline)-1)
+          atline[atpos++] = (char ) data[datapos++];
+        else
+          datapos++;
       }
     }
     if (!done) {
@@ -403,10 +416,11 @@ PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int
   }
   /* done -- mark end of string */
   atline[atpos] = '\0';
+  *consumed = datapos; /* How many bytes we consumed */
   PT_END(pt);
 }
 
-PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   static int atpos;
   int done = 0;
   static int datapos;
@@ -421,7 +435,7 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, in
       }
       else {
         atline[atpos++] = (char ) data[datapos++];
-        if (atpos == sizeof(atline))
+        if (atpos == sizeof(atline)-1)
           done = 1;
 	if (data[datapos] == 0)
           done = 1;
@@ -436,14 +450,15 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, in
   }
   /* done -- mark end of string */
   atline[atpos] = '\0';
+  *consumed = datapos; /* How many bytes we consumed */
   PT_END(pt);
 }
 
 static
-PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   char ret;
   struct gprs_connection *gprsconn;
-  ret = wait_readline_pt(pt, at, data, len);
+  ret = wait_readline_pt(pt, at, data, len, consumed);
   if (ret == PT_ENDED) {
     start_at(&wait_tcpclosed); /* restart */
     gprsconn = find_gprs_connection();
@@ -459,9 +474,9 @@ PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, uint8_t *da
  * EOL, and the post an event to signal the match
  */
 static
-PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   char ret;
-  ret = wait_readline_pt(pt, at, data, len);
+  ret = wait_readline_pt(pt, at, data, len, consumed);
   if (ret == PT_ENDED)
     process_post(&a6at, at_match_event, at);
   return ret;
@@ -473,16 +488,16 @@ PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, uint8_t *dat
  */
 
 static
-PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   char ret;
-  ret = wait_readlines_pt(pt, at, data, len);
+  ret = wait_readlines_pt(pt, at, data, len, consumed);
   if (ret == PT_ENDED)
     process_post(&a6at, at_match_event, at);
   return ret;
 }
 
 static
-PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
 
   char ret, *valid;
   /* 
@@ -500,7 +515,7 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, 
      M,0.00,N,0.00,K,A*3D*
   */
 
-  ret = wait_readlines_pt(pt, at, data, len);
+  ret = wait_readlines_pt(pt, at, data, len, consumed);
   printf("GPS=%s\n", atline);
 
   const char *delim = " \t\r,";
@@ -562,7 +577,7 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, 
 		 &hour, &min, &sec, foo, &valid, &lat, c, &longi, c, &speed, &course, &day, &mon, &year);
 #endif    
       //nmew_time(year, mon, day, hour, min, sec );
-
+  *consumed = 0;
   return ret;
 }
 
@@ -571,7 +586,7 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, 
  */
 static char dotquadstr[sizeof("255.255.255.255")];
 static
-PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len)) {
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   PT_BEGIN(pt);
 #if NETSTACK_CONF_WITH_IPV6
   snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", dotquadstr);
@@ -579,6 +594,7 @@ PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, uint8_t *data
   snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", dotquadstr);
 #endif 
   process_post(&a6at, at_match_event, at);
+  *consumed = 0;
   PT_END(pt);
 }
 
@@ -618,10 +634,13 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
       dotquadstr[at->pos] = '\0';
       /* Rough check -- look for 3 dots and 4 integers */ 
       if (sscanf(dotquadstr, "%d.%d.%d.%d", &b1, &b2, &b3, &b4) == 4) {
+        at->pos = 0; /* reset */
         return 1;
       }
-      /* No dotted quad -- restart. */
-      at->pos = 0;
+      else {
+        /* No dotted quad -- restart. */
+        at->pos = 0;
+      }
     }
   }
   else if (at->pos < sizeof(dotquadstr)) {
@@ -636,7 +655,7 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *data, int len) {
   return -1;
 }
 
-#define MAXWAIT 5
+#define MAXWAIT 6
 struct at_wait *at_waitlist2[MAXWAIT];
 
 uint8_t at_numwait;
@@ -646,6 +665,12 @@ static void
 start_at(struct at_wait *at) {
   if (at_numwait >= MAXWAIT) {
     printf("Error starting %s: too many at_waits (%d)\n", at->str, at_numwait);
+    {
+      int i;
+      for (i = 0; i < at_numwait; i++)
+        printf("%d: %s\n", i, at_waitlist2[i]->str);
+    }
+    return;
   }
   at_waitlist2[at_numwait] = at;
   at_numwait++;
@@ -663,7 +688,7 @@ start_atlist(struct at_wait *at, ...) {
   
   va_start(valist, at);
   while (at) {
-    printf(" %s ", at->str);
+    printf(" '%s' ", at->str);
     start_at(at);
     at = va_arg(valist, struct at_wait *);
   }
@@ -700,24 +725,46 @@ wait_init() {
  * input data.
  */
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
-  uint8_t i;
+  static uint8_t i;
   static uint8_t datapos;
   static struct pt subpt;
   static struct at_wait *at;
   int match;
-  
+  int consumed;
+
+  static int again;
   PT_BEGIN(pt);
   while (1) {
+  again = 0;
+again:
     if (len > 0) {
       for (datapos = 0; datapos < len; datapos++){
         for (i = 0; i < at_numwait; i++) {
           at = at_waitlist2[i];
           match = at->match(at, &data[datapos], len-datapos);
           if (match >= 0) {
+            if (again) {
+              printf("Again -- ");
+              again = 0;
+            }
+            printf("M@%d <%s>:\"", i, at->str); {int i; for (i = 0; i < match; i++) printf("%c", data[datapos+i]);} printf("\"\n");
             datapos += match; /* Consume matched chars */
             PT_INIT(&subpt);
-            while (at->callback(&subpt, at, &data[datapos], len-datapos) != PT_ENDED) {
+            while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) != PT_ENDED) {
               PT_YIELD(pt);
+            }
+            if (consumed < len-datapos) {
+              /* Not all input consumed. Update data pointer and length, 
+               * and continue scanning without returning.
+               * This is to take care of the case when an async event happens
+               * while we are looking for a synchronous event.  
+               */
+              printf("FSM no consume: %d vs %d-%d\n", consumed, len, datapos);
+              data += datapos+consumed;
+              len -= datapos+consumed;
+              printf("A@%d:\"", i); {int i; for (i = 0; i < len; i++) printf("%c", data[i]);} printf("\"\n");
+              again = 1;
+              goto again;
             }
             PT_RESTART(pt);
           }
@@ -835,7 +882,7 @@ static struct etimer et;
     else if(ev == at_match_event) { \
       etimer_stop(&et); \
       at = (struct at_wait *) data;                \
-      printf("---got %s\n", at->str);\
+      printf("---got:%d '%s'\n", __LINE__, at->str);     \
       stop_atlist(__VA_ARGS__, NULL);             \
       break; \
     } \
@@ -904,12 +951,13 @@ static void
 enqueue_event(process_event_t ev, void *data) {
   int index;
   if (gprs_nevents >= GPRS_MAX_NEVENTS) {
-    printf("Fatal error: GPRS event queue full\n");
+    printf("Fatal error: GPRS event queue full adding ev %d\n", ev);
     return;
   }
   index = (gprs_firstevent+gprs_nevents) % GPRS_MAX_NEVENTS;
   gprs_event_queue[index].ev = ev; gprs_event_queue[index].data = data;
   gprs_nevents++;
+  printf("GENQ %d\n", ev);
 }
 
 static struct gprs_event *
@@ -920,6 +968,7 @@ dequeue_event() {
   gprs_event = &gprs_event_queue[gprs_firstevent];
   gprs_nevents--;
   gprs_firstevent = (gprs_firstevent + 1) % GPRS_MAX_NEVENTS;
+  printf("GDEQ %d\n", gprs_event->ev);
   return gprs_event;
 }
 
@@ -1269,11 +1318,11 @@ PROCESS_THREAD(a6at, ev, data) {
       ATSTR("AT+CIPCLOSE\r");
       ATWAIT2(15, &wait_ok, &wait_cmeerror);
       if (at == &wait_ok) {
-        /* call_event(socket, TCP_SOCKET_CLOSED); */
+        call_event(socket, TCP_SOCKET_CLOSED); 
       }
       else {
         gprs_statistics.at_timeouts += 1;
-        /* call_event(socket, TCP_SOCKET_CLOSED);*/
+        call_event(socket, TCP_SOCKET_CLOSED);
       }
     } /* ev == a6at_gprs_close */
 #ifdef GPRS_DEBUG
