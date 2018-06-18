@@ -112,6 +112,7 @@
 
 #ifdef MQTT_GPRS
 #define GPRS_CONF_STATS 1
+//#define GPRS_CONF_FORCE_A6 1 /* force to A6 avoids GPS on A7 to save current */
 #endif /* MQTT_GPRS */
 
 /* PMSx003 sensors -- I2C and/or UART*/

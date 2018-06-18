@@ -989,8 +989,10 @@ PROCESS_THREAD(a6at, ev, data) {
 	}
       }
     }
-    status.module = GPRS_MODULE_A6; /* To avoid GPS with A7 */
 
+#ifdef GPRS_CONF_FORCE_A6
+    status.module = GPRS_MODULE_A6; /* To avoid GPS with A7 */
+#endif
     printf("Module version %d\n", status.module);
 
     if(status.module == GPRS_MODULE_A7) {
