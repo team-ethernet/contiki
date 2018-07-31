@@ -43,7 +43,7 @@
 #define I2C_BME280_ADDR   (0x77 << 1) /* Alternative 0x76 */
 #define I2C_BME680_ADDR   I2C_BME280_ADDR
 #define I2C_PMS5003_ADDR  (0x12 << 1) /* PM sensor */
-#define I2C_PM2105_ADDR   (0x50) /* PM2105 sensor */
+#define I2C_PM2105_ADDR   (0x28<<1) /* PM2105 sensor */
 
 /* Here we define a enumration for devices */
 #define I2C_AT24MAC       (1<<0)
