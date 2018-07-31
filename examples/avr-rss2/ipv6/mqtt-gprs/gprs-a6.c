@@ -1016,6 +1016,11 @@ PROCESS_THREAD(a6at, ev, data) {
     }
   }
 
+  /* dump the minimum acceptable profile */
+  printf("CGQMIN before gprs connected\n");
+  ATSTR("AT+CGQMIN?\r"); 
+  ATWAIT2(10, &wait_ok);
+
   /* Wait for registration status to become 1 (local registration)
    * or 5 (roaming) or 10 (roaming, non-preferred)
    */
@@ -1116,6 +1121,11 @@ PROCESS_THREAD(a6at, ev, data) {
   printf("GPRS initialised\n");  
 #endif /* GPRS_DEBUG */
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
+
+  /* dump the minimum acceptable profile */
+  printf("CGQMIN when gprs connected\n");
+  ATSTR("AT+CGQMIN?\r"); 
+  ATWAIT2(10, &wait_ok);
 
   if(status.module == GPRS_MODULE_A7) {
     ATSTR("AT+AGPS=1\r");
