@@ -1052,6 +1052,9 @@ PROCESS_THREAD(a6at, ev, data) {
   {
     static struct gprs_context *gcontext;
 
+    /* Set service profile  to the lowest possible */
+    ATSTR("AT+CGQMIN=1,1,1,1,1,1\r"); ATWAIT2(5, &wait_ok);
+
     gcontext = &gprs_context;
     /* Deactivate PDP context */
     sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
