@@ -981,6 +981,14 @@ PROCESS_THREAD(a6at, ev, data) {
 	p = strtok(NULL, delim);
 	if(!strcmp(p, "A6")) {
 	  status.module = GPRS_MODULE_A6;
+
+	  /* 
+	     Workaround and fix and
+	     needs investigation. It seems like the A6 
+	     module is not compatible with UART sleep mode.
+	     Can be an A6 firmware issue.
+	  */
+	  sc16is_sleep_mode(0);
 	  break;
 	}
 	if(!strcmp(p, "A7")) {
