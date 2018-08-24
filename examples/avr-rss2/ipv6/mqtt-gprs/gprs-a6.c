@@ -582,7 +582,7 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, 
 }
 
 /*
- * Callback for dotted quad matching. Match function filled in dotquadstr. Copy to status.
+ * Callback for dotted quad matching. Match function already filled in dotquadstr. Copy to status.
  */
 static char dotquadstr[sizeof("255.255.255.255")];
 static
@@ -724,6 +724,14 @@ wait_init() {
  * Then call the corresponding callback protothread with the remaining
  * input data.
  */
+
+/* Flag for locking AT commands. Set to non-zero when trigger has been
+ * matched, and callback function is active and consuming input. Don't 
+ * issue new AT commands while in this state; it would garble the
+ * the input.
+ */
+static uint8_t matching = 0; 
+
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   static uint8_t i;
   static uint8_t datapos;
@@ -736,23 +744,33 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   PT_BEGIN(pt);
   while (1) {
   again = 0;
+  
 again:
+  matching = 0;
     if (len > 0) {
       for (datapos = 0; datapos < len; datapos++){
         for (i = 0; i < at_numwait; i++) {
           at = at_waitlist2[i];
           match = at->match(at, &data[datapos], len-datapos);
           if (match >= 0) {
+            /* An async (permanent) event? Then mark that it is active right now
+             * so that other events can be postponed 
+             */
+            if (i < at_numwait_permanent)
+              matching = 1;
             if (again) {
               printf("Again -- ");
               again = 0;
             }
             printf("M@%d <%s>:\"", i, at->str); {int i; for (i = 0; i < match; i++) printf("%c", data[datapos+i]);} printf("\"\n");
             datapos += match; /* Consume matched chars */
+            /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
             PT_INIT(&subpt);
-            while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) != PT_ENDED) {
+            while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) == PT_YIELDED) {
               PT_YIELD(pt);
             }
+            matching = 0;
+            //process_poll(&sc16is_reader);
             if (consumed < len-datapos) {
               /* Not all input consumed. Update data pointer and length, 
                * and continue scanning without returning.
@@ -852,18 +870,22 @@ static size_t sendbuf_remain;
 #define sendbuf(buf, len) { \
   sendbuf_remain = len; \
   while (sendbuf_remain > 0) { \
+    if (matching) { \
+      printf("MATCHING\n"); \
+      PROCESS_WAIT_UNTIL(matching == 0); \
+      printf("DONE MATCHING\n"); \
+    } \
     sendbuf_remain -= sc16is_tx(&(buf)[len - sendbuf_remain], sendbuf_remain); \
     continue; \
-    if ((sendbuf_remain > 0)) {   \
-      CLOCKDELAY(CLOCK_SECOND/128); \
-    }                             \
   } \
 }
 
 static struct etimer et;
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
 
-#define ATSTR(str) sendbuf_fun(((unsigned char *) str), strlen(str))
+//#define ATSTR(str) sendbuf_fun(((unsigned char *) str), strlen(str))
+//#define ATSTR(str) sendbuf(((unsigned char *) str), strlen(str))
+#define ATSTR(str) {printf("-->%s\n", str); sendbuf(((unsigned char *) str), strlen(str))}
 #define ATBUF(buf, len) sendbuf(buf, len)
 
 #define ATWAIT2(SEC, ...)  {                    \
@@ -1030,7 +1052,15 @@ PROCESS_THREAD(a6at, ev, data) {
 	p = strtok(NULL, delim);
 	if(!strcmp(p, "A6")) {
 	  status.module = GPRS_MODULE_A6;
-	  break;
+
+          /* 
+             Workaround and fix and
+             needs investigation. It seems like the A6 
+             module is not compatible with UART sleep mode.
+             Can be an A6 firmware issue.
+          */
+          sc16is_sleep_mode(0);
+ 	  break;
 	}
 	if(!strcmp(p, "A7")) {
 	  status.module = GPRS_MODULE_A7;
@@ -1100,13 +1130,16 @@ PROCESS_THREAD(a6at, ev, data) {
     ATSTR(str);   
     ATWAIT2(20, &wait_ok);
       
-    ATSTR("AT+CGATT=1\r"); ATWAIT2(5, &wait_ok);
-    ATSTR("AT+CIPMUX=0\r"); ATWAIT2(5, &wait_ok);
+    ATSTR("AT+CGATT=1\r");
+    ATWAIT2(5, &wait_ok);
+    ATSTR("AT+CIPMUX=0\r");
+    ATWAIT2(5, &wait_ok);
       
     minor_tries = 0;
     while (minor_tries++ < 10) {
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
-      ATSTR(str);        ATWAIT2(5, &wait_ok);
+      ATSTR(str);
+      ATWAIT2(5, &wait_ok);
       ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
       ATWAIT2(20, &wait_ok,  &wait_cmeerror);
       if (at == &wait_ok) {
@@ -1154,7 +1187,8 @@ PROCESS_THREAD(a6at, ev, data) {
   }
 
   /* Get IP address */
-  ATSTR("AT+CIFSR\r"); ATWAIT2(2, &wait_dotquad);
+  ATSTR("AT+CIFSR\r");
+  ATWAIT2(2, &wait_dotquad);
   if (at == NULL)  {
     gprs_statistics.at_timeouts += 1;
   }
@@ -1238,10 +1272,13 @@ PROCESS_THREAD(a6at, ev, data) {
           /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
           /* Seen +CME ERROR:53 */
           printf("CIPSTART failed\n");
-          ATSTR("AT+CREG?\r");           ATWAIT2(2, &wait_ok);
+          ATSTR("AT+CREG?\r");
+          ATWAIT2(2, &wait_ok);
           gprs_statistics.at_errors += 1;
-          ATSTR("AT+CIPCLOSE\r");       ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok, &wait_cmeerror);
-          ATSTR("AT+CIPSHUT\r");       ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
+          ATSTR("AT+CIPCLOSE\r");
+          ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok, &wait_cmeerror);
+          ATSTR("AT+CIPSHUT\r");
+          ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
           continue;
         }
       } /* minor_tries */
@@ -1331,7 +1368,8 @@ PROCESS_THREAD(a6at, ev, data) {
     }
 #endif /* GPRS_DEBUG */
 
-    ATSTR("AT+CSQ\r"); ATWAIT2(5, &wait_csq);
+    ATSTR("AT+CSQ\r");
+    ATWAIT2(5, &wait_csq);
     if (at == NULL)
       continue;
     status.rssi = atoi((char *) atline /*foundbuf*/);
