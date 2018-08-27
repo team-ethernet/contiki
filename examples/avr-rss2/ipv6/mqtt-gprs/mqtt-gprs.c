@@ -41,6 +41,10 @@
  * An MQTT example for the cc2538dk platform
  */
 /*---------------------------------------------------------------------------*/
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#include <avr/pgmspace.h>
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
+
 #include "contiki-conf.h"
 #include "rpl/rpl-private.h"
 #include "mqtt.h"
@@ -688,15 +692,15 @@ subscribe(void)
 #endif /* MQTT_CLI */
 }
 /*---------------------------------------------------------------------------*/
-#define PUTFMT(...) { \
-		len = snprintf(buf_ptr, remaining, __VA_ARGS__);	\
-		if (len < 0 || len >= remaining) { \
-			printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); \
-			return; \
-		} \
-		remaining -= len; \
-		buf_ptr += len; \
-	}
+#define PUTFMT(FORMAT, ...) {                                               \
+    len = snprintf_P(buf_ptr, remaining, PSTR(FORMAT), ##__VA_ARGS__);        \
+    if (len < 0 || len >= remaining) { \
+        printf_P(PSTR("Line %d: Buffer too small. Have %d, need %d + \\0"), __LINE__, remaining, len); \
+        return; \
+    } \
+    remaining -= len; \
+    buf_ptr += len; \
+}
 
 
 /* Converts to NO2 ppm according to MIC2714 NO2 curve 
