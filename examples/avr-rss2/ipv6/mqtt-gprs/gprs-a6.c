@@ -260,46 +260,6 @@ PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   PT_END(pt);
 }
 
-/* This probably belongs in tcp socket adaptation layer */ 
-static void
-newdata(struct tcp_socket_gprs *s, uint16_t len, uint8_t *dataptr) 
-{
-  uint16_t /* len,*/ copylen, bytesleft;
-  /* uint8_t *dataptr;
-     len = uip_datalen();
-     dataptr = uip_appdata; */
-
-  /* We have a segment with data coming in. We copy as much data as
-     possible into the input buffer and call the input callback
-     function. The input callback returns the number of bytes that
-     should be retained in the buffer, or zero if all data should be
-     consumed. If there is data to be retained, the highest bytes of
-     data are copied down into the input buffer. */
-  if (0){
-    int i;
-    printf("newdata %d @0x%x: '", len, (unsigned) dataptr);
-    for (i = 0; i < len; i++)
-      printf("%c", (char ) dataptr[i]);
-    printf("'\n");
-  }
-  do {
-    copylen = MIN(len, s->input_data_maxlen);
-    memcpy(s->input_data_ptr, dataptr, copylen);
-    if(s->input_callback) {
-      bytesleft = s->input_callback(s, s->ptr,
-				    s->input_data_ptr, copylen);
-    } else {
-      bytesleft = 0;
-    }
-    if(bytesleft > 0) {
-      printf("tcp: newdata, bytesleft > 0 (%d) not implemented\n", bytesleft);
-    }
-    dataptr += copylen;
-    len -= copylen;
-
-  } while(len > 0);
-}
-
 /*
  * CIPRCV:len,<data>
  */
@@ -347,13 +307,6 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
   while (nbytes > 0) {
     int ncopy = min(nbytes, len-datapos);
     memcpy(&rcvdata[rcvpos], &data[datapos], ncopy);
-    { int i;
-      printf("Copy %d bytes to 0x%x: \"", ncopy, (unsigned) &rcvdata[rcvpos]);
-      for (i = 0; i < ncopy; i++) {
-        printf("%c", isprint(data[datapos+i]) ? data[datapos+i] : '*');
-      }
-      printf("\"\n");
-    }
     nbytes -= ncopy;
     rcvpos += ncopy;
     datapos += ncopy;
@@ -363,26 +316,12 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
       datapos = 0;
     }
   }
-#if 0
-  while (nbytes-- > 0) {
-    if (rcvpos < GPRS_MAX_RECV_LEN)
-      rcvdata[rcvpos] = data[datapos];
-    rcvpos++; datapos++;
-    if (datapos == len) {
-      PT_YIELD(pt);
-      datapos = 0;
-    }
-  }
-#endif
-  //rcvdata[rcvpos] = '\0'; 
+
   *consumed = datapos;
   start_at(&wait_ciprcv); /* restart */
   gprsconn = find_gprs_connection();
   if (gprsconn) {
     gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, rcvlen);
-  }
-  if (0 && gprsconn && gprsconn->socket) {
-    newdata(gprsconn->socket, rcvlen, rcvdata);
   }
   PT_END(pt);
 }
@@ -762,7 +701,6 @@ again:
               printf("Again -- ");
               again = 0;
             }
-            printf("M@%d <%s>:\"", i, at->str); {int i; for (i = 0; i < match; i++) printf("%c", data[datapos+i]);} printf("\"\n");
             datapos += match; /* Consume matched chars */
             /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
             PT_INIT(&subpt);
@@ -777,10 +715,8 @@ again:
                * This is to take care of the case when an async event happens
                * while we are looking for a synchronous event.  
                */
-              printf("FSM no consume: %d vs %d-%d\n", consumed, len, datapos);
               data += datapos+consumed;
               len -= datapos+consumed;
-              printf("A@%d:\"", i); {int i; for (i = 0; i < len; i++) printf("%c", data[i]);} printf("\"\n");
               again = 1;
               goto again;
             }
@@ -857,6 +793,7 @@ PROCESS_THREAD(sc16is_reader, ev, data)
   PROCESS_END();
 }
 
+#if 0
 static void
 sendbuf_fun (unsigned char *buf, size_t len) {
   size_t remain = len;
@@ -865,6 +802,7 @@ sendbuf_fun (unsigned char *buf, size_t len) {
     remain -= sc16is_tx(&buf[len - remain], remain); 
   }
 }
+#endif
 
 static size_t sendbuf_remain;
 #define sendbuf(buf, len) { \
@@ -913,6 +851,7 @@ static struct etimer et;
         /* This event is for us, but we can't do it now. \
          * Put it on the event queue for later. \
          */ \
+          printf("---enq:%d\n", __LINE__);     \
           enqueue_event(ev, data); \
       } \
     } \
@@ -979,7 +918,6 @@ enqueue_event(process_event_t ev, void *data) {
   index = (gprs_firstevent+gprs_nevents) % GPRS_MAX_NEVENTS;
   gprs_event_queue[index].ev = ev; gprs_event_queue[index].data = data;
   gprs_nevents++;
-  printf("GENQ %d\n", ev);
 }
 
 static struct gprs_event *
@@ -990,7 +928,6 @@ dequeue_event() {
   gprs_event = &gprs_event_queue[gprs_firstevent];
   gprs_nevents--;
   gprs_firstevent = (gprs_firstevent + 1) % GPRS_MAX_NEVENTS;
-  printf("GDEQ %d\n", gprs_event->ev);
   return gprs_event;
 }
 
@@ -1320,7 +1257,6 @@ PROCESS_THREAD(a6at, ev, data) {
           ATWAIT2(5, &wait_ok);
           goto failed;
         }
-        //ATBUF(&socket->output_data_ptr[socket->output_data_len-remain], len);
         ATBUF(&ptr[gprsconn->output_data_len-remain], len);
         ATWAIT2(30, &wait_ok, &wait_commandnoresponse);
         if (at == NULL || at == &wait_commandnoresponse) {
