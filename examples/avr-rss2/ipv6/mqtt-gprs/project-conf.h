@@ -60,7 +60,7 @@
 #define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
 #endif /* MQTT_GPRS */
 
-//#define URBAN_ICT_CONF  1
+#define URBAN_ICT_CONF  1
 
 #ifdef URBAN_ICT_CONF 
 #define GPRS_CONF_APN "vnl"
@@ -128,6 +128,10 @@
 #define CLI_CONF_PROJECT  "GreenIoT V1.0 2017-03-13"
 
 #define SERIAL_LINE_CONF_HUMAN 1
+
+/* HW watchdog */
+/* #define  WATCHDOG_CONF_TIMEOUT -1 */ 
+#define  WATCHDOG_CONF_TIMEOUT WDTO_8S
 
 /* Use MQTT CLI? */
 #define MQTT_CLI	1
