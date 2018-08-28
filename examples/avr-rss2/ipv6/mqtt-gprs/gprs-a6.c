@@ -1069,8 +1069,9 @@ PROCESS_THREAD(a6at, ev, data) {
     static struct gprs_context *gcontext;
 
     /* Set service profile  to the lowest possible */
-    //ATSTR("AT+CGQMIN=1,1,1,1,1,1\r"); ATWAIT2(5, &wait_ok);
-    ATSTR("AT+CGQMIN=1,3,4,3,1,1\r"); ATWAIT2(5, &wait_ok);
+    //ATSTR("AT+CGQMIN=1,1,1,1,1,1\r"); 
+    ATSTR("AT+CGQMIN=1,3,4,3,1,1\r");
+    ATWAIT2(5, &wait_ok);
 
     gcontext = &gprs_context;
     /* Deactivate PDP context */
