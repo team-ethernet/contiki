@@ -226,9 +226,6 @@ abort_connection(struct mqtt_connection *conn)
   memset(&conn->out_packet, 0, sizeof(conn->out_packet));
 
   tcp_socket_close(&conn->socket);
-  tcp_socket_unregister(&conn->socket);
-
-  memset(&conn->socket, 0, sizeof(conn->socket));
 
   conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
 }
@@ -299,9 +296,9 @@ string_to_mqtt_string(struct mqtt_string *mqtt_string, char *string)
 static int
 write_byte(struct mqtt_connection *conn, uint8_t data)
 {
-  DBG("MQTT - (write_byte) buff_size: %i write: '%02X'\n",
-      &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr,
-      data);
+  //DBG("MQTT - (write_byte) buff_size: %i write: '%02X'\n",
+  //    &conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr,
+  //    data);
 
   if(&conn->out_buffer[MQTT_TCP_OUTPUT_BUFF_SIZE] - conn->out_buffer_ptr == 0) {
     send_out_buffer(conn);
@@ -325,8 +322,8 @@ write_bytes(struct mqtt_connection *conn, uint8_t *data, uint16_t len)
   conn->out_write_pos += write_bytes;
   conn->out_buffer_ptr += write_bytes;
 
-  DBG("MQTT - (write_bytes) len: %u write_pos: %lu\n", len,
-      conn->out_write_pos);
+  //DBG("MQTT - (write_bytes) len: %u write_pos: %lu\n", len,
+  //    conn->out_write_pos);
 
   if(len - conn->out_write_pos == 0) {
     conn->out_write_pos = 0;
@@ -344,7 +341,7 @@ encode_remaining_length(uint8_t *remaining_length,
 {
   uint8_t digit;
 
-  DBG("MQTT - Encoding length %lu\n", length);
+  //DBG("MQTT - Encoding length %lu\n", length);
 
   *remaining_length_bytes = 0;
   do {
@@ -356,9 +353,9 @@ encode_remaining_length(uint8_t *remaining_length,
 
     remaining_length[*remaining_length_bytes] = digit;
     (*remaining_length_bytes)++;
-    DBG("MQTT - Encode len digit '%u' length '%lu'\n", digit, length);
+    //DBG("MQTT - Encode len digit '%u' length '%lu'\n", digit, length);
   } while(length > 0 && *remaining_length_bytes < 5);
-  DBG("MQTT - remaining_length_bytes %u\n", *remaining_length_bytes);
+  //DBG("MQTT - remaining_length_bytes %u\n", *remaining_length_bytes);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -371,7 +368,7 @@ keep_alive_callback(void *ptr)
   /* The flag is set when the PINGREQ has been sent */
   if(conn->waiting_for_pingresp) {
     PRINTF("MQTT - Disconnect due to no PINGRESP from broker.\n");
-    disconnect_tcp(conn);
+    abort_connection(conn);
     return;
   }
 
@@ -779,6 +776,7 @@ static void
 handle_pingresp(struct mqtt_connection *conn)
 {
   DBG("MQTT - Got RINGRESP\n");
+  ctimer_restart(&conn->keep_alive_timer);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1122,7 +1120,10 @@ tcp_event(struct tcp_socket *s, void *ptr, tcp_socket_event_t event)
     conn->state = MQTT_CONN_STATE_NOT_CONNECTED;
     ctimer_stop(&conn->keep_alive_timer);
     call_event(conn, MQTT_EVENT_DISCONNECTED, &event);
-    abort_connection(conn);
+    
+    /* Clear socket */
+    tcp_socket_unregister(&conn->socket);
+    memset(&conn->socket, 0, sizeof(conn->socket));
 
     /* If connecting retry */
     if(conn->auto_reconnect == 1) {
