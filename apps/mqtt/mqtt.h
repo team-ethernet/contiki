@@ -103,6 +103,9 @@
 #endif /* MQTT_GPRS */
 #include "udp-socket.h"
 
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#include <avr/pgmspace.h>
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -131,7 +134,11 @@
 #define DEBUG_MQTT 0
 
 #if DEBUG_MQTT == 1
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#define DBG(FMT, ...) printf_P(PSTR(FMT), ##__VA_ARGS__)
+#else
 #define DBG(...) printf(__VA_ARGS__)
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
 #else
 #define DBG(...)
 #endif /* DEBUG */
