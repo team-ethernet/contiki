@@ -36,14 +36,16 @@
  */
 
 #include "contiki.h"
+#include "dev/bme280/bme280.h"
+#include "dev/sc16is/sc16is.h"
 
 /* Here we define the i2c address for dev we support */
 #define I2C_AT24MAC_ADDR  0xB0 /* EUI64 ADDR */
 #define I2C_SHT2X_ADDR    (0x40 << 1) /* SHT2X ADDR */
-#define I2C_BME280_ADDR   (0x77 << 1) /* Alternative 0x76 */
+#define I2C_BME280_ADDR   BME280_ADDR
 #define I2C_BME680_ADDR   I2C_BME280_ADDR
 #define I2C_PMS5003_ADDR  (0x12 << 1) /* PM sensor */
-#define I2C_SC16IS_ADDR    (0x9A) /* A0 & A1 to GND */
+//#define I2C_SC16IS_ADDR    (0x9A) /* A0 & A1 to GND */
 /* Here we define a enumration for devices */
 #define I2C_AT24MAC       (1<<0)
 #define I2C_SHT2X         (1<<1)
