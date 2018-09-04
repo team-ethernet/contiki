@@ -951,7 +951,7 @@ PROCESS_THREAD(a6at, ev, data) {
     uint8_t s;
 
     set_board_5v(0); /* Power cycle the board */
-    DELAY(2);
+    DELAY(4);
     set_board_5v(1);
     DELAY(2);
     s = sc16is_gpio_get();
@@ -1032,11 +1032,6 @@ PROCESS_THREAD(a6at, ev, data) {
     }
   }
 
-  /* dump the minimum acceptable profile */
-  printf("CGQMIN before gprs connected\n");
-  ATSTR("AT+CGQMIN?\r"); 
-  ATWAIT2(10, &wait_ok);
-
   /* Wait for registration status to become 1 (local registration)
    * or 5 (roaming) or 10 (roaming, non-preferred)
    */
@@ -1067,11 +1062,6 @@ PROCESS_THREAD(a6at, ev, data) {
   while (major_tries++ < 10 && status.state != GPRS_STATE_ACTIVE)
   {
     static struct gprs_context *gcontext;
-
-    /* Set service profile  to the lowest possible */
-    //ATSTR("AT+CGQMIN=1,1,1,1,1,1\r"); 
-    ATSTR("AT+CGQMIN=1,3,4,3,1,1\r");
-    ATWAIT2(5, &wait_ok);
 
     gcontext = &gprs_context;
     /* Deactivate PDP context */
@@ -1146,11 +1136,6 @@ PROCESS_THREAD(a6at, ev, data) {
   printf("GPRS initialised\n");  
 #endif /* GPRS_DEBUG */
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
-
-  /* dump the minimum acceptable profile */
-  printf("CGQMIN when gprs connected\n");
-  ATSTR("AT+CGQMIN?\r"); 
-  ATWAIT2(10, &wait_ok);
 
   if(status.module == GPRS_MODULE_A7) {
     ATSTR("AT+AGPS=1\r");
@@ -1233,7 +1218,15 @@ PROCESS_THREAD(a6at, ev, data) {
           ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok, &wait_cmeerror);
           ATSTR("AT+CIPSHUT\r");
           ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
-          continue;
+
+	  /* Test to cure deadlock when closing/shutting down  --ro */
+	  if (minor_tries++ > 10) {
+	    gprs_statistics.connfailed += 1;
+	    goto again;
+	  }
+	  else {
+	    continue;
+	  }
         }
       } /* minor_tries */
       if (minor_tries >= 10) {
