@@ -51,7 +51,23 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
+
+#ifdef MQTT_GPRS
+//#define MQTT_CONF_PUBLISH_INTERVAL    (30 * CLOCK_SECOND)
+#define MQTT_CONF_PUBLISH_INTERVAL    (10 * CLOCK_SECOND)
+#else
 #define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
+#endif /* MQTT_GPRS */
+
+#define URBAN_ICT_CONF  1
+
+#ifdef URBAN_ICT_CONF 
+#define GPRS_CONF_APN "vnl"
+#elif defined(GPRS_TELIA) 
+#define GPRS_CONF_APN "online.telia.se"
+#else
+#define GPRS_CONF_APN "4g.tele2.se"
+#endif
 
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
@@ -67,7 +83,6 @@
 
 #define RPL_CONF_ACCEPT_DEFAULT_INSTANCE_ONLY 1
 #define NULLRDC_CONF_802154_AUTOACK_HW  1
-#define NULLRDC_CONF_FRAME_RETRIES_SW 1
 
 //#define TESTBED_UPWIS_CONF 1
 /* uncomment the line above to use UPWIS configuration */
@@ -77,20 +92,28 @@
 #define RPL_CONF_DEFAULT_INSTANCE 0x1e
 #define IEEE802154_CONF_PANID 0x5EE9
 #define CHANNEL_CONF_802_15_4 20
-#define RPL_CONF_LEAF_ONLY  1
-#define RPL_CONF_WITH_DAO_ACK 1
+#elif defined(MQTT_GPRS) /* Native MQTT over GPRS */
+#define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
+#define MQTT_DEMO_BROKER_IP_ADDR "192.16.125.234" /* 192.16.125.234 */
+#define RPL_CONF_DEFAULT_INSTANCE 0x1d
+#define IEEE802154_CONF_PANID 0xFEED
+#define CHANNEL_CONF_802_15_4 25
+
 #else	/* KTH configuration: this is a default configuration */
 #define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
 #define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::c010:7dea"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define IEEE802154_CONF_PANID 0xFEED
 #define CHANNEL_CONF_802_15_4 25
-#define RPL_CONF_WITH_DAO_ACK 1
 #endif /* TESTBED_UPWIS_CONF */
 
 #define RPL_CONF_STATS 1
 #define RF230_DEBUG 1
-#define MQTT_CONF_KEEP_ALIVE_TIMER 120
+
+#ifdef MQTT_GPRS
+#define GPRS_CONF_STATS 1
+//#define GPRS_CONF_FORCE_A6 1 /* force to A6 avoids GPS on A7 to save current */
+#endif /* MQTT_GPRS */
 
 /* PMSx003 sensors -- I2C and/or UART*/
 #define PMS5003_CONF_SERIAL_I2C 1
@@ -105,8 +128,12 @@
 
 #define SERIAL_LINE_CONF_HUMAN 1
 
+/* HW watchdog */
+/* #define  WATCHDOG_CONF_TIMEOUT -1 */
+/* #define  WATCHDOG_CONF_TIMEOUT WDTO_8S */
+
 /* Use MQTT CLI? */
-//#define MQTT_CLI	1
+#define MQTT_CLI	1
 
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */

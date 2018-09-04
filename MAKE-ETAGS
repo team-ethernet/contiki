@@ -1,4 +1,5 @@
- find core -name '*.[ch]' | etags -
+ find examples/avr-rss2 -name '*.[ch]' | etags -
+ find core -name '*.[ch]' | etags -a -
  find cpu/avr/ -name '*.[ch]' | etags -a -
  find dev -name '*.[ch]' | etags -a -
  find lib -name '*.[ch]' | etags -a -

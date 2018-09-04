@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB  
+ * Copyright (c) 2016, Zolertia <http://www.zolertia.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,30 +25,21 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
- *
- *
- * Author  : Robert Olsson robert@radio-sensors.com
- * Created : 2015-11-22
  */
+/*---------------------------------------------------------------------------*/
+#ifndef SC16IS_ARCH_H
+#define SC16IS_ARCH_H
 
-/**
- * \file
- *         Project specific configuration defines for example
- *
- */
+/* Initialize the I2C module */
+void sc16is_arch_i2c_init();
 
-#ifndef PROJECT_CONF_H_
-#define PROJECT_CONF_H_
+/* I2C read registers */
+void sc16is_arch_i2c_read_mem(uint8_t addr, uint8_t reg, uint8_t *buf,
+                              uint8_t bytes);
 
-/* #define BME280_32BIT */
-/* #define BME280_CONF_ADDR              (0x77 << 1)  Alternative 0x76 */
+/* I2C write to a single register */
+void sc16is_arch_i2c_write_mem(uint8_t addr, uint8_t reg, uint8_t value);
 
-#define NETSTACK_CONF_RDC nullrdc_driver
-#define NETSTACK_CONF_MAC nullmac_driver
-
-//#define NETSTACK_CONF_MAC         csma_driver
-//#define NETSTACK_CONF_RDC         contikimac_driver
-
-#endif /* PROJECT_CONF_H_ */
+#endif
+/*---------------------------------------------------------------------------*/
+/** @} */

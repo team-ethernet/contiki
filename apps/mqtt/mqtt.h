@@ -94,9 +94,18 @@
 #include "net/ipv6/uip-ds6.h"
 #include "dev/leds.h"
 
+#ifdef MQTT_GPRS
+#include "gprs-a6.h" 
+#include "tcp-socket-gprs.h"
+#include "tcp-socket-gprs-compat.h"
+#else
 #include "tcp-socket.h"
+#endif /* MQTT_GPRS */
 #include "udp-socket.h"
 
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#include <avr/pgmspace.h>
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -125,7 +134,11 @@
 #define DEBUG_MQTT 0
 
 #if DEBUG_MQTT == 1
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#define DBG(FMT, ...) printf_P(PSTR(FMT), ##__VA_ARGS__)
+#else
 #define DBG(...) printf(__VA_ARGS__)
+#endif /* CONTIKI_TARGET_AVR_RSS2 */
 #else
 #define DBG(...)
 #endif /* DEBUG */
