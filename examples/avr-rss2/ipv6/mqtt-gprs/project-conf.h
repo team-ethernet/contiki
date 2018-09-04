@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2012, Texas Instruments Incorporated - http://www.ti.com/
  * All rights reserved.
@@ -130,8 +129,8 @@
 #define SERIAL_LINE_CONF_HUMAN 1
 
 /* HW watchdog */
-/* #define  WATCHDOG_CONF_TIMEOUT -1 */ 
-#define  WATCHDOG_CONF_TIMEOUT WDTO_8S
+/* #define  WATCHDOG_CONF_TIMEOUT -1 */
+/* #define  WATCHDOG_CONF_TIMEOUT WDTO_8S */
 
 /* Use MQTT CLI? */
 #define MQTT_CLI	1
