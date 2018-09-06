@@ -60,11 +60,8 @@
 /* Preamble bytes */
 #define PRE 0x16
 /* Valid body length field */
-#define PMSMINBODYLEN 32
-#define PMSMAXBODYLEN 32
-/* Buffer holds frame body plus preamble (two bytes)
- * and length field (two bytes) */
-#define PMSBUFFER (PMSMAXBODYLEN + 4)
+#define PM_MESSAGE_LEN 32
+#define PMSBUFFER (PM_MESSAGE_LEN + 4)
 
 /* Frame assembly statistics */
 static uint32_t invalid_frames, valid_frames;
@@ -79,27 +76,13 @@ static uint16_t DB0_3, DB0_5, DB1, DB2_5, DB5, DB10;
 /* Time when last sensor data was read, in clock_seconds()*/
 static unsigned long timestamp = 0;
 
-#if PMS_SERIAL_UART
-#if (PMS_BUFSIZE & (PMS_BUFSIZE - 1)) != 0
-#error PM2105_CONF_UART_BUFSIZE must be a power of two (i.e., 1, 2, 4, 8, 16, 32, 64, ...).
-#endif /* PMS_BUFSIZE */
-
-/* Ring buffer for storing input from uart */
-static struct ringbuf rxbuf;
-static uint8_t rxbuf_data[PMS_BUFSIZE];
-
-static int uart_input_byte(unsigned char);
-#endif /* PMS_SERIAL_UART */
-
 static struct pms_config {
   unsigned sample_period;    /* Time between samples (sec) */
   unsigned warmup_interval; /* Warmup time (sec) */
 } pms_config;
 
+#define DEBUG
 /*---------------------------------------------------------------------------*/
-#if PMS_SERIAL_UART
-PROCESS(pm2105_uart_process, "PM2105/UART dust sensor process");
-#endif /* PMS_SERIAL_UART */
 PROCESS(pm2105_timer_process, "PM2105 periodic dust sensor process");
 /*---------------------------------------------------------------------------*/
 /**
@@ -112,15 +95,8 @@ pm2105_init()
 {
   pm2105_config_sample_period(PMS_SAMPLE_PERIOD);
   pm2105_config_warmup_interval(PMS_WARMUP_INTERVAL);
-  
-  pm2105_event = process_alloc_event();
+    pm2105_event = process_alloc_event();
   process_start(&pm2105_timer_process, NULL);
-
-#if PMS_SERIAL_UART
-  ringbuf_init(&rxbuf, rxbuf_data, sizeof(rxbuf_data));
-  rs232_set_input(PMS_UART_PORT, uart_input_byte);
-  process_start(&pm2105_uart_process, NULL);
-#endif /* PMS_SERIAL_UART */
 
   configured_on = 1;
 
@@ -261,10 +237,10 @@ timetoread(void) {
  * Validate frame by checking preamble, length field and checksum.
  * Return 0 if invalid frame, otherwise 1.
  */
-static int
+int
 check_pmsframe(uint8_t *buf)
 {
-  int sum, pmssum;
+  int sum;
   int i;
   int len;
   uint8_t status;
@@ -275,10 +251,7 @@ check_pmsframe(uint8_t *buf)
   }
 
   len = buf[1];
-  
-  /* len is length of frame not including preamble and checksum */
-      
-  if(len != PMSMAXBODYLEN) {
+  if(len != PM_MESSAGE_LEN) {
     return 0;
   }
 
@@ -290,27 +263,28 @@ check_pmsframe(uint8_t *buf)
   printf("PM status=%d mode=%u, cal=%u\n", status, mode, cal);
 #endif
 
-  /* Sum data bytewise, including preamble but excluding checksum */
+  /* XOR bytewise, excluding checksum */
   sum = 0;
-  for(i = 0; i < len + 2; i++) 
-    {
-  sum += buf[i];
-}
+  for(i = 0; i < len - 1; i++) {
+      sum ^= buf[i];
+  }
+#ifdef DEBUG_CHECKSUM
   /* Compare with received checksum last in frame*/
-  pmssum = (buf[len + 2] << 8) + buf[len + 3];
-  return pmssum == sum;
+  printf("%02X vs %02X\n", buf[len-1], sum);
+#endif
+  return sum == buf[len-1]; 
 }
 /*---------------------------------------------------------------------------*/
 #ifdef DEBUG
-static void
+void
 printpm()
 {
-  printf("PMS frames: valid %lu, invalid %lu\n",
+  printf("PM %lu/%lu",
          valid_frames, invalid_frames);
-  printf("PM1 = %04d, PM2.5 = %04d, PM10 = %04d\n", PM1, PM2_5, PM10);
-  printf("PM1_TSI = %04d, PM2.5_TSI = %04d, PM10_TSI = %04d\n",
-         PM1_TSI, PM2_5_TSI, PM10_TSI);
-  printf(" DB0_3 = %04d, DB0_5 = %04d, DB1 = %04d, DB2_5 = %04d, DB5 = %04d, DB10 = %04d\n",
+  printf(" GRIM %4u %4u %4u", PM1, PM2_5, PM10);
+  printf(" TSI %4u %4u %4u", PM1_TSI, PM2_5_TSI, PM10_TSI);
+  //printf("DB0_3 = %4u, DB0_5 = %4u, DB1 = %4u, DB2_5 = %4u, DB5 = %4u, DB10 = %4u\n",
+  printf(" DB %4u %4u %4u %4u %4u %4u\n",
          DB0_3, DB0_5, DB1, DB2_5, DB5, DB10);
 }
 #endif /* DEBUG */
@@ -319,15 +293,14 @@ printpm()
  * Frame received from PMS sensor. Validate and update sensor data.
  * Return 1 if valid frame, otherwise 0
  */
-static int
+int
 pmsframe(uint8_t *buf)
 {
-  
   if(check_pmsframe(buf)) {
     timestamp = clock_seconds();
     valid_frames++;
     /* Update sensor readings */
-    PM1 = (buf[7] << 8) | buf[8];
+    PM1 = (( uint16_t) (buf[7] << 8)) | buf[8];
     PM2_5 = (buf[9] << 8) | buf[10];
     PM10 = (buf[11] << 8) | buf[12];
     PM1_TSI = (buf[13] << 8) | buf[14];
@@ -348,98 +321,9 @@ pmsframe(uint8_t *buf)
     return 1;
   } else {
     invalid_frames++;
-#ifdef DEBUG
-    printpm();
-#endif /* DEBUG */
     return 0;
   }
 }
-/*---------------------------------------------------------------------------*/
-#if PMS_SERIAL_UART
-/**
- * State machine for assembling PM2105 frames
- * from uart. Use protothread for state machine.
- */
-static
-PT_THREAD(pm2105_uart_fsm_pt(struct pt *pt, uint8_t data)) {
-  static uint8_t buf[PMSBUFFER], *bufp;
-  static int remain;
-
-  PT_BEGIN(pt);
-  bufp = buf;
-  if(data != PRE) {
-    PT_RESTART(pt);
-  }
-  *bufp++ = data;
-  /* Found preamble. Then get length (two bytes) */
-  PT_YIELD(pt);
-  *bufp++ = data;
-  PT_YIELD(pt);
-  *bufp++ = data;
-
-  /* Get body length -- no of bytes that remain */
-  remain = (buf[2] << 8) + buf[3];
-  if(remain < PMSMINBODYLEN || remain > PMSMAXBODYLEN) {
-    invalid_frames++;
-  } else {
-    while(remain--) {
-      PT_YIELD(pt);
-      *bufp++ = data;
-    }
-    /* We have a frame! */
-    /* Is it time for next reading? Otherwise ignore. */
-    if(timetoread()) {
-      /* Check frame and update sensor readings */
-      if(pmsframe(buf)) {
-        /* Tell other processes there is new data */
-        (void)process_post(PROCESS_BROADCAST, pm2105_event, NULL);
-        /* Put sensor in standby mode? */
-        if(timetosleep()) {
-          pm2105_set_standby_mode(STANDBY_MODE_ON);
-        }
-      }
-    }
-  }
-  PT_RESTART(pt);
-
-  PT_END(pt);
-}
-/*---------------------------------------------------------------------------*/
-/**
- * UART callback function.
- */
-static int
-uart_input_byte(unsigned char c)
-{
-
-  /* Add char to buffer. Unlike serial line input, ignore buffer overflow */
-  (void)ringbuf_put(&rxbuf, c);
-  /* Wake up consumer process */
-  process_poll(&pm2105_uart_process);
-  return 1;
-}
-/*---------------------------------------------------------------------------*/
-static struct pt uart_pt;
-/**
- * Consumer thread for UART process. Pick up data from input buffer and
- * dispatch to FSM for frame assembly.
- */
-PROCESS_THREAD(pm2105_uart_process, ev, data)
-{
-
-  PROCESS_BEGIN();
-  PT_INIT(&uart_pt);
-  while(1) {
-    int c = ringbuf_get(&rxbuf);
-    if(c == -1) {
-      PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    } else if(configured_on) {
-      pm2105_uart_fsm_pt(&uart_pt, c);
-    }
-  }
-  PROCESS_END();
-}
-#endif /* PMS_SERIAL_UART */
 /*---------------------------------------------------------------------------*/
 /**
  * Timer thread: duty-cycle sensor. Toggle between idle and active mode.
