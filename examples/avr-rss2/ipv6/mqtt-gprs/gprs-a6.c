@@ -934,10 +934,12 @@ dequeue_event() {
 static struct tcp_socket_gprs *socket;
 static struct gprs_connection *gprsconn;
 
+
 PROCESS_THREAD(a6at, ev, data) {
   //unsigned char *res;
   struct at_wait *at;
   static uint8_t minor_tries, major_tries;
+  static uint8_t cmeerror;
   char str[80];
 
   PROCESS_BEGIN();
@@ -955,6 +957,7 @@ PROCESS_THREAD(a6at, ev, data) {
     set_board_5v(1);
     DELAY(2);
     s = sc16is_gpio_get();
+
     printf("LOOP GPIO=0x%02x\n", sc16is_gpio_get());
     clr_bit(&s, G_PWR);
     set_bit(&s, G_RESET);
@@ -1063,6 +1066,7 @@ PROCESS_THREAD(a6at, ev, data) {
   {
     static struct gprs_context *gcontext;
 
+    cmeerror = 0;
     gcontext = &gprs_context;
     /* Deactivate PDP context */
     sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
@@ -1075,12 +1079,12 @@ PROCESS_THREAD(a6at, ev, data) {
     ATWAIT2(5, &wait_ok);
       
     minor_tries = 0;
-    while (minor_tries++ < 10) {
+    while (minor_tries++ < 20) {
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
       ATSTR(str);
       ATWAIT2(5, &wait_ok);
       ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
-      ATWAIT2(20, &wait_ok,  &wait_cmeerror);
+      ATWAIT2(30, &wait_ok,  &wait_cmeerror);
       if (at == &wait_ok) {
         break;
       }
@@ -1112,7 +1116,7 @@ PROCESS_THREAD(a6at, ev, data) {
           DELAY(5);
         }
       }
-    }
+    } 
     if (minor_tries++ >= 10) {
       /* Failed to activate */
       ATSTR("AT+CIPSHUT\r");
@@ -1219,8 +1223,8 @@ PROCESS_THREAD(a6at, ev, data) {
           ATSTR("AT+CIPSHUT\r");
           ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
 
-	  /* Test to cure deadlock when closing/shutting down  --ro */
-	  if (minor_tries++ > 10) {
+	  /* Cure deadlock when closing/shutting down  --ro */
+	  if (cmeerror++ > 10) {
 	    gprs_statistics.connfailed += 1;
 	    goto again;
 	  }
@@ -1228,7 +1232,7 @@ PROCESS_THREAD(a6at, ev, data) {
 	    continue;
 	  }
         }
-      } /* minor_tries */
+      } /* minor_retries */
       if (minor_tries >= 10) {
         gprs_statistics.connfailed += 1;
         call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
@@ -1329,7 +1333,7 @@ PROCESS_THREAD(a6at, ev, data) {
     ATSTR("AT+CIPSHUT\r");
     ATWAIT2(5, &wait_ok, &wait_cmeerror);
     call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
-  }
+  } /* while(1) */
   PROCESS_END();
 }
 
