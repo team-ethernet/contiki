@@ -238,10 +238,16 @@ bme280_read(uint8_t mode)
     /*  00100110  0x26 oversampling *1 for t and p  plus forced mode */
     /* Trigger measurement needed for every time in forced mode */
     bme280_arch_i2c_write_mem(BME280_ADDR, BME280_CNTL_MEAS, 0x26);
+
+    /* RH needs 1.6 s */
+    for(i = 0; i < 1600; i++) {
+      clock_delay_usec(1000);
+    }
+
     /* Wait to get into sleep mode == measurement done */
     for(i = 0; i < BME280_MAX_WAIT; i++) {
-      bme280_arch_i2c_read_mem(BME280_ADDR, BME280_CNTL_MEAS, &sleep, 1);
-      sleep = sleep& 0x03;
+      bme280_arch_i2c_read_mem(BME280_ADDR, BME280_STATUS, &sleep, 1);
+      sleep = sleep& 0x09;
       if(sleep== 0) {
         break;
       } else {
@@ -259,7 +265,7 @@ bme280_read(uint8_t mode)
   bme280_arch_i2c_read_mem(BME280_ADDR, BME280_PRESS, buf, 8);
   ut = (uint32_t)(buf[3]) << 12 | (uint32_t)(buf[4]) << 4 | (uint32_t)buf[5] >> 4;
   up = (uint32_t)(buf[0]) << 12 | (uint32_t)(buf[1]) << 4 | (uint32_t)buf[2] >> 4;
-  uh = (uint32_t)(buf[6]) << 8 | (uint32_t)buf[7];
+  uh = (int32_t)(buf[6]) << 8 | (uint32_t)buf[7];
 
   bme280_mea.t_overscale100 = bme280_t_overscale100(ut);
   bme280_mea.h_overscale1024 = bme280_h_overscale1024(uh);
