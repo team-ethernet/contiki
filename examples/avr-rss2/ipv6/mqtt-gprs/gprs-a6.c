@@ -230,7 +230,7 @@ static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
 
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
 struct at_wait wait_ok = {"OK", wait_simple_callback, at_match_byte};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback, at_match_byte};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readlines_callback, at_match_byte};
 struct at_wait wait_creg = {"+CREG: ", wait_readline_callback, at_match_byte};
 struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback, at_match_byte};
 struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_byte};
@@ -934,6 +934,23 @@ dequeue_event() {
 static struct tcp_socket_gprs *socket;
 static struct gprs_connection *gprsconn;
 
+int
+in_atline(char *tok)
+{
+  int i;
+  const char *delim = " \t\r";
+  char *p = strtok((char *)&atline[0], (const char *) delim);
+  printf("atline=%s", atline);
+  while (p) {
+    printf("tok=%s p=%s\n", tok, p);
+    if(!strcmp(p, tok)) {
+      return 1;
+    }
+    p = strtok(NULL, delim);
+  }
+  return 0;
+}
+
 PROCESS_THREAD(a6at, ev, data) {
   //unsigned char *res;
   struct at_wait *at;
@@ -974,7 +991,6 @@ PROCESS_THREAD(a6at, ev, data) {
 
     ATSTR("AT\r");
     DELAY(5);
-
     status.module = GPRS_MODULE_UNNKOWN;
     ATSTR("ATI\r");
     ATWAIT2(10, &wait_ati);
@@ -1068,12 +1084,10 @@ PROCESS_THREAD(a6at, ev, data) {
     sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
     ATSTR(str);   
     ATWAIT2(20, &wait_ok);
-      
     ATSTR("AT+CGATT=1\r");
     ATWAIT2(5, &wait_ok);
     ATSTR("AT+CIPMUX=0\r");
     ATWAIT2(5, &wait_ok);
-      
     minor_tries = 0;
     while (minor_tries++ < 10) {
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
@@ -1103,14 +1117,15 @@ PROCESS_THREAD(a6at, ev, data) {
       ATSTR("AT+CIPSTATUS?\r"); 
       ATWAIT2(60, &wait_cipstatus);
       if (at == &wait_cipstatus) {
-        if (strncmp((char *) atline, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
-          gcontext->active = 1;
-          status.state = GPRS_STATE_ACTIVE;
-          break;
-        }
-        else {
+	printf("atline=%s\n", atline);
+	if ((strncmp((char *) atline, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) || (in_atline("0,IP"))) {
+	  gcontext->active = 1;
+	  status.state = GPRS_STATE_ACTIVE;
+	  break;
+	}
+	else {
           DELAY(5);
-        }
+	}
       }
     }
     if (minor_tries++ >= 10) {
@@ -1175,7 +1190,7 @@ PROCESS_THREAD(a6at, ev, data) {
       minor_tries = 0;
       while (minor_tries++ < 10) {
         printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-        sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+        sprintf(str, "AT+CIPSTART=\"%s\",\"%s\",%d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
         ATSTR(str);
         ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
         if (at == &wait_connectok) {
