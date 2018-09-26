@@ -116,7 +116,12 @@ void
 clock_init(void)
 {
   cli ();
-  OCRSetup();
+  TIMSK2 &=~((1<<TOIE2)|(1<<OCIE2A));  /* Disable TC0 interrupt */
+  ASSR |= (1<<AS2); /* set Timer/Counter0 to be asynchronous */
+  TCNT2 = 0x00;
+  TCCR2B = 0x01;  /* No prescale */
+  while(ASSR&0x07);
+  TIMSK2 |= (1<<TOIE2);  
   sei ();
 }
 /*---------------------------------------------------------------------------*/
@@ -321,11 +326,20 @@ clock_adjust_ticks(clock_time_t howmany)
 /** \brief ISR for the TIMER0 or TIMER2 interrupt as defined in
  *  clock-avr.h for the particular MCU.
  */
+
 void AVR_OUTPUT_COMPARE_INT(void);
 #else
 ISR(AVR_OUTPUT_COMPARE_INT)
 {
+}
+
+extern volatile uint8_t clock_tick_pending;
+
+//ISR(TIMER2_COMPA_vect)
+ISR(TIMER2_OVF_vect)
+{
     count++;
+    clock_tick_pending = 1;
 #if TWO_COUNTERS
   if(++scount >= CLOCK_SECOND) {
     scount = 0;
@@ -352,7 +366,7 @@ ISR(AVR_OUTPUT_COMPARE_INT)
     }
   }
 #endif
- 
+
 #if F_CPU == 0x800000 && USE_32K_CRYSTAL
 /* Special routine to phase lock CPU to 32768 watch crystal.
  * We are interrupting 128 times per second.
@@ -409,7 +423,7 @@ volatile static uint8_t osccalhigh,osccallow;
     }
   }
 #endif
-}
+ }
 #endif /* defined(DOXYGEN) */
 /*---------------------------------------------------------------------------*/
 /* Debugging aids */

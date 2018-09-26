@@ -101,6 +101,7 @@ void clock_adjust_ticks(clock_time_t howmany);
 
 /* The radio needs to interrupt during an rtimer interrupt */
 #define RTIMER_CONF_NESTED_INTERRUPTS 1
+#define RTIMER_ARCH_PRESCALER 256
 
 /* RSS2 boards has a 32768Hz on TIMER2 */
 #define AVR_CONF_USE32KCRYSTAL 1
@@ -257,7 +258,7 @@ typedef unsigned short uip_stats_t;
 #define UIP_CONF_DS6_AADDR_NBU    0
 
 #elif 1  /* Contiki-mac radio cycling */
-/* #define NETSTACK_CONF_MAC         nullmac_driver */
+/*#define NETSTACK_CONF_MAC         nullmac_driver */
 /* csma needed for burst mode at present. Webserver won't work without it */
 /* #define NETSTACK_CONF_MAC         csma_driver */
 /* #define NETSTACK_CONF_RDC         contikimac_driver */
@@ -266,8 +267,8 @@ typedef unsigned short uip_stats_t;
 /* So without the header this needed for RPL mesh to form */
 #define CONTIKIMAC_FRAMER_CONF_SHORTEST_PACKET_SIZE   (43 - 18)  /* multicast RPL DIS length */
 /* Not tested much yet */
-#define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 0
-#define CONTIKIMAC_CONF_COMPOWER               1
+#define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 1
+#define CONTIKIMAC_CONF_COMPOWER               0
 #define RIMESTATS_CONF_ENABLED                 0
 
 /* A 0 here means non-extended mode; 1 means extended mode with no retry, >1 for retrys */
