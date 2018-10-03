@@ -341,6 +341,13 @@ ISR(AVR_OUTPUT_COMPARE_INT)
     }
 #endif
 
+#ifdef CONTIKI_TARGET_AVR_RSS2
+#include "dev/button-sensor.h"
+  if( ! button_sensor.value(0) ) {
+      sensors_changed(&button_sensor);
+    }
+#endif
+
   }
 
 #if RADIOSTATS

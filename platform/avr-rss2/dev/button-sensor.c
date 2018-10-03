@@ -44,8 +44,6 @@
 
 const struct sensors_sensor button_sensor;
 static int status(int type);
-struct sensors_sensor *sensors[1];
-unsigned char sensors_flags[1];
 
 static int
 value(int type)
@@ -66,3 +64,4 @@ status(int type)
 SENSORS_SENSOR(button_sensor, BUTTON_SENSOR,
                value, configure, status);
 
+SENSORS(&button_sensor);
