@@ -51,6 +51,7 @@
 #include "dev/pulse-sensor.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/co2_sa_kxx-sensor.h"
+#include "dev/button-sensor.h"
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_sensors_process, "Hello sensor process");
 AUTOSTART_PROCESSES(&hello_sensors_process);
@@ -80,6 +81,8 @@ read_values(void)
   printf(" PULSE_0=%-d", pulse_sensor.value(0));
   printf(" PULSE_1=%-d", pulse_sensor.value(1));
 
+  printf("\n");
+  
   if( i2c_probed & I2C_CO2SA ) {
     printf(" CO2=%-d", co2_sa_kxx_sensor.value( CO2_SA_KXX_CO2));
   }
@@ -101,8 +104,7 @@ read_values(void)
 #endif
 #endif
   }
-
-  printf("\n");
+  printf("\n\n");
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(hello_sensors_process, ev, data)
@@ -114,7 +116,8 @@ PROCESS_THREAD(hello_sensors_process, ev, data)
   SENSORS_ACTIVATE(temp_mcu_sensor);
   SENSORS_ACTIVATE(light_sensor);
   SENSORS_ACTIVATE(pulse_sensor);
-
+  SENSORS_ACTIVATE(button_sensor);
+  
   if( i2c_probed & I2C_BME280 ) {
     SENSORS_ACTIVATE(bme280_sensor);
   }
@@ -133,7 +136,14 @@ PROCESS_THREAD(hello_sensors_process, ev, data)
 
     etimer_set(&et, CLOCK_SECOND * 5);
   while(1) {
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    PROCESS_YIELD();
+    //PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+
+    if (ev == sensors_event && data == &button_sensor) {
+      leds_on(LEDS_YELLOW);
+      printf("Button pressed\n");
+    }
+
     read_values();
     etimer_reset(&et);
   }
