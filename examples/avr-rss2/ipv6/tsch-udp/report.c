@@ -35,6 +35,7 @@
 #include "net/ip/uip-udp-packet.h"
 #include "sys/ctimer.h"
 #include "dev/leds.h"
+#include "dev/button-sensor.h"
 #include "dev/battery-sensor.h"
 #ifdef CONTIKI_TARGET_AVR_RSS2
 #include "dev/temp_mcu-sensor.h"
@@ -83,9 +84,11 @@ tcpip_handler(void)
   char *str;
   
   if(uip_newdata()) {
+    leds_on(LEDS_RED);
     str = uip_appdata;
     str[uip_datalen()] = '\0';
-    printf("DATA recv '%s'\n", str);
+    printf("DATA recv '%s'", str);
+    PRINTF(" RSSI=%d\n", sicslowpan_get_last_rssi());
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -223,6 +226,11 @@ PROCESS_THREAD(udp_client_process, ev, data)
     PROCESS_YIELD();
     if(ev == tcpip_event) {
       tcpip_handler();
+    }
+    else if (ev == sensors_event && data == &button_sensor) {
+      leds_on(LEDS_RED);
+      etimer_reset(&periodic);
+      ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
     }
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
