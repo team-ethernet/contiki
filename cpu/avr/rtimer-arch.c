@@ -244,12 +244,9 @@ rtimer_arch_sleep(rtimer_clock_t howlong)
  * precision but smaller maximum sleep time.
  */
 #include <avr/sleep.h>
-#include <dev/watchdog.h>
 
   //wait_clock_tick = howlong/CLOCK_SECOND;
   wait_clock_tick = howlong;
-  howlong = 0;
-  watchdog_stop();
   clock_tick_pending = 0;
 
   while(wait_clock_tick > 0)  {
@@ -260,20 +257,19 @@ rtimer_arch_sleep(rtimer_clock_t howlong)
       sreg = SREG;
       cli ();
       wait_clock_tick -= RTIMER_SECOND/CLOCK_SECOND;
-      howlong += RTIMER_SECOND/CLOCK_SECOND;
+
+#ifdef TCNT3
+      TCNT3 += RTIMER_SECOND/CLOCK_SECOND;
+#else
+      TCNT1 += RTIMER_SECOND/CLOCK_SECOND;
+#endif
       clock_tick_pending = 0;
       SREG = sreg;
     }
-    watchdog_start();
   }
 
 /* Adjust rtimer ticks if rtimer is enabled. TIMER3 is preferred, else TIMER1 */
 #if RTIMER_ARCH_PRESCALER
-#ifdef TCNT3
-  TCNT3 += howlong;
-#else
- TCNT1 += howlong;
-#endif
 #endif
  clock_adjust_ticks(howlong/RTIMER_ARCH_SECOND);
 }
