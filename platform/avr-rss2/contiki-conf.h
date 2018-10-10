@@ -67,13 +67,29 @@
 
 #if RDC == TSCH
 /* Delay between GO signal and SFD */
-#define RADIO_DELAY_BEFORE_TX ((unsigned)US_TO_RTIMERTICKS(210))
+#define RADIO_DELAY_BEFORE_TX ((unsigned)US_TO_RTIMERTICKS(204)) //204
 /* Delay between GO signal and start listening */
 #define RADIO_DELAY_BEFORE_RX ((unsigned)US_TO_RTIMERTICKS(204))
 /* Delay between the SFD finishes arriving and it is detected in software */
-#define RADIO_DELAY_BEFORE_DETECT ((unsigned)US_TO_RTIMERTICKS(30))
+#define RADIO_DELAY_BEFORE_DETECT ((unsigned)US_TO_RTIMERTICKS(120)) //30
 
+#ifndef TSCH_CONF_TIMESYNC_REMOVE_JITTER 
 #define TSCH_CONF_TIMESYNC_REMOVE_JITTER 1
+#endif
+
+/* Use hardware timestamps */
+#ifndef TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS
+#define TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS 0
+
+#endif
+
+
+#ifndef TSCH_CONF_BASE_DRIFT_PPM
+/* The drift compared to "true" 10ms slots.
+ * Enable adaptive sync to enable compensation for this. */
+//#define TSCH_CONF_BASE_DRIFT_PPM +977
+#endif
+
 
 #ifndef TSCH_CONF_RX_WAIT
 #define TSCH_CONF_RX_WAIT 1800
@@ -83,7 +99,9 @@
 #define RF230_CONF_AUTOACK 0
 #define RF230_CONF_AUTORETRIES 0
 
-#define TSCH_DEBUG 1
+#define TSCH_LOG_CONF_LEVEL 0
+
+//#define TSCH_DEBUG 0
 #if TSCH_DEBUG
 #define TSCH_DEBUG_INIT() do {DDRD |= (1<<PD6);} while(0);
 #define TSCH_DEBUG_SLOT_START() do{ PORTD |= (1<<PD6); } while(0);
