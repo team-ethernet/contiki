@@ -82,7 +82,8 @@ static void
 tcpip_handler(void)
 {
   char *str;
-  
+      leds_on(LEDS_RED);
+
   if(uip_newdata()) {
     leds_on(LEDS_RED);
     str = uip_appdata;
@@ -103,7 +104,7 @@ send_packet(void *ptr)
 
   len += snprintf((char *) &buf[len], sizeof(buf), "&: ");
   len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
-  len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-d ", seq_id);
+  len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-u ", seq_id);
 
   /* 
    * Cooja needs to set a node_id. So we can skip sensor reading in case of simulation.
@@ -113,7 +114,7 @@ send_packet(void *ptr)
 #ifdef CONTIKI_TARGET_AVR_RSS2
     len += snprintf((char *) &buf[len], sizeof(buf), "T_MCU=%-d ", temp_mcu_sensor.value(0));
 #endif
-    len += snprintf((char *) &buf[len], sizeof(buf), "LIGHT=%-d ", light_sensor.value(0));
+    len += snprintf((char *) &buf[len], sizeof(buf), "LIGHT=%-u ", light_sensor.value(0));
   }
   PRINTF("TX %d to %d %s\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id, buf);

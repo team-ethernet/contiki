@@ -40,7 +40,8 @@
 #define PROJECT_CONF_H_
 
 #define RDC TSCH
-
+//#define  SERVER_REPLY 1
+ 
 /* Netstack layers */
 #undef NETSTACK_CONF_MAC
 #define NETSTACK_CONF_MAC     tschmac_driver
@@ -75,7 +76,7 @@
 #define TSCH_CALLBACK_JOINING_NETWORK tsch_rpl_callback_joining_network
 #define TSCH_CALLBACK_LEAVING_NETWORK tsch_rpl_callback_leaving_network
 
-#define TSCH_LOG_CONF_LEVEL 2
+//#define TSCH_LOG_CONF_LEVEL 2
 
 /* For test avoid 26 */
 #define TSCH_CONF_DEFAULT_HOPPING_SEQUENCE (uint8_t[]){ 15, 25, 11, 20 }
@@ -104,7 +105,6 @@
 #define TSCH_CONF_RADIO_ON_DURING_TIMESLOT 0
 #define TSCH_CONF_ADAPTIVE_TIMESYNC 0
 #define TSCH_CONF_HW_FRAME_FILTERING 0
-#define TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS 0
 #define TSCH_CONF_EB_PERIOD    (6 * CLOCK_SECOND)
 #endif
 
