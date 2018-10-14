@@ -30,6 +30,7 @@
 #include "contiki.h"
 #include "contiki-lib.h"
 #include "contiki-net.h"
+#include "net/ipv6/sicslowpan.h"
 #include "net/ip/uip.h"
 #include "net/rpl/rpl.h"
 
@@ -74,6 +75,8 @@ tcpip_handler(void)
     PRINTF("%02x%02x",
            UIP_IP_BUF->srcipaddr.u8[sizeof(UIP_IP_BUF->srcipaddr.u8) - 2],
            UIP_IP_BUF->srcipaddr.u8[sizeof(UIP_IP_BUF->srcipaddr.u8) - 1]);
+
+    PRINTF(" RSSI=%d", sicslowpan_get_last_rssi());
     PRINTF("\n");
 #if SERVER_REPLY
     PRINTF("DATA sending reply\n");

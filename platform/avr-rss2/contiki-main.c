@@ -53,7 +53,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dev/watchdog.h>
-
+#include "lib/sensors.h"
 #include "loader/symbols-def.h"
 #include "loader/symtab.h"
 
@@ -378,9 +378,11 @@ initialize(void)
   process_start(&tcpip_process, NULL);
 #endif
 
+  process_start(&sensors_process, NULL);
+  
   /* Autostart other processes */
   autostart_start(autostart_processes);
-
+  
   /*---If using coffee file system create initial web content if necessary---*/
 #if COFFEE_FILES
   int fa = cfs_open("/index.html", CFS_READ);

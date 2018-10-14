@@ -35,6 +35,7 @@
 #include "net/ip/uip-udp-packet.h"
 #include "sys/ctimer.h"
 #include "dev/leds.h"
+#include "dev/button-sensor.h"
 #include "dev/battery-sensor.h"
 #ifdef CONTIKI_TARGET_AVR_RSS2
 #include "dev/temp_mcu-sensor.h"
@@ -81,11 +82,14 @@ static void
 tcpip_handler(void)
 {
   char *str;
-  
+      leds_on(LEDS_RED);
+
   if(uip_newdata()) {
+    leds_on(LEDS_RED);
     str = uip_appdata;
     str[uip_datalen()] = '\0';
-    printf("DATA recv '%s'\n", str);
+    printf("DATA recv '%s'", str);
+    PRINTF(" RSSI=%d\n", sicslowpan_get_last_rssi());
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -100,7 +104,7 @@ send_packet(void *ptr)
 
   len += snprintf((char *) &buf[len], sizeof(buf), "&: ");
   len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
-  len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-d ", seq_id);
+  len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-u ", seq_id);
 
   /* 
    * Cooja needs to set a node_id. So we can skip sensor reading in case of simulation.
@@ -110,7 +114,7 @@ send_packet(void *ptr)
 #ifdef CONTIKI_TARGET_AVR_RSS2
     len += snprintf((char *) &buf[len], sizeof(buf), "T_MCU=%-d ", temp_mcu_sensor.value(0));
 #endif
-    len += snprintf((char *) &buf[len], sizeof(buf), "LIGHT=%-d ", light_sensor.value(0));
+    len += snprintf((char *) &buf[len], sizeof(buf), "LIGHT=%-u ", light_sensor.value(0));
   }
   PRINTF("TX %d to %d %s\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id, buf);
@@ -223,6 +227,11 @@ PROCESS_THREAD(udp_client_process, ev, data)
     PROCESS_YIELD();
     if(ev == tcpip_event) {
       tcpip_handler();
+    }
+    else if (ev == sensors_event && data == &button_sensor) {
+      leds_on(LEDS_RED);
+      etimer_reset(&periodic);
+      ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
     }
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
