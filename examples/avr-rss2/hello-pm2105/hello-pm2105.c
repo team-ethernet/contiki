@@ -66,6 +66,35 @@ static struct etimer et;
 
 unsigned char buf[70];
 
+
+void
+i2c_write_mem_block(uint8_t addr, uint8_t buf[], uint8_t bytes)
+{
+  uint8_t i = 0;
+  i2c_start(addr | I2C_WRITE);
+  i2c_readAck();
+  for(i = 0; i < bytes; i++) {
+      i2c_write(buf[i]);
+      i2c_readAck();
+  }
+  i2c_stop();
+}
+
+void
+i2c_read_mem_my(uint8_t addr, uint8_t reg, uint8_t buf[], uint8_t bytes)
+{
+  uint8_t i = 0;
+  i2c_start(addr | I2C_READ);
+  for(i = 0; i < bytes; i++) {
+    if(i == bytes - 1) {
+      buf[i] = i2c_readNak();
+    } else {
+      buf[i] = i2c_readAck();
+    }
+  }
+  i2c_stop();
+}
+
 static void
 read_values(void)
 {
@@ -81,19 +110,17 @@ read_values(void)
     if(1)  {
       buf[0] = 0x16;
       buf[1] = 0x07;
-      buf[2] = 0x01;
-      buf[3] = 0xFF;
-      buf[4] = 0xFF;
+      buf[2] = 0x07;
+      buf[3] = 0; //0xFF;
+      buf[4] = 20; //0xFF;
       buf[5] = 0x00; /* Reserved */
-      buf[6] = buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]; /* Checksum */
-
-     i2c_write_mem(buf, I2C_PM2105_ADDR, 7);
+      buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
+      i2c_write_mem_block(I2C_PM2105_ADDR, buf, 7);
     }
 #include <string.h>
-
-#if 1
     memset(buf, 0, sizeof(buf));
-    i2c_read_mem(I2C_PM2105_ADDR, 0, buf, 32);
+    i2c_read_mem_my(I2C_PM2105_ADDR, 0, buf, 32);
+#if 0
     for(i = 0; i < sizeof(buf) ; i++)  {
       printf(" %02x", buf[i]);
     }
