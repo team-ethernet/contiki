@@ -95,31 +95,113 @@ i2c_read_mem_my(uint8_t addr, uint8_t reg, uint8_t buf[], uint8_t bytes)
   i2c_stop();
 }
 
-static void
-read_values(void)
+int now = 0;
+uint8_t status, setup = 1;
+uint16_t mode, cal;
+
+#include "pt.h"
+
+static struct pt read_values_pt;
+
+PT_THREAD(read_values(struct pt *pt))
 {
-  int i;
+  PT_BEGIN(pt);  
+
   if(0 && i2c_probed & I2C_PM2105 ) {
     if (1 || pm2105_sensor.value(PM2105_SENSOR_TIMESTAMP) != 0) {
       printf(" PMS1S=%-d", pm2105_sensor.value(PM2105_SENSOR_PM1));
     }
   }
 
+  if(setup)  {
+    setup = 0;
+      buf[0] = 0x16;
+      // buf[1] = 7; buf[2] = 7;
+      // buf[1] = 5; buf[2] = 7;
+      // NO buf[1] = 2; buf[2] = 7;
+      buf[1] = 4; /* Time Mode */
+      buf[1] = 5; /* Dynamic Mode */
+      buf[1] = 7; /* Warm Mode */
+      buf[1] = 4; /* Time Mode -- Single */
+      buf[2] = 7;
+      buf[3] = 0;
+      buf[4] = 60; //0xFF;
+      buf[5] = 0; /* Reserved */
+      buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
+      i2c_write_mem_block(I2C_PM2105_ADDR, buf, 7);
+  }
+
   if(i2c_probed & I2C_PM2105 ) {
     /* Set measuring open */
-    if(1)  {
+
+    if(now)  {
       buf[0] = 0x16;
-      buf[1] = 0x07;
-      buf[2] = 0x07;
-      buf[3] = 0; //0xFF;
-      buf[4] = 20; //0xFF;
-      buf[5] = 0x00; /* Reserved */
+      if(now == 1) {
+	buf[1] = 1; 
+      }
+      if(now == 2) {
+	buf[1] = 2; 
+      }
+      buf[2] = 7;
+      // buf[1] = 7; buf[2] = 7;
+      // buf[1] = 5; buf[2] = 7;
+      // NO buf[1] = 2; buf[2] = 7;
+      // buf[1] = 4; buf[2] = 7;
+      buf[3] = 0;
+      buf[4] = 60; //0xFF;
+      buf[5] = 0; /* Reserved */
       buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
       i2c_write_mem_block(I2C_PM2105_ADDR, buf, 7);
     }
 #include <string.h>
     memset(buf, 0, sizeof(buf));
     i2c_read_mem_my(I2C_PM2105_ADDR, 0, buf, 32);
+    status = buf[2];
+    mode = (buf[3] << 8) + buf[4];
+
+    /* Warm Mode */
+    if(mode == 7) {
+      if(status == 0x80 ) {
+	printf("** WARM: ");
+      }
+    }
+
+    /* Dynamic Mode */
+    if(mode == 5) {
+      if(status == 0x80 ) {
+	printf("**DR: ");
+      }
+    }
+
+    /* Time Mode */
+    if(mode == 4) {
+      if(status == 0x80 ) {
+	printf("**DR-Close: ");
+	now = 1;
+      }
+      if(status == 2000 ) {
+	now = 1;
+      }
+      if(status == 1) {
+	static struct etimer timer;
+	etimer_set(&timer, 30 * CLOCK_SECOND);
+	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
+	now = 2;
+      }
+    }
+
+    /* Cont. Mode */
+    if(mode == 3) {
+      if(status == 0x80 ) {
+	now = 1;
+      }
+      if(status == 2 ) {
+	now = 1;
+      }
+      if(status == 1 ) {
+	now = 2;
+      }
+    }
 #if 0
     for(i = 0; i < sizeof(buf) ; i++)  {
       printf(" %02x", buf[i]);
@@ -127,28 +209,26 @@ read_values(void)
     printf("\n");
 #endif
   }
+  PT_END(pt);  
 }
 
 PROCESS_THREAD(hello_airsensors_process, ev, data)
 {
   PROCESS_BEGIN();
 
-
   if(i2c_probed & I2C_PM2105 ) {
     //SENSORS_ACTIVATE(pm2105_sensor);
   }
-
+  PT_INIT(&read_values_pt);
   leds_init(); 
  
-    etimer_set(&et, CLOCK_SECOND * 5);
+  etimer_set(&et, CLOCK_SECOND * 5);
   while(1) {
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-    read_values();
-
+    read_values(&read_values_pt);
     pmsframe(buf);
     etimer_reset(&et);
   }
-
   PROCESS_END();
 }
 
