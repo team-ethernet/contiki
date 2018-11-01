@@ -71,6 +71,10 @@ uint8_t i2c_getstatus(void);
 uint16_t i2c_probe(void);
 void i2c_read_mem(uint8_t addr, uint8_t reg, uint8_t buf[], uint8_t bytes);
 void i2c_write_mem(uint8_t addr, uint8_t reg, uint8_t value);
+void i2c_write_mem_buf(uint8_t addr, uint8_t buf[], uint8_t bytes);
+void i2c_read_mem_buf(uint8_t addr, uint8_t reg, uint8_t buf[], uint8_t bytes);
 void i2c_at24mac_read(char *buf, uint8_t eui64);
 extern uint16_t i2c_probed; /* i2c devices we have probed */
+
+
 
