@@ -95,9 +95,8 @@ pm2105_init()
 {
   pm2105_config_sample_period(PMS_SAMPLE_PERIOD);
   pm2105_config_warmup_interval(PMS_WARMUP_INTERVAL);
-    pm2105_event = process_alloc_event();
+  pm2105_event = process_alloc_event();
   process_start(&pm2105_timer_process, NULL);
-
   configured_on = 1;
 
 #ifdef DEBUG
@@ -192,27 +191,22 @@ pm2105_invalid_frames()
 {
   return invalid_frames;
 }
-
 void
 pm2105_config_sample_period(unsigned int sample_period) {
   pms_config.sample_period = sample_period;
 }
-
 void
 pm2105_config_warmup_interval(unsigned int warmup_interval) {
   pms_config.warmup_interval = warmup_interval;
 }
-
 unsigned
 pm2105_get_sample_period(void) {
   return pms_config.sample_period;
 }
-
 unsigned
 pm2105_get_warmup_interval(void) {
   return pms_config.warmup_interval;
 }
-
 /*---------------------------------------------------------------------------*/
 /**
  * Check if it is time to put sensor in standby mode.
@@ -306,7 +300,6 @@ pmsframe(uint8_t *buf)
     PM1_TSI = (buf[13] << 8) | buf[14];
     PM2_5_TSI = (buf[15] << 8) | buf[16];
     PM10_TSI = (buf[17] << 8) | buf[18];
-    
     /* Dust bins */
     DB0_3 = (buf[19] << 8) | buf[20];
     DB0_5 = (buf[21] << 8) | buf[22];
@@ -314,7 +307,6 @@ pmsframe(uint8_t *buf)
     DB2_5 = (buf[25] << 8) | buf[26];
     DB5 = (buf[27] << 8) | buf[28];
     DB10 = (buf[29] << 8) | buf[30];
-    
 #ifdef DEBUG
     printpm();
 #endif /* DEBUG */

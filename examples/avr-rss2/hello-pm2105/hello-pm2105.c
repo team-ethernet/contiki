@@ -39,8 +39,10 @@
  */
 
 #include "contiki.h"
+#include "pt.h"
 #include "sys/etimer.h"
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include "adc.h"
 #include "i2c.h"
@@ -66,40 +68,9 @@ static struct etimer et;
 
 unsigned char buf[70];
 
-
-void
-i2c_write_mem_block(uint8_t addr, uint8_t buf[], uint8_t bytes)
-{
-  uint8_t i = 0;
-  i2c_start(addr | I2C_WRITE);
-  i2c_readAck();
-  for(i = 0; i < bytes; i++) {
-      i2c_write(buf[i]);
-      i2c_readAck();
-  }
-  i2c_stop();
-}
-
-void
-i2c_read_mem_my(uint8_t addr, uint8_t reg, uint8_t buf[], uint8_t bytes)
-{
-  uint8_t i = 0;
-  i2c_start(addr | I2C_READ);
-  for(i = 0; i < bytes; i++) {
-    if(i == bytes - 1) {
-      buf[i] = i2c_readNak();
-    } else {
-      buf[i] = i2c_readAck();
-    }
-  }
-  i2c_stop();
-}
-
 int now = 0;
 uint8_t status, setup = 1;
 uint16_t mode, cal;
-
-#include "pt.h"
 
 static struct pt read_values_pt;
 
@@ -116,14 +87,18 @@ PT_THREAD(read_values(struct pt *pt))
   if(setup)  {
     setup = 0;
       buf[0] = 0x16;
-      // buf[1] = 7; buf[2] = 7;
-      // buf[1] = 5; buf[2] = 7;
-      // NO buf[1] = 2; buf[2] = 7;
-      buf[1] = 4; /* Time Mode */
+      buf[1] = 3; /* Cont. Mode */
+      buf[1] = 4; /* Time Mode -- Single */
       buf[1] = 5; /* Dynamic Mode */
       buf[1] = 7; /* Warm Mode */
+
       buf[1] = 4; /* Time Mode -- Single */
       buf[2] = 7;
+
+      if(buf[1] == 3) {
+	buf[3] = 0xFF;
+	buf[4] = 0xFF;
+      }
       buf[3] = 0;
       buf[4] = 60; //0xFF;
       buf[5] = 0; /* Reserved */
@@ -132,63 +107,27 @@ PT_THREAD(read_values(struct pt *pt))
   }
 
   if(i2c_probed & I2C_PM2105 ) {
-    /* Set measuring open */
 
     if(now)  {
       buf[0] = 0x16;
-      if(now == 1) {
+      if(now == 1) {  /* Close */
 	buf[1] = 1; 
       }
-      if(now == 2) {
+      if(now == 2) {  /* Open */
 	buf[1] = 2; 
       }
       buf[2] = 7;
-      // buf[1] = 7; buf[2] = 7;
-      // buf[1] = 5; buf[2] = 7;
-      // NO buf[1] = 2; buf[2] = 7;
-      // buf[1] = 4; buf[2] = 7;
       buf[3] = 0;
       buf[4] = 60; //0xFF;
       buf[5] = 0; /* Reserved */
       buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
-      i2c_write_mem_block(I2C_PM2105_ADDR, buf, 7);
+      i2c_write_mem_buf(I2C_PM2105_ADDR, buf, 7);
     }
-#include <string.h>
+
     memset(buf, 0, sizeof(buf));
-    i2c_read_mem_my(I2C_PM2105_ADDR, 0, buf, 32);
+    i2c_read_mem_buf(I2C_PM2105_ADDR, 0, buf, 32);
     status = buf[2];
     mode = (buf[3] << 8) + buf[4];
-
-    /* Warm Mode */
-    if(mode == 7) {
-      if(status == 0x80 ) {
-	printf("** WARM: ");
-      }
-    }
-
-    /* Dynamic Mode */
-    if(mode == 5) {
-      if(status == 0x80 ) {
-	printf("**DR: ");
-      }
-    }
-
-    /* Time Mode */
-    if(mode == 4) {
-      if(status == 0x80 ) {
-	printf("**DR-Close: ");
-	now = 1;
-      }
-      if(status == 2000 ) {
-	now = 1;
-      }
-      if(status == 1) {
-	static struct etimer timer;
-	etimer_set(&timer, 30 * CLOCK_SECOND);
-	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
-	now = 2;
-      }
-    }
 
     /* Cont. Mode */
     if(mode == 3) {
@@ -202,6 +141,35 @@ PT_THREAD(read_values(struct pt *pt))
 	now = 2;
       }
     }
+
+    /* Time Mode */
+    if(mode == 4) {
+      if(status == 0x80 ) {
+	printf("**DR-Close: ");
+	now = 1;
+      }
+      if(status == 1) {
+	static struct etimer timer;
+	etimer_set(&timer, 30 * CLOCK_SECOND);
+	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
+	now = 2;
+      }
+    }
+
+    /* Dynamic Mode */
+    if(mode == 5) {
+      if(status == 0x80 ) {
+	printf("**DR: ");
+      }
+    }
+
+    /* Warm Mode */
+    if(mode == 7) {
+      if(status == 0x80 ) {
+	printf("** WARM: ");
+      }
+    }
+
 #if 0
     for(i = 0; i < sizeof(buf) ; i++)  {
       printf(" %02x", buf[i]);
