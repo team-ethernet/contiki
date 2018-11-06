@@ -31,7 +31,7 @@
  * Author  : Peter Sjodin, KTH Royal Institute of Technology
  * Created : 2017-04-21
  *
- * Robert Olsson first port from PMS5003 to PM2105. 
+ * Robert Olsson rework for PM2105. 
  *
  */
 
@@ -44,6 +44,7 @@
 #include "sys/etimer.h"
 #include "sys/pt.h"
 #include <stdio.h>
+#include <string.h>
 #include "i2c.h"
 #include "watchdog.h"
 #include "dev/leds.h"
@@ -53,15 +54,11 @@
 
 #include "lib/ringbuf.h"
 
-/*
- * Definitions for frames from PMSX003 sensors
- */
-
-/* Preamble bytes */
+/* Preamble signature */
 #define PRE 0x16
-/* Valid body length field */
+/* Measurement length*/
 #define PM_MESSAGE_LEN 32
-#define PMSBUFFER (PM_MESSAGE_LEN + 4)
+#define PMSBUFFER PM_MESSAGE_LEN
 
 /* Frame assembly statistics */
 static uint32_t invalid_frames, valid_frames;
@@ -81,13 +78,19 @@ static struct pms_config {
   unsigned warmup_interval; /* Warmup time (sec) */
 } pms_config;
 
-#define DEBUG
+#define DEBUG 1
+
+static struct pt read_values_pt;
+int now = 0;
+uint8_t status, setup = 1;
+uint16_t mode, calibration;
+static uint8_t buf[PMSBUFFER];
+
 /*---------------------------------------------------------------------------*/
 PROCESS(pm2105_timer_process, "PM2105 periodic dust sensor process");
 /*---------------------------------------------------------------------------*/
 /**
  * Initialize. Create event, and start timer-driven process.
- * If UART enabled, also install UART callback function and
  * start PMS frame assembly process.
  */
 void
@@ -100,9 +103,8 @@ pm2105_init()
   configured_on = 1;
 
 #ifdef DEBUG
-  printf("PM2105: UART %d, I2C %d, sample period %d, warmup interval %d\n",
-         PMS_SERIAL_UART, PMS_SERIAL_I2C,
-         pms_config.sample_period, pms_config.warmup_interval);
+  printf("PM2105: I2C %d, sample period %d, warmup interval %d\n",
+         PMS_SERIAL_I2C, pms_config.sample_period, pms_config.warmup_interval);
 #endif /* DEBUG */
 }
 /*---------------------------------------------------------------------------*/
@@ -176,6 +178,21 @@ pm2105_db10()
 {
   return DB10;
 }
+uint8_t
+pm2105_status()
+{
+  return status;
+}
+uint16_t
+pm2105_mode()
+{
+  return mode;
+}
+uint8_t
+pm2105_calibration()
+{
+  return calibration;
+}
 uint32_t
 pm2105_timestamp()
 {
@@ -237,8 +254,6 @@ check_pmsframe(uint8_t *buf)
   int sum;
   int i;
   int len;
-  uint8_t status;
-  uint16_t mode, cal;
 
   if(buf[0] != PRE) {
     return 0;
@@ -248,14 +263,6 @@ check_pmsframe(uint8_t *buf)
   if(len != PM_MESSAGE_LEN) {
     return 0;
   }
-
-  /* Sensor Status */
-  status = buf[2];
-  mode = (buf[3] << 8) + buf[4];
-  cal = (buf[5] << 8) + buf[6];
-#ifdef DEBUG
-  printf("PM status=%d mode=%u, cal=%u\n", status, mode, cal);
-#endif
 
   /* XOR bytewise, excluding checksum */
   sum = 0;
@@ -293,6 +300,14 @@ pmsframe(uint8_t *buf)
   if(check_pmsframe(buf)) {
     timestamp = clock_seconds();
     valid_frames++;
+    /* Sensor Status */
+    //status = buf[2];
+    //mode = (buf[3] << 8) + buf[4];
+    calibration = (buf[5] << 8) + buf[6];
+#ifdef DEBUG
+    printf("PM status=%d mode=%u, cal=%u\n", status, mode, calibration);
+#endif
+
     /* Update sensor readings */
     PM1 = (( uint16_t) (buf[7] << 8)) | buf[8];
     PM2_5 = (buf[9] << 8) | buf[10];
@@ -316,6 +331,115 @@ pmsframe(uint8_t *buf)
     return 0;
   }
 }
+
+PT_THREAD(read_values(struct pt *pt))
+{
+  PT_BEGIN(pt);  
+
+  if(setup)  {
+    setup = 0;
+      buf[0] = 0x16;
+      buf[1] = 3; /* Cont. Mode */
+      buf[1] = 4; /* Time Mode -- Single */
+      buf[1] = 5; /* Dynamic Mode */
+      buf[1] = 7; /* Warm Mode */
+
+      buf[1] = 4; /* Time Mode -- Single */
+      buf[1] = 3; /* Cont. Mode */
+	    
+      buf[2] = 7;
+
+      if(buf[1] == 3) {
+	buf[3] = 0xFF;
+	buf[4] = 0xFF;
+      }
+      else {
+	buf[3] = 0;
+	buf[4] = 60; //0xFF;
+      }
+      buf[5] = 0; /* Reserved */
+      buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
+      i2c_write_mem_buf(I2C_PM2105_ADDR, buf, 7);
+  }
+  if(i2c_probed & I2C_PM2105 ) {
+
+    if(now)  {
+      buf[0] = 0x16;
+      if(now == 1) {  /* Close */
+	buf[1] = 1; 
+      }
+      if(now == 2) {  /* Open */
+	buf[1] = 2; 
+      }
+      buf[2] = 7;
+      buf[3] = 0;
+      buf[4] = 60; //0xFF;
+      buf[5] = 0; /* Reserved */
+      buf[6] = (buf[0]^buf[1]^buf[2]^buf[3]^buf[4]^buf[5]); /* Checksum */
+      i2c_write_mem_buf(I2C_PM2105_ADDR, buf, 7);
+    }
+    memset(buf, 0, sizeof(buf));
+    i2c_read_mem_buf(I2C_PM2105_ADDR, 0, buf, 32);
+    status = buf[2];
+    mode = (buf[3] << 8) + buf[4];
+
+    /* Cont. Mode */
+    if(mode == 3) {
+      if(status == 0x80 ) {
+	now = 1;
+      }
+      if(0 && status == 2 ) {
+	static struct etimer timer;
+	etimer_set(&timer, 30 * CLOCK_SECOND);
+	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
+	now = 1;
+      }
+      if(0 && status == 1 ) {
+	static struct etimer timer;
+	etimer_set(&timer, 30 * CLOCK_SECOND);
+	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
+	now = 2;
+      }
+    }
+
+    /* Time Mode */
+    if(mode == 4) {
+      if(status == 0x80 ) {
+	printf("**DR-Close: ");
+	now = 1;
+      }
+      if(status == 1) {
+	static struct etimer timer;
+	etimer_set(&timer, 30 * CLOCK_SECOND);
+	PT_WAIT_UNTIL(pt, etimer_expired(&timer));
+	now = 2;
+      }
+    }
+
+    /* Dynamic Mode */
+    if(mode == 5) {
+      if(status == 0x80 ) {
+	printf("**DR: ");
+      }
+    }
+
+    /* Warm Mode */
+    if(mode == 7) {
+      if(status == 0x80 ) {
+	printf("** WARM: ");
+      }
+    }
+
+#if 0
+    for(i = 0; i < sizeof(buf) ; i++)  {
+      printf(" %02x", buf[i]);
+    }
+    printf("\n");
+#endif
+  }
+  PT_END(pt);  
+}
+
 /*---------------------------------------------------------------------------*/
 /**
  * Timer thread: duty-cycle sensor. Toggle between idle and active mode.
@@ -327,6 +451,7 @@ PROCESS_THREAD(pm2105_timer_process, ev, data)
   static uint8_t standbymode;
 
   PROCESS_BEGIN();
+  PT_INIT(&read_values_pt);
   etimer_set(&pmstimer, CLOCK_SECOND * PMS_PROCESS_PERIOD);
 
 /* Pretend there is a fresh reading, to postpone the first
@@ -344,6 +469,7 @@ PROCESS_THREAD(pm2105_timer_process, ev, data)
 
   /* Main loop */
   while(1) {
+
     PROCESS_YIELD();
     if(!configured_on) {
       continue;
@@ -351,14 +477,12 @@ PROCESS_THREAD(pm2105_timer_process, ev, data)
 
     if((ev == PROCESS_EVENT_TIMER) && (data == &pmstimer)) {
       standbymode = pm2105_get_standby_mode();
-      if(standbymode == STANDBY_MODE_OFF) {
-#if PMS_SERIAL_I2C
-        static uint8_t buf[PMSBUFFER];
+      if(1 || standbymode == STANDBY_MODE_OFF) {
         /* Read data over I2C if it is time */
-        if(timetoread()) {
+        if(1 || timetoread()) {
           if(pm2105_i2c_probe()) {
             leds_on(LEDS_RED);
-            i2c_read_mem(I2C_PM2105_ADDR, 0, buf, PMSBUFFER);
+	    read_values(&read_values_pt);
             /* Check frame and update sensor readings */
             if(pmsframe(buf)) {
               /* Tell other processes there is new data */
@@ -372,7 +496,6 @@ PROCESS_THREAD(pm2105_timer_process, ev, data)
             }
           }
         }
-#endif /* PMS_SERIAL_I2C */
       } else if(standbymode == STANDBY_MODE_ON) {
         /* Time to warm up sensor for next reading? */
         if(!timetosleep()) {

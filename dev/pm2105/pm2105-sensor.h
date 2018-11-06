@@ -53,6 +53,9 @@ extern const struct sensors_sensor pm2105_sensor;
 #define PM2105_SENSOR_DB2_5         9
 #define PM2105_SENSOR_DB5          10
 #define PM2105_SENSOR_DB10          11
-#define PM2105_SENSOR_TIMESTAMP    12
+#define PM2105_SENSOR_STATUS        12
+#define PM2105_SENSOR_MODE          13
+#define PM2105_SENSOR_CALIBRATION   14
+#define PM2105_SENSOR_TIMESTAMP     15
 
 #endif /* PM2105_SENSOR_H_ */

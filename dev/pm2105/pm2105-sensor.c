@@ -77,6 +77,12 @@ value(int type)
     return pm2105_db5();
   case PM2105_SENSOR_DB10:
     return pm2105_db10();
+  case PM2105_SENSOR_STATUS:
+    return pm2105_status();
+  case PM2105_SENSOR_MODE:
+    return pm2105_mode();
+  case PM2105_SENSOR_CALIBRATION:
+    return pm2105_calibration();
   case PM2105_SENSOR_TIMESTAMP:
     return pm2105_timestamp();
   }
