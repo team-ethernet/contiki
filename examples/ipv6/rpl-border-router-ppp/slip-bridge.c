@@ -95,59 +95,30 @@ slip_input_callback(void)
 static void
 init(void)
 {
-  slip_arch_init(BAUD2UBR(115200));
-  process_start(&slip_process, NULL);
-  slip_set_input_callback(slip_input_callback);
+  ppp_init();
+  ppp_connect();
+  //process_start(&slip_process, NULL);
+  //slip_set_input_callback(slip_input_callback);
 }
 /*---------------------------------------------------------------------------*/
 static int
 output(void)
 {
-  if(uip_ipaddr_cmp(&last_sender, &UIP_IP_BUF->srcipaddr)) {
-    /* Do not bounce packets back over SLIP if the packet was received
-       over SLIP */
-    PRINTF("slip-bridge: Destination off-link but no route src=");
-    PRINT6ADDR(&UIP_IP_BUF->srcipaddr);
-    PRINTF(" dst=");
-    PRINT6ADDR(&UIP_IP_BUF->destipaddr);
-    PRINTF("\n");
-  } else {
- //   PRINTF("SUT: %u\n", uip_len);
-    slip_send();
-  }
+  ppp_send();
   return 0;
 }
 
-/*---------------------------------------------------------------------------*/
-#if !SLIP_BRIDGE_CONF_NO_PUTCHAR
-#undef putchar
-int
-putchar(int c)
+void ppp_arch_putchar(uint8_t c)
 {
-#define SLIP_END     0300
-  static char debug_frame = 0;
-
-  if(!debug_frame) {            /* Start of debug output */
-    slip_arch_writeb(SLIP_END);
-    slip_arch_writeb('\r');     /* Type debug line == '\r' */
-    debug_frame = 1;
-  }
-
-  /* Need to also print '\n' because for example COOJA will not show
-     any output before line end */
-  slip_arch_writeb((char)c);
-
-  /*
-   * Line buffered output, a newline marks the end of debug output and
-   * implicitly flushes debug output.
-   */
-  if(c == '\n') {
-    slip_arch_writeb(SLIP_END);
-    debug_frame = 0;
-  }
-  return c;
+  printf("%02X ", c);
+  //putchar(c);
 }
-#endif
+
+int ppp_arch_getchar(uint8_t c)
+{
+  return 0;
+}
+
 /*---------------------------------------------------------------------------*/
 const struct uip_fallback_interface rpl_interface = {
   init, output
