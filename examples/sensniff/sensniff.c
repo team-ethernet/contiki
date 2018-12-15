@@ -37,6 +37,8 @@
 #include "sys/process.h"
 #include "sys/ctimer.h"
 #include "lib/ringbuf.h"
+#include "dev/button-sensor.h"
+#include "dev/leds.h"
 
 #include SENSNIFF_IO_DRIVER_H
 
@@ -83,6 +85,8 @@ static uint8_t in_ct;
 #define BUFSIZE 32
 
 static struct ringbuf rxbuf;
+
+static uint8_t ch;
 
 typedef struct cmd_in_s {
   uint8_t cmd;
@@ -311,10 +315,16 @@ process_incoming_data(void)
     c = ringbuf_get(&rxbuf);
   }
 }
+
+
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sensniff_process, ev, data)
 {
   PROCESS_BEGIN();
+
+  SENSORS_ACTIVATE(button_sensor);
+  button_sensor.configure(SENSORS_ACTIVE, 1);
+  leds_init(); 
 
   /* Turn off RF frame filtering and H/W ACKs */
   if(NETSTACK_RADIO.set_value(RADIO_PARAM_RX_MODE, 0) != RADIO_RESULT_OK) {
@@ -331,14 +341,28 @@ PROCESS_THREAD(sensniff_process, ev, data)
   /* Register for char inputs with the character I/O peripheral */
   sensniff_io_set_input(&char_in);
 
+  ch = 25; /* Start */
+  set_channel(ch);
+    
   while(1) {
-    PROCESS_YIELD();
-
+    PROCESS_WAIT_EVENT();
     if(ev == PROCESS_EVENT_POLL) {
       process_incoming_data();
     }
-  }
+    if(ev == sensors_event && data == &button_sensor && ! button_sensor.value(0)) {
 
+      if(ch == 26)
+	ch = 11;
+      else ch++;
+
+      if(ch == 20 ) leds_on(LEDS_RED);
+      else leds_on(LEDS_YELLOW);
+      if(ch == 11 ) leds_on(LEDS_RED);
+
+      set_channel(ch);
+      printf("Chan=%d\n", ch);
+    }
+  }
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
