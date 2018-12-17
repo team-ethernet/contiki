@@ -37,6 +37,7 @@
 #include "sys/process.h"
 #include "sys/ctimer.h"
 #include "lib/ringbuf.h"
+#include "lib/sensors.h"
 #include "dev/button-sensor.h"
 #include "dev/leds.h"
 
@@ -45,6 +46,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+
+SENSORS(&button_sensor);
+
 /*---------------------------------------------------------------------------*/
 #define DEBUG 1
 #if DEBUG
@@ -54,7 +58,7 @@
 #endif
 /*---------------------------------------------------------------------------*/
 PROCESS(sensniff_process, "sensniff process");
-AUTOSTART_PROCESSES(&sensniff_process);
+AUTOSTART_PROCESSES(&sensniff_process, &sensors_process);
 /*---------------------------------------------------------------------------*/
 /* Timeout handling for incoming characters. */
 #define TIMEOUT (CLOCK_SECOND >> 1)
