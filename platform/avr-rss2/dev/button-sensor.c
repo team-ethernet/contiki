@@ -64,4 +64,4 @@ status(int type)
 SENSORS_SENSOR(button_sensor, BUTTON_SENSOR,
                value, configure, status);
 
-SENSORS(&button_sensor);
+//SENSORS(&button_sensor);

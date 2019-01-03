@@ -91,6 +91,9 @@
 
 #include "net/rime/rime.h"
 
+#include "dev/button-sensor.h"
+SENSORS(&button_sensor);
+
 /* Track interrupt flow through mac, rdc and radio driver */
 /* #define DEBUGFLOWSIZE 32 */
 #if DEBUGFLOWSIZE
