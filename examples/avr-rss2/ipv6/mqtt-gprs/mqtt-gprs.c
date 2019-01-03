@@ -55,8 +55,8 @@
 #include "sys/etimer.h"
 #include "sys/ctimer.h"
 #include "lib/sensors.h"
-#include "dev/button-sensor.h"
 #include "dev/leds.h"
+#include "dev/button-sensor.h"
 #include "dev/temp-sensor.h"
 #include "dev/battery-sensor.h"
 #include <string.h>
@@ -225,7 +225,7 @@ AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process, &mqtt_checker_process,
 #else
 AUTOSTART_PROCESSES(&mqtt_demo_process, &sensors_process);
 #endif
-SENSORS(&pms5003_sensor);
+//SENSORS(&pms5003_sensor);
 
 /*---------------------------------------------------------------------------*/
 /**
