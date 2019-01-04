@@ -184,6 +184,11 @@ process_discovery_response(void *response)
 	     (strncmp(parameters.rt, "core.ps.discover", LINK_RT_MAX_SIZE) == 0))) {
 	   strncpy(broker->base_url, url_buffer, COAP_PUBSUB_MAX_URL_LEN);
 	   PRINTF("Found broker function set at /%s\n", (char *)(broker->base_url));
+
+	   /* Trimming to ps. Compatibility issue. To accept broker ps/ discovery response*/
+	   if(!strncmp(broker->base_url, "ps/", LINK_RT_MAX_SIZE))
+	      broker->base_url[2] = '\0';
+
       } else {
         broker_base_len = strlen(broker->base_url);
         if(broker_base_len > 0
