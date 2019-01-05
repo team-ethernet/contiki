@@ -120,11 +120,11 @@ PROCESS_THREAD(coap_client, ev, data)
 
   topic_bme.content_type = 0;
   topic_bme.content = (uint8_t *)&content_buffer;
-  topic_bme.max_age = 300;
+  topic_bme.max_age = COAP_MAX_AGE;
 
   topic_pm.content_type = 0;
   topic_pm.content = (uint8_t *)&content_buffer;
-  topic_pm.max_age = 300;
+  topic_pm.max_age = COAP_MAX_AGE;
 
   for(i = 0; i < 8; i++) {
     sprintf(((char *)&topic_dir.url) + 2 * i * sizeof(char), "%02x", uip_lladdr.addr[i]);
