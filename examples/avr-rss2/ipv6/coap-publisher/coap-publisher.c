@@ -88,7 +88,6 @@ static struct etimer publish_timer;
 static char *buf_ptr;
 
 SENSORS(&pms5003_sensor);
-//SENSORS(&pm2105_sensor);
 
 PROCESS_THREAD(coap_client, ev, data)
 {
@@ -104,8 +103,13 @@ PROCESS_THREAD(coap_client, ev, data)
     SENSORS_ACTIVATE(bme680_sensor);
   }
 
+  if(i2c_probed & I2C_PM2105 ) {
+    SENSORS_ACTIVATE(pm2105_sensor);
+    pm2105_init();
+  }
+
   SENSORS_ACTIVATE(pms5003_sensor);
-  SENSORS_ACTIVATE(pm2105_sensor);
+
   topic_dir.broker = &broker;
   topic_bme.broker = &broker;
   topic_pm.broker = &broker;
@@ -229,6 +233,32 @@ PROCESS_THREAD(coap_client, ev, data)
 	  PRINTF("PUBLISH finished, return code %d\n", topic_bme.last_response_code );
 	  if(topic_bme.last_response_code == NOT_FOUND_4_04){
 	    PRINTF("No topic TEMP!\n");
+	    found_broker = 0;
+	  }
+	}
+	if (i2c_probed & I2C_PM2105) {
+	  remaining = COAP_PUBSUB_MAX_CREATE_MESSAGE_LEN;
+	  buf_ptr = (char *) topic_pm.content;
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_PM1));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_PM2_5));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_PM10));
+	  PUTFMT("TSI %d ", pm2105_sensor.value(PM2105_SENSOR_PM1_TSI));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_PM2_5_TSI));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_PM10_TSI));
+
+	  PUTFMT("DB %d ", pm2105_sensor.value(PM2105_SENSOR_DB0_3));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_DB0_5));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_DB1));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_DB2_5));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_DB5));
+	  PUTFMT("%d ", pm2105_sensor.value(PM2105_SENSOR_DB10));
+
+	  topic_pm.content_len = strlen((char *)topic_pm.content);
+	  PRINTF("PUBLISH PMSX003 value %s, len %u\n", topic_pm.content, topic_pm.content_len);
+	  COAP_PUBSUB_PUBLISH(&topic_pm);
+	  PRINTF("PUBLISH finished, return code %d\n", topic_pm.last_response_code );
+	  if(topic_pm.last_response_code == NOT_FOUND_4_04){
+	    PRINTF("No topic PM!\n");
 	    found_broker = 0;
 	  }
 	}
