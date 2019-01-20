@@ -46,11 +46,13 @@ static uint8_t standbymode;
  */
 void
 pm2105_set_standby_mode(uint8_t mode) {
+#if 0 /* Fix this for pm2105 */
   SET_PMS_DDR |= (1 << PMS_SET);
   if (mode == STANDBY_MODE_OFF)
     SET_PMS_PORT |= (1 << PMS_SET);
   else if (mode == STANDBY_MODE_ON)
     SET_PMS_PORT &= ~(1 << PMS_SET);
+#endif  
   standbymode = mode;
 }
 /*---------------------------------------------------------------------------*/

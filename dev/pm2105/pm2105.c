@@ -78,12 +78,12 @@ static struct pms_config {
   unsigned warmup_interval; /* Warmup time (sec) */
 } pms_config;
 
-#define DEBUG 1
+#define DEBUG 0
 
 static struct pt read_values_pt;
-int now = 0;
-uint8_t status, setup = 1;
-uint16_t mode, calibration;
+static int now = 0;
+static uint8_t status, setup = 1;
+static uint16_t mode, calibration;
 static uint8_t buf[PMSBUFFER];
 
 /*---------------------------------------------------------------------------*/
@@ -477,9 +477,9 @@ PROCESS_THREAD(pm2105_timer_process, ev, data)
 
     if((ev == PROCESS_EVENT_TIMER) && (data == &pmstimer)) {
       standbymode = pm2105_get_standby_mode();
-      if(1 || standbymode == STANDBY_MODE_OFF) {
+      if(standbymode == STANDBY_MODE_OFF) {
         /* Read data over I2C if it is time */
-        if(1 || timetoread()) {
+        if(timetoread()) {
           if(pm2105_i2c_probe()) {
             leds_on(LEDS_RED);
 	    read_values(&read_values_pt);
