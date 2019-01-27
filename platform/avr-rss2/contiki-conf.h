@@ -165,12 +165,32 @@ typedef unsigned long clock_time_t;
 void clock_delay_msec(uint16_t howlong);
 void clock_adjust_ticks(clock_time_t howmany);
 
-#define SLIP_PORT RS232_PORT_0
-#define RS232_CONF_TX_INTERRUPTS 1
-/* Default baud rare on RS232 port */
-#ifndef RS232_BAUDRATE
-#define RS232_BAUDRATE USART_BAUD_38400
-#endif 
+/* The radio needs to interrupt during an rtimer interrupt */
+#define RTIMER_CONF_NESTED_INTERRUPTS 1
+
+/* RSS2 boards has a 32768Hz on TIMER2 */
+#define AVR_CONF_USE32KCRYSTAL 1
+
+#ifndef USART1_CONF_ENABLE
+#endif
+
+#ifndef USART0_CONF_BAUD_RATE
+#define USART0_CONF_BAUD_RATE   USART_BAUD_38400 /**< Default USART0 baud rate */
+#endif
+
+#ifndef USART1_CONF_BAUD_RATE
+#define USART1_CONF_BAUD_RATE   USART_BAUD_38400 /**< Default USART1 baud rate */
+#endif
+
+#ifndef SERIAL_LINE_CONF_UART
+#define SERIAL_LINE_CONF_UART       0 /**< USART to use with serial line */
+#endif
+
+#ifndef SLIP_ARCH_CONF_USART
+#define SLIP_ARCH_CONF_USART         0 /**< USART to use with SLIP */
+#endif
+
+#define SLIP_PORT SLIP_ARCH_CONF_USART
 
 /* Pre-allocated memory for loadable modules heap space (in bytes)*/
 /* Default is 4096. Currently used only when elfloader is present. Not tested on Raven */

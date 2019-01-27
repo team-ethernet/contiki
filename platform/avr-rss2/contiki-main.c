@@ -216,9 +216,14 @@ initialize(void)
   watchdog_start();
   leds_init();
 
-  rs232_init(RS232_PORT_0, RS232_BAUDRATE, USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
-  rs232_redirect_stdout(RS232_PORT_0);
+  rs232_init(RS232_PORT_0, USART0_CONF_BAUD_RATE, USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
 
+  /* UART1 Disables P0, P1 interrups pin and need HW fix for rss2 */
+#ifdef USART1_CONF_ENABLE
+  rs232_init(RS232_PORT_1, USART1_CONF_BAUD_RATE, USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
+#endif 
+  
+  rs232_redirect_stdout(SERIAL_LINE_CONF_UART);
 #if 0
   /* Do it my way... */
   //UBRR0L =  8; UBRR0H = 0; UCSR0A = (0 << U2X0);  // 115.2k  err=-3.5%  
