@@ -14,6 +14,9 @@
 #define USB_PWR      PB5 /* High if FTDI TTL-USB cable sources */
 #define P0           PD2 /* Pulse count input. Pullup via jumper */
 #define P1           PD3 /* Pulse count input via optional Comparator */
+/* Alternative */
+#define RX1           P0 /* RX UART1 */
+#define TX1           P1 /* TX UART0 */
 #define PWR_1        PE7 /* Programmable power pin Vcc via P-FET */
 
 #define AV_IN        PF0 /* V_IN ADC input. 100k/1M volt. divider */
