@@ -89,13 +89,15 @@ int
 uart_input_byte(unsigned char c)
 {
   static uint8_t overflow = 0; /* Buffer overflow: ignore until END */
-  
+
+#if 0
   if(IGNORE_CHAR(c)) {
     return 0;
   }
-
+#endif
+  
   //printf("%02x ", c);
-  printf("%c", c);
+  //printf("%c", c);
   
   if(!overflow) {
     /* Add character */
@@ -104,6 +106,7 @@ uart_input_byte(unsigned char c)
       overflow = 1;
     }
   } else {
+    printf("OVERFLOW±n");
     /* Buffer overflowed:
      * Only (try to) add terminator characters, otherwise skip */
     if(c == END && ringbuf_put(&rxbuf, c) != 0) {
@@ -701,6 +704,8 @@ wait_init() {
  */
 static uint8_t matching = 0; 
 
+
+
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   static uint8_t i;
   static uint8_t datapos;
@@ -708,12 +713,13 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   static struct at_wait *at;
   int match;
   int consumed;
-
+    
   static int again;
   PT_BEGIN(pt);
+
   while (1) {
   again = 0;
-  
+
 again:
   matching = 0;
     if (len > 0) {
@@ -763,7 +769,7 @@ again:
 static void
 dumpstr(unsigned char *str) {
   unsigned char *s = str;
-
+  
   printf("    ");
   while (*s) {
     if (*s == '\n')
@@ -787,7 +793,7 @@ module_init(void)
 
 int len;
 uint8_t buf[200];
-
+ 
 PROCESS_THREAD(uart_reader, ev, data)
 {
   static struct pt wait_pt;
@@ -808,10 +814,14 @@ PROCESS_THREAD(uart_reader, ev, data)
   loop:
     c = ringbuf_get(&rxbuf);
     if(c != -1) {
+      //printf("%c", c);
+
       buf[len] = (uint8_t) c;
+      len++;
       goto loop;
     }
     if (len) {
+      int i;
       buf[len] = '\0';
       dumpstr(buf);
       wait_fsm_pt(&wait_pt, buf, len);
@@ -1038,7 +1048,8 @@ PROCESS_THREAD(a6at, ev, data) {
   major_tries = 0;
   while (major_tries++ < 10) {
     static uint8_t creg;
-
+    char *p;
+    
 #ifdef NB_IOT_TELIA    
     ATSTR("AT+COPS=1,2,\"24001\"\r");
     ATWAIT2(20, &wait_ok);
@@ -1046,12 +1057,16 @@ PROCESS_THREAD(a6at, ev, data) {
     ATSTR("AT+CGDCONT=1,\"IP\",\"lpwa.telia.iot\"\r");
     ATWAIT2(20, &wait_ok);
 #endif
-  
+
     ATSTR("AT+CREG?\r");
-    ATWAIT2(120, &wait_creg);
-    if (at == NULL)
+    ATWAIT2(30, &wait_creg);
+    if (at == NULL) {
+      printf("CREG AT = NULL\n");
       continue;
-    creg = atoi((char *) atline /*foundbuf*/);
+    }
+    p = (char *)memchr(atline, ',', strlen(atline));
+    p++;
+    creg = atoi((char *) p /*foundbuf*/);
     printf("creg atoi(\"%s\") -> %d\n", atline, creg);
     if (creg == 1 || creg == 5 || creg == 10) /* Wait for registration */
       status.state = GPRS_STATE_REGISTERED;
