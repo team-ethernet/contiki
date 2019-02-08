@@ -989,6 +989,21 @@ PROCESS_THREAD(a6at, ev, data) {
   leds_init();
   event_init();
   event_queue_init();
+
+#ifdef NB_IOT_TELIA	
+  ATSTR("AT+COPS=1,2,\"24001\"\r");
+  ATWAIT2(10, &wait_ok);
+
+  ATSTR("AT+CFUN=0\r");
+  ATWAIT2(10, &wait_ok);
+
+  ATSTR("AT*MCGDEFCONT=\"IP\",\"lpwa.telia.iot\"\r");
+  ATWAIT2(10, &wait_ok);
+
+  ATSTR("AT+CFUN=1\r");
+  ATWAIT2(10, &wait_ok);
+
+#endif
   
  again:
   module_init();
@@ -1050,14 +1065,6 @@ PROCESS_THREAD(a6at, ev, data) {
     static uint8_t creg;
     char *p;
     
-#ifdef NB_IOT_TELIA    
-    ATSTR("AT+COPS=1,2,\"24001\"\r");
-    ATWAIT2(20, &wait_ok);
-
-    ATSTR("AT+CGDCONT=1,\"IP\",\"lpwa.telia.iot\"\r");
-    ATWAIT2(20, &wait_ok);
-#endif
-
     ATSTR("AT+CREG?\r");
     ATWAIT2(30, &wait_creg);
     if (at == NULL) {
