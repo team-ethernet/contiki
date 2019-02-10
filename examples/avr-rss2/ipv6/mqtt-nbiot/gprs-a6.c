@@ -264,7 +264,8 @@ static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
 static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
 
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
-struct at_wait wait_ok = {"OK", wait_simple_callback, at_match_byte};
+struct at_wait wait_ok = {"OK\r\n", wait_simple_callback, at_match_byte};
+struct at_wait wait_error = {"ERROR\r\n", wait_simple_callback, at_match_byte};
 struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback, at_match_byte};
 struct at_wait wait_creg = {"+CREG: ", wait_readline_callback, at_match_byte};
 struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback, at_match_byte};
@@ -363,11 +364,11 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
 
 PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   static int atpos;
+  int datapos = 0; /* Reset each invocation */
   int done = 0;
-  static int datapos;
 
   PT_BEGIN(pt);
-  datapos = 0;
+
   atpos = 0; 
   while (done == 0) {
     while (datapos < len && done == 0) {
@@ -390,17 +391,16 @@ PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int
   }
   /* done -- mark end of string */
   atline[atpos] = '\0';
-  *consumed = datapos; /* How many bytes we consumed */
+  *consumed = datapos; /* How many bytes we consumed in last invocation */
   PT_END(pt);
 }
 
 PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
   static int atpos;
   int done = 0;
-  static int datapos;
+  int datapos = 0; /* Reset each invocation */
 
   PT_BEGIN(pt);
-  datapos = 0;
   atpos = 0;
   while (done == 0) {
     while (datapos < len && done == 0) {
@@ -424,7 +424,7 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, uint8_t *data, in
   }
   /* done -- mark end of string */
   atline[atpos] = '\0';
-  *consumed = datapos; /* How many bytes we consumed */
+  *consumed = datapos; /* How many bytes we consumed in last invocation */
   PT_END(pt);
 }
 
@@ -708,9 +708,9 @@ static uint8_t matching = 0;
 
 PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   static uint8_t i;
-  static uint8_t datapos;
   static struct pt subpt;
   static struct at_wait *at;
+  uint8_t datapos = 0; /* Reset each invocation */
   int match;
   int consumed;
     
@@ -718,48 +718,47 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
   PT_BEGIN(pt);
 
   while (1) {
-  again = 0;
+    again = 0;
 
-again:
-  matching = 0;
-    if (len > 0) {
-      for (datapos = 0; datapos < len; datapos++){
-        for (i = 0; i < at_numwait; i++) {
-          at = at_waitlist2[i];
-          match = at->match(at, &data[datapos], len-datapos);
-          if (match >= 0) {
-            /* An async (permanent) event? Then mark that it is active right now
-             * so that other events can be postponed 
-             */
-            if (i < at_numwait_permanent)
-              matching = 1;
-            if (again) {
-              printf("Again -- ");
-              again = 0;
-            }
-            datapos += match; /* Consume matched chars */
-            /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
-            PT_INIT(&subpt);
-            while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) == PT_YIELDED) {
-              PT_YIELD(pt);
-            }
-            matching = 0;
-            //process_poll(&uart_reader);
-            if (consumed < len-datapos) {
-              /* Not all input consumed. Update data pointer and length, 
-               * and continue scanning without returning.
-               * This is to take care of the case when an async event happens
-               * while we are looking for a synchronous event.  
-               */
-              data += datapos+consumed;
-              len -= datapos+consumed;
-              again = 1;
-              goto again;
-            }
-            PT_RESTART(pt);
+  again:
+    matching = 0;
+    while (datapos < len) {
+      for (i = 0; i < at_numwait; i++) {
+        at = at_waitlist2[i];
+        match = at->match(at, &data[datapos], len-datapos);
+        if (match >= 0) {
+          /* An async (permanent) event? Then mark that it is active right now
+           * so that other events can be postponed 
+           */
+          if (i < at_numwait_permanent)
+            matching = 1;
+          if (again) {
+            printf("Again -- ");
+            again = 0;
           }
+          datapos += match; /* Consume matched chars */
+          /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
+          PT_INIT(&subpt);
+          while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) == PT_YIELDED) {
+            datapos = 0; /* Reset to start of data */
+            PT_YIELD(pt);
+          }
+          matching = 0;
+          //process_poll(&uart_reader);
+          if (consumed < len-datapos) {
+            /* Not all input consumed. Continue scanning without returning.
+             * This is to take care of the case when an async event happens
+             * while we are looking for a synchronous event.  
+             */
+            datapos += consumed;
+            again = 1;
+            goto again;
+          }
+          PT_RESTART(pt);
         }
       }
+      /* If we end up here, current byte did not lead to a match. Consume it and continue with next */
+      datapos += 1;
     }
     PT_YIELD(pt);
   }
@@ -769,18 +768,23 @@ again:
 static void
 dumpstr(unsigned char *str) {
   unsigned char *s = str;
+  static char atbol = 1; /* at beginning of line */
   
-  printf("    ");
   while (*s) {
-    if (*s == '\n')
-      printf("\n    ");
+    if (atbol) {
+      printf("    ");
+      atbol = 0;
+    }
+    if (*s == '\n') {
+      putchar('\n');
+      atbol = 1;
+    }
     else if (*s >= ' ' && *s <= '~')
-      printf("%c", *s);
+      putchar(*s);
     else
-      printf("*");
+      putchar('*');
     s++;
   }
-  printf("\n");
 }
 
 int
@@ -814,7 +818,6 @@ PROCESS_THREAD(uart_reader, ev, data)
   loop:
     c = ringbuf_get(&rxbuf);
     if(c != -1) {
-      //printf("%c", c);
 
       buf[len] = (uint8_t) c;
       len++;
@@ -1001,6 +1004,9 @@ PROCESS_THREAD(a6at, ev, data) {
   ATWAIT2(10, &wait_ok);
 
   ATSTR("AT+CFUN=1\r");
+  ATWAIT2(10, &wait_ok);
+
+  ATSTR("AT+CSQ\r");
   ATWAIT2(10, &wait_ok);
 
 #endif
