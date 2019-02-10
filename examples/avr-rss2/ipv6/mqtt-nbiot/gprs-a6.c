@@ -787,14 +787,6 @@ dumpstr(unsigned char *str) {
   }
 }
 
-int
-module_init(void)
-{
-  rs232_print(uart, "AT\r");
-  rs232_print(uart, "AT+GSV\r");
-  return 0;
-}
-
 int len;
 uint8_t buf[200];
  
@@ -1000,7 +992,8 @@ PROCESS_THREAD(a6at, ev, data) {
   ATSTR("AT+CFUN=0\r");
   ATWAIT2(10, &wait_ok);
 
-  ATSTR("AT*MCGDEFCONT=\"IP\",\"lpwa.telia.iot\"\r");
+  sprintf(str, "*MCGDEFCONT=\"%s\",%s\r", PDPTYPE, APN); /* Set PDP (Packet Data Protocol) context */
+  ATSTR(str);
   ATWAIT2(10, &wait_ok);
 
   ATSTR("AT+CFUN=1\r");
@@ -1012,7 +1005,7 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif
   
  again:
-  module_init();
+
   {
     status.module = GPRS_MODULE_UNNKOWN;
     ATSTR("ATI\r");
@@ -1070,7 +1063,7 @@ PROCESS_THREAD(a6at, ev, data) {
   while (major_tries++ < 10) {
     static uint8_t creg;
     char *p;
-    
+
     ATSTR("AT+CREG?\r");
     ATWAIT2(30, &wait_creg);
     if (at == NULL) {
@@ -1081,10 +1074,12 @@ PROCESS_THREAD(a6at, ev, data) {
     p++;
     creg = atoi((char *) p /*foundbuf*/);
     printf("creg atoi(\"%s\") -> %d\n", atline, creg);
-    if (creg == 1 || creg == 5 || creg == 10) /* Wait for registration */
+    if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
       status.state = GPRS_STATE_REGISTERED;
-      break; 
+      break;
+    }
   }
+  
   if (major_tries >= 10) {
 #ifdef GPRS_DEBUG
     printf("GPRS registration timeout\n");
@@ -1095,12 +1090,14 @@ PROCESS_THREAD(a6at, ev, data) {
   
   /* Then activate context */
   major_tries = 0;
+
+#if 0
   while (major_tries++ < 10 && status.state != GPRS_STATE_ACTIVE)
   {
     static struct gprs_context *gcontext;
 
     gcontext = &gprs_context;
-#if 0
+
     /* Deactivate PDP context */
     sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
     ATSTR(str);   
@@ -1111,10 +1108,10 @@ PROCESS_THREAD(a6at, ev, data) {
 
     ATSTR("AT+CIPMUX=0\r");
     ATWAIT2(5, &wait_ok);
-#endif
-    
+
     minor_tries = 0;
     while (minor_tries++ < 10) {
+
       sprintf(str, "AT+CGDCONT=1,\"%s\",%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
       ATSTR(str);
       ATWAIT2(5, &wait_ok);
@@ -1136,7 +1133,6 @@ PROCESS_THREAD(a6at, ev, data) {
     }
     if (minor_tries++ >= 10)
       continue;
-      
     minor_tries = 0;
     while (minor_tries++ < 10) {
       ATSTR("AT+CIPSTATUS?\r"); 
@@ -1163,7 +1159,7 @@ PROCESS_THREAD(a6at, ev, data) {
     gprs_statistics.resets += 1;
     goto again;
   }
-
+  
   /* Get IP address */
   ATSTR("AT+CIFSR\r");
   ATWAIT2(2, &wait_dotquad);
@@ -1188,7 +1184,17 @@ PROCESS_THREAD(a6at, ev, data) {
       printf("GPSRD not enabled\n");
     }
   }
-
+#endif
+  
+  /* Get IP address */
+    ATSTR("AT+CGCONTRDP\r");
+    ATWAIT2(2, &wait_dotquad);
+    if (at == NULL)  {
+      gprs_statistics.at_timeouts += 1;
+    }
+    status.state = GPRS_STATE_ACTIVE;
+    process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
+	  
   /* Main loop. Wait for GPRS command and execute them */
   while(1) {
     static struct gprs_event *gprs_event;
