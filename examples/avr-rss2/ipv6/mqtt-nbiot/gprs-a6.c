@@ -1215,11 +1215,24 @@ PROCESS_THREAD(a6at, ev, data) {
       gprsconn = (struct gprs_connection *) gprs_event->data;
       minor_tries = 0;
       while (minor_tries++ < 10) {
-        printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-        sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+	
+	//printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+        //sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+	//sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+
+	printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+	ATSTR("AT+CSOC=1,1,1\r");
+	ATWAIT2(10, &wait_ok);
+	sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
+
         ATSTR(str);
-        ATWAIT2(60, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
-        if (at == &wait_connectok) {
+        ATWAIT2(60, &wait_ok, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
+        if (at == &wait_ok) {
+          gprs_statistics.connections += 1;
+          call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
+          goto nextcommand;
+        }
+        else if (at == &wait_connectok) {
           gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
@@ -1289,9 +1302,9 @@ PROCESS_THREAD(a6at, ev, data) {
       while (remain > 0) {
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
         printf("Send %d bytes @0x%x\n", len, (unsigned) &ptr[gprsconn->output_data_len-remain]);
-        sprintf((char *) buf, "AT+CIPSEND=%d\r", len);
+        sprintf((char *) buf, "AT+CSODSEND=0,%d\r", len);
         ATSTR((char *) buf); /* sometimes CME ERROR:516 */
-        ATWAIT2(5, &wait_sendprompt, &wait_cmeerror);
+        ATWAIT2(5, &wait_ok, &wait_sendprompt, &wait_cmeerror);
         if (at == NULL) {
           gprs_statistics.at_timeouts += 1;
           ATSTR("ATE1\r\n");
@@ -1310,7 +1323,6 @@ PROCESS_THREAD(a6at, ev, data) {
           gprs_statistics.at_timeouts += 1;
           goto failed;
         }        
-        
 #if 0
         if (remain > len) {
           memcpy(&socket->output_data_ptr[0],
