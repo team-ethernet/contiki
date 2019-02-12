@@ -246,6 +246,8 @@ struct at_wait {
 };
  
 static
+PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
+static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
 static
 PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed));
@@ -263,6 +265,8 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, uint8_t *data, 
 static int at_match_byte(struct at_wait *at, uint8_t *buf, int len);
 static int at_match_dotquad(struct at_wait *at, uint8_t *buf, int len);
 
+
+struct at_wait wait_csonmi = {"+CSONMI:", wait_csonmi_callback, at_match_byte};
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
 struct at_wait wait_ok = {"OK\r\n", wait_simple_callback, at_match_byte};
 struct at_wait wait_error = {"ERROR\r\n", wait_simple_callback, at_match_byte};
@@ -355,6 +359,100 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, uint8_t *data,
 
   *consumed = datapos;
   start_at(&wait_ciprcv); /* restart */
+  gprsconn = find_gprs_connection();
+  if (gprsconn) {
+    gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, rcvlen);
+  }
+  PT_END(pt);
+}
+
+/*
+ * CIPRCV:len,<data>
+ * +CSONMI: 0,8,20020000 *
+
+ */
+static
+PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, uint8_t *data, int len, int *consumed)) {
+  static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
+  static uint16_t rcvlen;
+  static uint16_t nbytes;
+  static uint16_t port;
+  static int rcvpos;
+  int datapos = 0;
+  struct gprs_connection *gprsconn;
+  
+  PT_BEGIN(pt);
+  datapos = 0;
+  nbytes = 0;
+  port = 0;
+
+  printf("KALLE1 port=%d len=%d data=%s\n", port, len, data);
+
+  /* Get port as a decimal number followed by a comma ','
+   */
+  while (datapos < len && data[datapos] != ',') {
+    if (!isdigit(data[datapos]) || nbytes > GPRS_MAX_RECV_LEN) {
+      /* Error: bad len */
+      printf("csonmi_callback: bad len\n");
+      start_at(&wait_csonmi); /* restart */
+      *consumed = datapos;
+      PT_EXIT(pt);
+    }
+
+    port = port*10 + (data[datapos++] - '0');
+    if (datapos == len) {
+      /* Out of data -- yield and wait for more */
+      PT_YIELD(pt);
+      datapos = 0;
+    }
+  }
+
+  printf("KALLE2 port=%d len=%d data=%s\n", port, len, data);
+
+
+  
+  while (datapos < len && data[datapos] != ',') {
+    if (!isdigit(data[datapos]) || nbytes > GPRS_MAX_RECV_LEN) {
+      /* Error: bad len */
+      printf("csonmi_callback: bad len\n");
+      start_at(&wait_csonmi); /* restart */
+      *consumed = datapos;
+      PT_EXIT(pt);
+    }
+
+    nbytes = nbytes*10 + (data[datapos++] - '0');
+    if (datapos == len) {
+      /* Out of data -- yield and wait for more */
+      PT_YIELD(pt);
+      datapos = 0;
+    }
+  }
+  printf("KALLE3 port=%d len=%d data=%s\n", port, len, data);
+  /* Consume the comma ',' in input */
+  if (nbytes > 0 && ++datapos == len) {
+    /* Out of data -- yield and wait for more */
+    PT_YIELD(pt);
+    datapos = 0;
+  }
+  if (nbytes > GPRS_MAX_RECV_LEN)
+    nbytes = GPRS_MAX_RECV_LEN;
+  rcvlen = nbytes;
+  rcvpos = 0;
+  while (nbytes > 0) {
+    int ncopy = min(nbytes, len-datapos);
+    memcpy(&rcvdata[rcvpos], &data[datapos], ncopy);
+    nbytes -= ncopy;
+    rcvpos += ncopy;
+    datapos += ncopy;
+    if (nbytes > 0) {
+      /* Out of data -- yield and wait for more */
+      PT_YIELD(pt);
+      datapos = 0;
+    }
+  }
+
+  *consumed = datapos;
+  start_at(&wait_csonmi); /* restart */
   gprsconn = find_gprs_connection();
   if (gprsconn) {
     gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, rcvlen);
@@ -683,7 +781,8 @@ static void
 wait_init() {
   at_numwait = 0;
   /* The following are to detect async events -- permanently active */
-  start_at(&wait_ciprcv);
+  start_at(&wait_csonmi);
+  //start_at(&wait_ciprcv);
   start_at(&wait_tcpclosed);  
   start_at(&wait_gpsrd);  
   at_numwait_permanent = at_numwait;
