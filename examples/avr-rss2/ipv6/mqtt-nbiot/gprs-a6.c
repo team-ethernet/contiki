@@ -236,51 +236,51 @@ gprs_status() {
 /*---------------------------------------------------------------------------*/
 
 struct at_wait; /* forward declaration */
-typedef char (* at_callback_c_t)(struct pt *, struct at_wait *, int c);
+typedef char (* at_callback_t)(struct pt *, struct at_wait *, int c);
 
 struct at_wait {
   char *str;
-  at_callback_c_t callback_c;
-  int (* match_c)(struct at_wait *, int c);  
+  at_callback_t callback;
+  int (* match)(struct at_wait *, int c);  
   uint8_t pos;
 };
  
 static
-PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_ciprcv_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_simple_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_readline_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_readlines_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_tcpclosed_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_dotquad_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c));
 static
-PT_THREAD(wait_gpsrd_callback_c(struct pt *pt, struct at_wait *at, int c));
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c));
 
-static int at_match_byte_c(struct at_wait *at, int c);
-static int at_match_dotquad_c(struct at_wait *at, int c);
+static int at_match_byte(struct at_wait *at, int c);
+static int at_match_dotquad(struct at_wait *at, int c);
 
-struct at_wait wait_csonmi = {"+CSONMI: ", wait_csonmi_callback_c, at_match_byte_c};
-struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback_c, at_match_byte_c};
-struct at_wait wait_ok = {"OK", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_error = {"ERROR", wait_simple_callback_c, at_match_byte_c};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_creg = {"+CREG: ", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback_c, at_match_byte_c};
-struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback_c, at_match_byte_c};
-struct at_wait wait_sendprompt = {">", wait_simple_callback_c, at_match_byte_c};
-struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback_c, at_match_byte_c};
-struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback_c, at_match_dotquad_c};
-struct at_wait wait_csq = {"+CSQ:", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback_c, at_match_byte_c};
-struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_callback_c, at_match_byte_c};
-struct at_wait wait_ati = {"Ai Thinker", wait_readlines_callback_c, at_match_byte_c};
+struct at_wait wait_csonmi = {"+CSONMI: ", wait_csonmi_callback, at_match_byte};
+struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
+struct at_wait wait_ok = {"OK", wait_readline_callback, at_match_byte};
+struct at_wait wait_error = {"ERROR", wait_simple_callback, at_match_byte};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback, at_match_byte};
+struct at_wait wait_creg = {"+CREG: ", wait_readline_callback, at_match_byte};
+struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback, at_match_byte};
+struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_byte};
+struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback, at_match_byte};
+struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
+struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
+struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback, at_match_dotquad};
+struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
+struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
+struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_callback, at_match_byte};
+struct at_wait wait_ati = {"Ai Thinker", wait_readlines_callback, at_match_byte};
 
 static char atline[80];
 
@@ -292,7 +292,7 @@ start_at(struct at_wait *at); /* forward declaration */
  * an event to signal the match.
  */
 static
-PT_THREAD(wait_simple_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c)) {
   PT_BEGIN(pt);
   process_post(&a6at, at_match_event, at);
   PT_END(pt);
@@ -302,7 +302,7 @@ PT_THREAD(wait_simple_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  * CIPRCV:len,<data>
  */
 static
-PT_THREAD(wait_ciprcv_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c)) {
   static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
   static int rcvpos;
   static uint16_t nbytes;
@@ -350,7 +350,7 @@ PT_THREAD(wait_ciprcv_callback_c(struct pt *pt, struct at_wait *at, int c)) {
 
  */
 static
-PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c)) {
   static uint8_t rcvdata[GPRS_MAX_RECV_LEN];
   static uint16_t rcvlen;
   static uint16_t nbytes;
@@ -360,7 +360,6 @@ PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
   struct gprs_connection *gprsconn;
   
   PT_BEGIN(pt);
-  nbytes = 0;
 
   port = 0;
   while (isdigit(c)) {
@@ -373,7 +372,6 @@ PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
     start_at(&wait_csonmi); /* restart */
     PT_EXIT(pt);
   }
-
   PT_YIELD(pt);
   
   nbytes = 0;
@@ -383,17 +381,15 @@ PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
   }
 
   /* Consume the comma ',' in input */
-
   if (c != ',') {
     printf("Expected ',', got '%c'\n'", c);
     start_at(&wait_csonmi); /* restart */
     PT_EXIT(pt);
   }
-
   PT_YIELD(pt);
 
   /* Data is encoded as hex string, so
-   * data length is half of string length */ 
+   * data length is half the string length */ 
   rcvlen = nbytes >> 1;
   if (rcvlen > GPRS_MAX_RECV_LEN)
     rcvlen = GPRS_MAX_RECV_LEN;
@@ -409,7 +405,7 @@ PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
     nbytes--;
     hexstr[2] = 0;
     if (rcvpos < GPRS_MAX_RECV_LEN) {
-      rcvdata[rcvpos++] = (uint8_t) strtol(hexstr, NULL, 16);
+      rcvdata[rcvpos++] = (uint8_t) strtoul(hexstr, NULL, 16);
     }
     if (nbytes == 0)
       break;
@@ -429,7 +425,7 @@ PT_THREAD(wait_csonmi_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  * Characters are stored into atline buffer, and atpos is the
  * number of chars in the buffer
  */ 
-PT_THREAD(wait_readline_pt_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, int c)) {
   static int atpos;
 
   PT_BEGIN(pt);
@@ -445,7 +441,7 @@ PT_THREAD(wait_readline_pt_c(struct pt *pt, struct at_wait *at, int c)) {
   PT_END(pt);
 }
 
-PT_THREAD(wait_readlines_pt_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
   static int atpos;
 
   PT_BEGIN(pt);
@@ -472,10 +468,10 @@ PT_THREAD(wait_readlines_pt_c(struct pt *pt, struct at_wait *at, int c)) {
  * Callback for matching +TCPCLOSED keyword 
  */
 static
-PT_THREAD(wait_tcpclosed_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c)) {
   char ret;
   struct gprs_connection *gprsconn;
-  ret = wait_readline_pt_c(pt, at, c);
+  ret = wait_readline_pt(pt, at, c);
   if (ret == PT_ENDED) {
     start_at(&wait_tcpclosed); /* restart */
     gprsconn = find_gprs_connection();
@@ -491,9 +487,9 @@ PT_THREAD(wait_tcpclosed_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  * EOL, and the post an event to signal the match
  */
 static
-PT_THREAD(wait_readline_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c)) {
   char ret;
-  ret = wait_readline_pt_c(pt, at, c);
+  ret = wait_readline_pt(pt, at, c);
   if (ret == PT_ENDED)
     process_post(&a6at, at_match_event, at);
   return ret;
@@ -505,16 +501,16 @@ PT_THREAD(wait_readline_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  */
 
 static
-PT_THREAD(wait_readlines_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c)) {
   char ret;
-  ret = wait_readlines_pt_c(pt, at, c);
+  ret = wait_readlines_pt(pt, at, c);
   if (ret == PT_ENDED)
     process_post(&a6at, at_match_event, at);
   return ret;
 }
 
 static
-PT_THREAD(wait_gpsrd_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c)) {
 
   char ret, *valid;
   /* 
@@ -532,7 +528,7 @@ PT_THREAD(wait_gpsrd_callback_c(struct pt *pt, struct at_wait *at, int c)) {
      M,0.00,N,0.00,K,A*3D*
   */
 
-  ret = wait_readlines_pt_c(pt, at, c);
+  ret = wait_readlines_pt(pt, at, c);
   printf("GPS=%s\n", atline);
 
   const char *delim = " \t\r,";
@@ -600,7 +596,7 @@ PT_THREAD(wait_gpsrd_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  */
 static char dotquadstr[sizeof("255.255.255.255")];
 static
-PT_THREAD(wait_dotquad_callback_c(struct pt *pt, struct at_wait *at, int c)) {
+PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c)) {
   PT_BEGIN(pt);
 #if NETSTACK_CONF_WITH_IPV6
   snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", dotquadstr);
@@ -618,7 +614,7 @@ PT_THREAD(wait_dotquad_callback_c(struct pt *pt, struct at_wait *at, int c)) {
  */
 
 /* Match byte: check one byte at a time */
-static int at_match_byte_c(struct at_wait *at, int c) {
+static int at_match_byte(struct at_wait *at, int c) {
   if (c == at->str[at->pos]) {
     at->pos += 1;
     if (at->str[at->pos] == '\0') {
@@ -638,7 +634,7 @@ static int at_match_byte_c(struct at_wait *at, int c) {
  * and then check if the buffer appears to contain a dotted quad.
  */
 
-static int at_match_dotquad_c(struct at_wait *at, int c) {
+static int at_match_dotquad(struct at_wait *at, int c) {
   int b1, b2, b3, b4;
 
   if (c == '\r' || c == '\n') {
@@ -748,7 +744,7 @@ static uint8_t matching = 0;
 
 
 
-PT_THREAD(wait_fsm_c_pt(struct pt *pt, int c)) {
+PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
   static uint8_t i;
   static struct pt subpt;
   static struct at_wait *at;
@@ -760,7 +756,7 @@ PT_THREAD(wait_fsm_c_pt(struct pt *pt, int c)) {
     matching = 0;
     for (i = 0; i < at_numwait; i++) {
       at = at_waitlist2[i];
-      match = at->match_c(at, c);
+      match = at->match(at, c);
       if (match >= 0) {
         /* An async (permanent) event? Then mark that it is active right now
          * so that other events can be postponed 
@@ -771,7 +767,7 @@ PT_THREAD(wait_fsm_c_pt(struct pt *pt, int c)) {
           PT_YIELD(pt); /* Consume char and wait for next */
         /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
         PT_INIT(&subpt);
-        while (at->callback_c(&subpt, at, c) == PT_YIELDED) {
+        while (at->callback(&subpt, at, c) == PT_YIELDED) {
           PT_YIELD(pt);
         }
         matching = 0;
@@ -783,66 +779,6 @@ PT_THREAD(wait_fsm_c_pt(struct pt *pt, int c)) {
   PT_END(pt);
 }
 
-#if 0
-PT_THREAD(wait_fsm_pt(struct pt *pt, uint8_t *data, unsigned int len)) {
-  static uint8_t i;
-  static struct pt subpt;
-  static struct at_wait *at;
-  uint8_t datapos = 0; /* Reset each invocation */
-  int match;
-  int consumed;
-    
-  static int again;
-  PT_BEGIN(pt);
-
-  while (1) {
-    again = 0;
-
-  again:
-    matching = 0;
-    while (datapos < len) {
-      for (i = 0; i < at_numwait; i++) {
-        at = at_waitlist2[i];
-        match = at->match(at, &data[datapos], len-datapos);
-        if (match >= 0) {
-          /* An async (permanent) event? Then mark that it is active right now
-           * so that other events can be postponed 
-           */
-          if (i < at_numwait_permanent)
-            matching = 1;
-          if (again) {
-            printf("Again -- ");
-            again = 0;
-          }
-          datapos += match; /* Consume matched chars */
-          /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
-          PT_INIT(&subpt);
-          while (at->callback(&subpt, at, &data[datapos],len-datapos, &consumed) == PT_YIELDED) {
-            datapos = 0; /* Reset to start of data */
-            PT_YIELD(pt);
-          }
-          matching = 0;
-          //process_poll(&uart_reader);
-          if (consumed < len-datapos) {
-            /* Not all input consumed. Continue scanning without returning.
-             * This is to take care of the case when an async event happens
-             * while we are looking for a synchronous event.  
-             */
-            datapos += consumed;
-            again = 1;
-            goto again;
-          }
-          PT_RESTART(pt);
-        }
-      }
-      /* If we end up here, current byte did not lead to a match. Consume it and continue with next */
-      datapos += 1;
-    }
-    PT_YIELD(pt);
-  }
-  PT_END(pt);
-}
-#endif /* 0 */
 static void
 dumpchar(int c) {
   static char atbol = 1; /* at beginning of line */
@@ -859,16 +795,6 @@ dumpchar(int c) {
     putchar(c);
   else
     putchar('*');
-}
-
-static void
-dumpstr(unsigned char *str) {
-  unsigned char *s = str;
-  
-  while (*s) {
-    dumpchar(*s);
-    s++;
-  }
 }
 
 int len;
@@ -895,7 +821,7 @@ PROCESS_THREAD(uart_reader, ev, data)
       continue;
     //PROCESS_WAIT_UNTIL((c = ringbuf_get(&rxbuf)) != -1);
     dumpchar(c);
-    wait_fsm_c_pt(&wait_pt, c);
+    wait_fsm_pt(&wait_pt, c);
   }
   PROCESS_END();
 }
