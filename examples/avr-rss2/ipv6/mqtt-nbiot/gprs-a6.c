@@ -704,6 +704,17 @@ start_atlist(struct at_wait *at, ...) {
 }
 
 static void
+vstart_atlist(struct at_wait *at, va_list valist) {
+  
+  at = va_arg(valist, struct at_wait *);
+  while (at) {
+    printf(" '%s' ", at->str);
+    start_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+}
+
+static void
 stop_atlist(struct at_wait *at, ...) {
   va_list valist;
   
@@ -715,6 +726,16 @@ stop_atlist(struct at_wait *at, ...) {
   at_numwait = at_numwait_permanent;
 }
 
+static void
+vstop_atlist(struct at_wait *at, va_list valist) {
+  
+  va_start(valist, at);
+  while (at) {
+    stop_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+  at_numwait = at_numwait_permanent;
+}
 
 static void
 wait_init() {
@@ -867,7 +888,7 @@ static struct etimer et;
 #define ATSTR(str) {printf("-->%s\n", str); sendbuf(((unsigned char *) str), strlen(str))}
 #define ATBUF(buf, len) sendbuf(buf, len)
 
-#define ATWAIT2(SEC, ...)  {                    \
+#define ATWAIT2_OLD(SEC, ...)  {                    \
   at = NULL; \
   printf("---start_atlist:%d: (%d sec)", __LINE__, SEC);    \
   start_atlist(__VA_ARGS__, NULL);            \
@@ -898,6 +919,82 @@ static struct etimer et;
     } \
   } \
   }
+
+
+#define ATWAIT2(SEC, ...)  {                    \
+    static struct pt pt;                                                       \
+    PT_INIT(&pt);                                                       \
+    while (atwait(&pt, ev, data, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
+      PROCESS_WAIT_EVENT();                                             \
+  } \
+}  
+
+static void
+enqueue_event(process_event_t ev, void *data); 
+
+static
+PT_THREAD(atwait(struct pt *pt, process_event_t ev,
+                 process_data_t data, struct at_wait **atp, int seconds, ...)) {
+  va_list valist;
+  struct at_wait *at;
+  static struct etimer et;
+  
+  PT_BEGIN(pt);
+
+  printf("---start_atlist:%d: (%d sec)", __LINE__, seconds);
+  va_start(valist, seconds);
+  at = va_arg(valist, struct at_wait *);
+  while (at) {
+    printf(" '%s' ", at->str);
+    start_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+  printf("\n"); 
+
+  
+  etimer_set(&et, (seconds)*CLOCK_SECOND);
+  while (1) {
+    PT_YIELD(pt);
+    if(etimer_expired(&et)) {
+      printf("---pt_timeout:%d\n", __LINE__);
+      *atp = NULL;
+      break; 
+    } 
+    else if(ev == at_match_event) {
+      etimer_stop(&et); 
+      *atp = (struct at_wait *) data;
+      printf("\n---pt_got:%d '%s'\n", __LINE__, (*atp)->str); 
+      break;
+    } 
+    else { 
+      if (GPRS_EVENT(ev)) { 
+        /* This event is for us, but we can't do it now. 
+         * Put it on the event queue for later. 
+         */ 
+        printf("Postpone event for current: %d\n", ev);
+        process_post(PROCESS_CURRENT(), ev, data);    
+
+        printf("---pt_enq:%d\n", __LINE__);    
+        //enqueue_event(ev, data); 
+      } 
+    } 
+  } 
+
+  printf("Stop atlist: ");
+  va_start(valist, seconds);
+  at = va_arg(valist, struct at_wait *);
+  while (at) {
+    printf("'%s' ", at->str);
+    stop_at(at);
+    at = va_arg(valist, struct at_wait *);
+  }
+  printf("\n");
+  at_numwait = at_numwait_permanent;
+
+  PT_END(pt);
+}
+
+
 
 #define CLOCKDELAY(ticks) {\
   printf("%d: start clock etimer %u, clock_time() = %lu\n", __LINE__, ticks, clock_time()); \
