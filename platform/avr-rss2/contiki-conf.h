@@ -39,6 +39,8 @@
 #ifndef CONTIKI_CONF_H_
 #define CONTIKI_CONF_H_
 
+#include <stdint.h>
+
 /* include the project config */
 /* PROJECT_CONF_H might be defined in the project Makefile */
 #ifdef PROJECT_CONF_H
@@ -52,7 +54,61 @@
 #define F_CPU          8000000UL
 #endif
 
-#include <stdint.h>
+#define MCUCSR  MCUSR
+
+/* RDC Selector. Needs to in sync with project-conf.h */
+#define NORDC       1
+#define TSCH        2
+#define CONTIKIMAC  3
+
+#ifndef RDC
+#define RDC  CONTIKIMAC
+#endif
+
+#if RDC == TSCH
+/* Delay between GO signal and SFD */
+#define RADIO_DELAY_BEFORE_TX ((unsigned)US_TO_RTIMERTICKS(204)) //204
+/* Delay between GO signal and start listening */
+#define RADIO_DELAY_BEFORE_RX ((unsigned)US_TO_RTIMERTICKS(204))
+/* Delay between the SFD finishes arriving and it is detected in software */
+#define RADIO_DELAY_BEFORE_DETECT ((unsigned)US_TO_RTIMERTICKS(120)) //30
+
+#ifndef TSCH_CONF_TIMESYNC_REMOVE_JITTER 
+#define TSCH_CONF_TIMESYNC_REMOVE_JITTER 1
+#endif
+
+/* Use hardware timestamps */
+#ifndef TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS
+#define TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS 0
+
+#endif
+
+
+#ifndef TSCH_CONF_BASE_DRIFT_PPM
+/* The drift compared to "true" 10ms slots.
+ * Enable adaptive sync to enable compensation for this. */
+//#define TSCH_CONF_BASE_DRIFT_PPM +977
+#endif
+
+
+#ifndef TSCH_CONF_RX_WAIT
+#define TSCH_CONF_RX_WAIT 1800
+#endif
+
+#define WITH_SEND_CCA 0
+#define RF230_CONF_AUTOACK 0
+#define RF230_CONF_AUTORETRIES 0
+
+#define TSCH_LOG_CONF_LEVEL 0
+
+//#define TSCH_DEBUG 0
+#if TSCH_DEBUG
+#define TSCH_DEBUG_INIT() do {DDRD |= (1<<PD6);} while(0);
+#define TSCH_DEBUG_SLOT_START() do{ PORTD |= (1<<PD6); } while(0);
+#define TSCH_DEBUG_SLOT_END() do{ PORTD &= ~(1<<PD6); } while(0);
+#endif /* TSCH_DEBUG */
+#endif /* RDC == TSCH */
+
 
 #ifndef NETSTACK_CONF_MAC
 #define NETSTACK_CONF_MAC     csma_driver
@@ -72,7 +128,7 @@
 #else
 #define NETSTACK_CONF_FRAMER  framer_802154
 #endif
-#endif
+#endif /* RDC == TSCH */
 
 #ifndef NETSTACK_CONF_RADIO
 #define NETSTACK_CONF_RADIO   rf230_driver
@@ -83,15 +139,29 @@
 #define RF230_CONF_AUTOACK        1
 #endif
 
-#define MCUCSR  MCUSR
+/*
+   TX Filter. Be careful. This setting impacts RF-emission. And might violate CE, FCC
+   regulations. RS boards has separate bandpass filter and conform to CE with any setting.
+ */
+#ifndef RF230_CONF_PLL_TX_FILTER
+#define RF230_CONF_PLL_TX_FILTER    0
+#endif
+
+#define TIMESYNCH_CONF_ENABLED 0
+#define RF230_CONF_TIMESTAMPS 0
 
 /* The AVR tick interrupt usually is done with an 8 bit counter around 128 Hz.
  * 125 Hz needs slightly more overhead during the interrupt, as does a 32 bit
  * clock_time_t.
  */
 /* Clock ticks per second */
-
 #define CLOCK_CONF_SECOND 128
+/* RSS2 boards has a 32768Hz on TIMER2 */
+#define AVR_CONF_USE32KCRYSTAL 1
+/* The radio needs to interrupt during an rtimer interrupt */
+#define RTIMER_CONF_NESTED_INTERRUPTS 1
+#define RTIMER_ARCH_PRESCALER 256
+
 typedef unsigned long clock_time_t;
 #define CLOCK_LT(a, b)  ((signed long)((a) - (b)) < 0)
 #define INFINITE_TIME 0xffffffff
@@ -99,13 +169,8 @@ typedef unsigned long clock_time_t;
 void clock_delay_msec(uint16_t howlong);
 void clock_adjust_ticks(clock_time_t howmany);
 
-/* The radio needs to interrupt during an rtimer interrupt */
-#define RTIMER_CONF_NESTED_INTERRUPTS 1
-
-/* RSS2 boards has a 32768Hz on TIMER2 */
-#define AVR_CONF_USE32KCRYSTAL 1
 #define SLIP_PORT RS232_PORT_0
-
+#define RS232_CONF_TX_INTERRUPTS 1
 /* Default baud rare on RS232 port */
 #ifndef RS232_BAUDRATE
 #define RS232_BAUDRATE USART_BAUD_38400
@@ -124,10 +189,10 @@ typedef unsigned long off_t;
 
 /* RADIOSTATS is used in rf230bb, clock.c and the webserver cgi to report radio usage */
 /* It has less overhead than ENERGEST */
-#define RADIOSTATS                1
+#define RADIOSTATS                0
 
 /* More extensive stats, via main loop printfs or webserver status pages */
-#define ENERGEST_CONF_ON          1
+#define ENERGEST_CONF_ON          0
 
 /* Packet statistics */
 typedef unsigned short uip_stats_t;
@@ -162,7 +227,9 @@ typedef unsigned short uip_stats_t;
 /* TX routine does automatic cca and optional backoffs */
 #define RDC_CONF_HARDWARE_CSMA   1
 /* Allow MCU sleeping between channel checks */
-#define RDC_CONF_MCU_SLEEP         1
+#ifndef RDC_CONF_MCU_SLEEP
+#define RDC_CONF_MCU_SLEEP       1
+#endif
 
 #if NETSTACK_CONF_WITH_IPV6
 
@@ -184,7 +251,9 @@ typedef unsigned short uip_stats_t;
 #ifndef UIP_CONF_TCP_MSS
 #define UIP_CONF_TCP_MSS         64
 #endif
+#ifndef NETSTACK_CONF_NETWORK
 #define NETSTACK_CONF_NETWORK     sicslowpan_driver
+#endif
 #define SICSLOWPAN_CONF_COMPRESSION SICSLOWPAN_COMPRESSION_HC06
 #else
 /* ip4 should build but is largely untested */
@@ -218,61 +287,32 @@ typedef unsigned short uip_stats_t;
 #define UIP_CONF_TCP_SPLIT       1
 #define UIP_CONF_DHCP_LIGHT      1
 
-#if 0 /* No radio cycling */
 
-#define NETSTACK_CONF_MAC         nullmac_driver
-#define NETSTACK_CONF_RDC         sicslowmac_driver
-#define NETSTACK_CONF_FRAMER      framer_802154
-/* 1 + Number of auto retry attempts 0-15 (0 implies don't use extended TX_ARET_ON mode) */
-#define RF230_CONF_FRAME_RETRIES    2
-/* Number of csma retry attempts 0-5 in extended tx mode (7 does immediate tx with no csma) */
-#define RF230_CONF_CSMA_RETRIES   5
-/* Default is one RAM buffer for received packets. More than one may benefit multiple TCP connections or ports */
-#define RF230_CONF_RX_BUFFERS     3
-#define SICSLOWPAN_CONF_FRAG      1
-/* Most browsers reissue GETs after 3 seconds which stops fragment reassembly so a longer MAXAGE does no good */
-#define SICSLOWPAN_CONF_MAXAGE    3
-/* How long to wait before terminating an idle TCP connection. Smaller to allow faster sleep. Default is 120 seconds */
-/* If wait is too short the connection can be reset as a result of multiple fragment reassembly timeouts */
-#define UIP_CONF_WAIT_TIMEOUT    20
-/* 54 bytes per queue ref buffer */
-#define QUEUEBUF_CONF_REF_NUM     2
-/* Allocate remaining RAM as desired */
-/* 30 bytes per TCP connection */
-/* 6LoWPAN does not do well with concurrent TCP streams, as new browser GETs collide with packets coming */
-/* from previous GETs, causing decreased throughput, retransmissions, and timeouts. Increase to study this. */
-/* ACKs to other ports become interleaved with computation-intensive GETs, so ACKs are particularly missed. */
-/* Increasing the number of packet receive buffers in RAM helps to keep ACKs from being lost */
+#if 1  /* Contiki-mac radio cycling */
 
-#define UIP_CONF_MAX_CONNECTIONS  4
-/* 2 bytes per TCP listening port */
-#define UIP_CONF_MAX_LISTENPORTS  4
-/* 25 bytes per UDP connection */
-#define UIP_CONF_UDP_CONNS       10
-/* See uip-ds6.h */
-#define UIP_CONF_DS6_DEFRT_NBU    2
-#define UIP_CONF_DS6_PREFIX_NBU   3
-#define UIP_CONF_DS6_ADDR_NBU     3
-#define UIP_CONF_DS6_MADDR_NBU    0
-#define UIP_CONF_DS6_AADDR_NBU    0
-
-#elif 1  /* Contiki-mac radio cycling */
-/* #define NETSTACK_CONF_MAC         nullmac_driver */
-/* csma needed for burst mode at present. Webserver won't work without it */
-/* #define NETSTACK_CONF_MAC         csma_driver */
-/* #define NETSTACK_CONF_RDC         contikimac_driver */
-/* Default is two CCA separated by 500 usec */
-
-/* So without the header this needed for RPL mesh to form */
-#define CONTIKIMAC_FRAMER_CONF_SHORTEST_PACKET_SIZE   (43 - 18)  /* multicast RPL DIS length */
-/* Not tested much yet */
-#define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 0
-#define CONTIKIMAC_CONF_COMPOWER               1
 #define RIMESTATS_CONF_ENABLED                 0
 
 /* A 0 here means non-extended mode; 1 means extended mode with no retry, >1 for retrys */
 /* Contikimac strobes on its own, but hardware retries are faster */
+#if RDC == TSCH
+/* 1 + Number of auto retry attempts 0-15 (0 implies don't use extended TX_ARET_ON mode) */
+#define RF230_CONF_FRAME_RETRIES  0
+/* Number of csma retry attempts 0-5 in extended tx mode (7 does immediate tx with no csma) */
+#define RF230_CONF_CSMA_RETRIES   0
+#endif
+#if RDC == CONTIKIMAC
 #define RF230_CONF_FRAME_RETRIES  5
+#define RF230_CONF_CSMA_RETRIES   2
+#define CONTIKIMAC_FRAMER_CONF_SHORTEST_PACKET_SIZE   (43 - 18)  /* multicast RPL DIS length */
+/* Not tested much yet */
+#define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 1
+#define CONTIKIMAC_CONF_COMPOWER               0
+#endif
+#if RDC == NORDC
+#define RF230_CONF_FRAME_RETRIES  5
+#define RF230_CONF_CSMA_RETRIES   5
+#endif
+
 /* In extended mode, we don't get statistic on how many retransmission is done */
 /* This may lead to wrong ETX calculation. We may want to retransmit in software instead */
 /* We add NULLRDC_CONF_FRAME_RETRIES_SW as a generic parameter for this in nullrdc case */
@@ -283,7 +323,6 @@ typedef unsigned short uip_stats_t;
 #define RF230_CONF_FRAME_RETRIES_SW
 #endif
 /* Long csma backoffs will compromise radio cycling; set to 0 for 1 csma */
-#define RF230_CONF_CSMA_RETRIES   5
 #define SICSLOWPAN_CONF_FRAG      1
 #define SICSLOWPAN_CONF_MAXAGE    3
 /* 54 bytes per queue ref buffer */

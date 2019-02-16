@@ -91,6 +91,9 @@
 
 #include "net/rime/rime.h"
 
+#include "dev/button-sensor.h"
+SENSORS(&button_sensor);
+
 /* Track interrupt flow through mac, rdc and radio driver */
 /* #define DEBUGFLOWSIZE 32 */
 #if DEBUGFLOWSIZE
@@ -103,9 +106,7 @@ uint8_t debugflowsize, debugflow[DEBUGFLOWSIZE];
 /* Get periodic prints from idle loop, from clock seconds or rtimer interrupts */
 /* Use of rtimer will conflict with other rtimer interrupts such as contikimac radio cycling */
 /* STAMPS will print ENERGEST outputs if that is enabled. */
-#ifndef PERIODICPRINTS 
 #define PERIODICPRINTS 1
-#endif
 #if PERIODICPRINTS
 /* #define PINGS 64 */
 #define ROUTES 600

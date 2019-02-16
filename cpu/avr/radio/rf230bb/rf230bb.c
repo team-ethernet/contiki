@@ -37,6 +37,9 @@
 /*
  * This code is almost device independent and should be easy to port.
  * Ported to Atmel RF230 21Feb2010 by dak
+ *
+ *  Addtional work:
+ *  Robert Olsson roolss@kth.se, robert@radio-sensors.com
  */
 
 #include <stdio.h>
@@ -62,13 +65,13 @@
 
 #include "dev/leds.h"
 #include "dev/spi.h"
+#include "dev/radio.h"
+#include "rtimer-arch.h"
 #include "rf230bb.h"
 
 #include "net/packetbuf.h"
 #include "net/rime/rimestats.h"
 #include "net/netstack.h"
-
-#define WITH_SEND_CCA 0
 
 /* Timestamps have not been tested */
 #if RF230_CONF_TIMESTAMPS
@@ -91,9 +94,7 @@
 #endif
 
 /* We need to turn off autoack in promiscuous mode */
-#if RF230_CONF_AUTOACK
 static bool is_promiscuous;
-#endif
 
 bool rf230_blackhole_rx = 0;
 
@@ -237,12 +238,23 @@ volatile uint8_t rf230_wakewait, rf230_txendwait, rf230_ccawait;
 #endif
 
 uint8_t volatile rf230_pending;
+/* Note!
+   The values for new AtMegaXXXRF is according to application note
+   AT02601 and are only valid when decoupling capacitors CB1/CB3
+   are 100nF
+*/
 
 /* RF230 hardware delay times, from datasheet */
 typedef enum{
+#ifdef RF230_CONF_FAST_STATE_CHANGE
+    TIME_TO_ENTER_P_ON               = 330, /**<  Transition time from VCC is applied to P_ON - most favorable case! */
+    TIME_P_ON_TO_TRX_OFF             = 210, /**<  Transition time from P_ON to TRX_OFF. */
+    TIME_SLEEP_TO_TRX_OFF            = 240, /**<  Transition time from SLEEP to TRX_OFF. */
+#else
     TIME_TO_ENTER_P_ON               = 510, /**<  Transition time from VCC is applied to P_ON - most favorable case! */
     TIME_P_ON_TO_TRX_OFF             = 510, /**<  Transition time from P_ON to TRX_OFF. */
     TIME_SLEEP_TO_TRX_OFF            = 880, /**<  Transition time from SLEEP to TRX_OFF. */
+#endif
     TIME_RESET                       = 6,   /**<  Time to hold the RST pin low during reset */
     TIME_ED_MEASUREMENT              = 140, /**<  Time it takes to do a ED measurement. */
     TIME_CCA                         = 140, /**<  Time it takes to do a CCA. */
@@ -250,7 +262,11 @@ typedef enum{
     TIME_FTN_TUNING                  = 25,  /**<  Maximum time it should take to do the filter tuning. */
     TIME_NOCLK_TO_WAKE               = 6,   /**<  Transition time from *_NOCLK to being awake. */
     TIME_CMD_FORCE_TRX_OFF           = 1,   /**<  Time it takes to execute the FORCE_TRX_OFF command. */
+#ifdef RF230_CONF_FAST_STATE_CHANGE
+    TIME_TRX_OFF_TO_PLL_ACTIVE       = 80, /**<  Transition time from TRX_OFF to: RX_ON, PLL_ON, TX_ARET_ON and RX_AACK_ON.  */
+#else
     TIME_TRX_OFF_TO_PLL_ACTIVE       = 180, /**<  Transition time from TRX_OFF to: RX_ON, PLL_ON, TX_ARET_ON and RX_AACK_ON. */
+#endif
     TIME_STATE_TRANSITION_PLL_ACTIVE = 1,   /**<  Transition time from PLL active state to another. */
 }radio_trx_timing_t;
 
@@ -263,7 +279,7 @@ uint16_t count_cca_fail;
 PROCESS(rf230_process, "RF230 driver");
 /*---------------------------------------------------------------------------*/
 
-int rf230_interrupt(void);
+int rf230_interrupt(uint8_t irq);
 
 static int rf230_on(void);
 static int rf230_off(void);
@@ -278,8 +294,24 @@ static int rf230_receiving_packet(void);
 static int rf230_pending_packet(void);
 static int rf230_cca(void);
 static bool rf230_is_sleeping(void);
+/* SFD timestamp in RTIMER ticks */
+//static volatile rtimer_clock_t rf230_last_rx_packet_timestamp = 0;
 
 uint8_t rf230_last_correlation,rf230_last_rssi,rf230_smallest_rssi;
+#define SYS_CTRL_16MHZ               16000000
+#define RADIO_TO_RTIMER(X) ((uint32_t)((uint64_t)(X) * RTIMER_ARCH_SECOND / SYS_CTRL_16MHZ))
+
+/*---------------------------------------------------------------------------*/
+static inline void
+rf230_get_last_rx_packet_timestamp(void)
+{
+  /* Save SFD timestamp, converted from radio timer to RTIMER */
+  /* The remaining measured error is typically in range 0..16 usec.
+   * Center it around zero, in the -8..+8 usec range. */
+  rf230_last_rx_packet_timestamp = RTIMER_NOW();
+  rf230_last_rx_packet_timestamp -= US_TO_RTIMERTICKS(8);
+  return;
+}
 
 static void
 set_poll_mode(bool enable)
@@ -405,7 +437,16 @@ rf230_set_cca_threshold(radio_value_t cca_thresh)
   hal_subregister_write(SR_CCA_ED_THRES, cca_thresh);
   return cca_thresh;
 }
-
+void
+rf230_dump_settings(void)
+{
+  printf("get_poll_mode=%u\n", get_poll_mode());
+  printf("static bool is_promiscuous=%u\n", is_promiscuous);
+  printf("rf230_get_frame_retries=%u\n", rf230_get_frame_retries());
+  printf("rf230_get_csma_retries=%u\n", rf230_get_csma_retries());
+  printf("get_auto_ack=%u\n", get_auto_ack());
+  printf("rf230_get_cca_threshold=%u\n", rf230_get_cca_threshold());
+}
 /*---------------------------------------------------------------------------*/
 static radio_result_t
 get_value(radio_param_t param, radio_value_t *value)
@@ -523,6 +564,7 @@ set_value(radio_param_t param, radio_value_t value)
 
   case RADIO_PARAM_CCA_THRESHOLD:
     rf230_set_cca_threshold(value);
+    printf("DBG Setting rf230_set_cca_threshold(%u)\n", value); 
     return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
@@ -849,10 +891,14 @@ flushrx(void)
   }
   /* If another packet has been buffered, schedule another receive poll */
   if (rxframe[rxframe_head].length) {
-    rf230_interrupt();
+    rf230_interrupt(0);
   }
   else {
     rf230_pending = 0;
+  }
+  if(poll_mode) {
+    rf230_pending = 0;
+    return;
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1134,7 +1180,7 @@ rf230_init(void)
  
  /* Leave radio in on state (?)*/
   radio_on();
-
+  rf230_dump_settings();
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -1166,6 +1212,15 @@ void rf230_warm_reset(void) {
 
   /* Carrier sense threshold (not implemented in RF230 or RF231) */
 // hal_subregister_write(SR_CCA_CS_THRES,1);
+
+#if defined(__AVR_ATmega128RFR2__) || defined(__AVR_ATmega256RFR2__)
+  /* Enable PLL TX Filter */
+#if RF230_CONF_PLL_TX_FILTER
+  hal_subregister_write(SR_PLL_FLT, 1);
+#else
+  hal_subregister_write(SR_PLL_FLT, 0);
+#endif
+#endif
 
   /* Receiver sensitivity. If nonzero rf231/128rfa1 saves 0.5ma in rx mode */
   /* Not implemented on rf230 but does not hurt to write to it */
@@ -1545,11 +1600,12 @@ rf230_get_channel(void)
 void
 rf230_set_channel(uint8_t c)
 {
- /* Wait for any transmission to end. */
   PRINTF("rf230: Set Channel %u\n",c);
-  rf230_waitidle();
+  /* Initialize new chan hard for TSCH etc */
+  radio_off();
   channel=c;
   hal_subregister_write(SR_CHANNEL, c);
+  radio_on();
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -1593,13 +1649,6 @@ rf230_set_pan_addr(unsigned pan,
   }
 }
 
-/* From ISR context */
-void
-rf230_get_last_rx_packet_timestamp(void)
-{
-    rf230_last_rx_packet_timestamp = RTIMER_NOW();
-}
-
 /*---------------------------------------------------------------------------*/
 /*
  * Interrupt leaves frame intact in FIFO.
@@ -1609,9 +1658,19 @@ static volatile rtimer_clock_t interrupt_time;
 static volatile int interrupt_time_set;
 #endif /* RF230_CONF_TIMESTAMPS */
 int
-rf230_interrupt(void)
+rf230_interrupt(uint8_t irq)
 {
   /* Poll the receive process, unless the stack thinks the radio is off */
+
+#define IRQ_AWAKE          0x80
+#define IRQ_TX_END         0x40
+#define IRQ_AMI            0x20
+#define IRQ_CCA_ED_DONE    0x10
+#define IRQ_3_TRX_END      0x08
+#define IRQ_2_RX_START     0x04
+#define IRQ_1_PLL_UNLOCK   0x02
+#define IRQ_0_PLL_LOCK     0x01
+
 #if RADIOALWAYSON
 if (RF230_receive_on) {
   DEBUGFLOW('+');
@@ -1620,6 +1679,13 @@ if (RF230_receive_on) {
   interrupt_time = timesynch_time();
   interrupt_time_set = 1;
 #endif /* RF230_CONF_TIMESTAMPS */
+
+  //irq = hal_register_read(RG_SCIRQS);
+  //hal_register_write(RG_SCOCR1LL, 160);
+
+  if(poll_mode) {
+    return 1;
+  }
 
   process_poll(&rf230_process);
   
@@ -1638,6 +1704,53 @@ if (RF230_receive_on) {
 #endif
   return 1;
 }
+
+ISR(TRX24_RX_START_vect)
+{
+/* Save RSSI for this packet if not in extended mode, scaling to 1dB resolution */
+#if !RF230_CONF_AUTOACK
+    rf230_last_rssi = 3 * hal_subregister_read(SR_RSSI);
+#endif
+    rf230_get_last_rx_packet_timestamp();
+    if(!poll_mode) 
+      rf230_interrupt(2);
+}
+
+/* Received packet interrupt */
+ISR(TRX24_RX_END_vect)
+{
+/* Get the rssi from ED if extended mode */
+#if RF230_CONF_AUTOACK
+       rf230_last_rssi=hal_register_read(RG_PHY_ED_LEVEL);
+#endif
+
+/* Buffer the frame and call rf230_interrupt to schedule poll for rf230 receive process */
+/* Is a ram buffer available? */
+       if (rxframe[rxframe_tail].length) {DEBUGFLOW('0');} else /*DEBUGFLOW('1')*/;
+
+#ifdef RF230_MIN_RX_POWER               
+/* Discard packets weaker than the minimum if defined. This is for testing miniature meshes */
+/* This does not prevent an autoack. TODO:rfa1 radio can be set up to not autoack weak packets */
+       if (rf230_last_rssi >= RF230_MIN_RX_POWER) {
+#else
+       if (1) {
+#endif
+//             DEBUGFLOW('2');
+               hal_frame_read(&rxframe[rxframe_tail]);
+               rxframe_tail++;if (rxframe_tail >= RF230_CONF_RX_BUFFERS) rxframe_tail=0;
+               rf230_interrupt(2);
+
+               if(poll_mode) {
+                 rf230_pending = 1;
+               }
+       }
+}
+
+/* PLL has locked, either from a transition out of TRX_OFF or a channel change while on */
+ISR(TRX24_PLL_LOCK_vect)
+{
+}
+
 /*---------------------------------------------------------------------------*/
 /* Process to handle input packets
  * Receive interrupts cause this process to be polled
