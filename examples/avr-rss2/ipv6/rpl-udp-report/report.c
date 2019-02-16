@@ -56,7 +56,7 @@
 #include "net/ip/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 10
+#define PERIOD 60
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -225,7 +225,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
     
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
-      ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
+      ctimer_set(&backoff_timer, SEND_INTERVAL/2, send_packet, NULL);
 
 #if WITH_COMPOWER
       if (print == 0) {
