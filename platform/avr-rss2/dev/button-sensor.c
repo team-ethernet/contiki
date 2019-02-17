@@ -45,6 +45,14 @@
 const struct sensors_sensor button_sensor;
 static int status(int type);
 
+void
+test_button(void)
+{
+  if( ! button_sensor.value(0) ) {
+      sensors_changed(&button_sensor);
+    }
+}
+
 static int
 value(int type)
 {

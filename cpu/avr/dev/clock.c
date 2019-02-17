@@ -356,10 +356,8 @@ ISR(TIMER2_OVF_vect)
 #endif
 
 #ifdef CONTIKI_TARGET_AVR_RSS2
-#include "dev/button-sensor.h"
-  if( ! button_sensor.value(0) ) {
-      sensors_changed(&button_sensor);
-    }
+ extern void test_button(void);
+    test_button();
 #endif
 
   }
