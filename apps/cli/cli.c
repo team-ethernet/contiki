@@ -319,7 +319,7 @@ show_dag(void)
   rpl_print_neighbor_list_cli();
 }
 static void
-show_rpl_stats(voiD)
+show_rpl_stats(void)
 {
 #if RPL_CONF_STATS
   printf("rpl.mem_overflows=%-u\n", rpl_stats.mem_overflows);
