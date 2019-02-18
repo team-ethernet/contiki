@@ -16,6 +16,7 @@ CLIBS           = $(PRINTF_LIB)
 
 PROJECT_OBJECTFILES += mqtt-rpl-pub.o mqtt-i2c-pub.o mqtt-cli.o
 PROJECT_OBJECTFILES +=  tcp-socket-gprs.o gprs-a6.o
+PROJECT_OBJECTFILES +=  at_wait.o
 #CFLAGS += -DPMS5003
 #CFLAGS += -DBME280
 CFLAGS += -DMQTT_GPRS

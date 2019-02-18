@@ -50,6 +50,7 @@
 #include "dev/leds.h"
 #include "tcp-socket-gprs.h"
 #include "gprs-a6.h"
+#include "at_wait.h"
 
 #include "dev/rs232.h"
 #include "lib/ringbuf.h"
@@ -59,7 +60,6 @@
 //#define PDPTYPE "IPV6"
 
 uint32_t baud;
-uint8_t at[] = {'A', 'T', 0xd };
 
 uint8_t uart = RS232_PORT_1;
 
@@ -245,26 +245,10 @@ gprs_status() {
 }
 /*---------------------------------------------------------------------------*/
 
-struct at_wait; /* forward declaration */
-typedef char (* at_callback_t)(struct pt *, struct at_wait *, int c);
-
-struct at_wait {
-  char *str;
-  at_callback_t callback;
-  int (* match)(struct at_wait *, int c);  
-  uint8_t pos;
-};
- 
 static
 PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c));
 static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c));
-static
-PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c));
-static
-PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c));
-static
-PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c));
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c));
 static
@@ -272,7 +256,6 @@ PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c));
 static
 PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c));
 
-static int at_match_byte(struct at_wait *at, int c);
 static int at_match_dotquad(struct at_wait *at, int c);
 
 struct at_wait wait_csonmi = {"+CSONMI: ", wait_csonmi_callback, at_match_byte};
@@ -293,22 +276,6 @@ struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
 struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_callback, at_match_byte};
 struct at_wait wait_ati = {"Ai Thinker", wait_readlines_callback, at_match_byte};
 
-static char atline[80];
-
-static void
-start_at(struct at_wait *at); /* forward declaration */
-
-/*
- * Simple match -- matched input string (like "OK"). Post 
- * an event to signal the match.
- */
-static
-PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c)) {
-  PT_BEGIN(pt);
-  process_post(&a6at, at_match_event, at);
-  PT_END(pt);
-}
-
 /*
  * CIPRCV:len,<data>
  */
@@ -328,7 +295,7 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c)) {
     if (!isdigit(c)) {
       /* Error: bad len */
       printf("ciprcv_callback: bad len\n");
-      start_at(&wait_ciprcv); /* restart */
+      restart_at(&wait_ciprcv); /* restart */
       PT_EXIT(pt);
     }
 
@@ -347,7 +314,7 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c)) {
     PT_YIELD(pt);
   }
 
-  start_at(&wait_ciprcv); /* restart */
+  restart_at(&wait_ciprcv); /* restart */
   gprsconn = find_gprs_connection();
   if (gprsconn) {
     gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, nbytes);
@@ -380,7 +347,7 @@ PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c)) {
   
   if (c != ',') {
     printf("Expected ',', got '%c'\n'", c);
-    start_at(&wait_csonmi); /* restart */
+    restart_at(&wait_csonmi); /* restart */
     PT_EXIT(pt);
   }
   PT_YIELD(pt);
@@ -394,7 +361,7 @@ PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c)) {
   /* Consume the comma ',' in input */
   if (c != ',') {
     printf("Expected ',', got '%c'\n'", c);
-    start_at(&wait_csonmi); /* restart */
+    restart_at(&wait_csonmi); /* restart */
     PT_EXIT(pt);
   }
   PT_YIELD(pt);
@@ -423,55 +390,11 @@ PT_THREAD(wait_csonmi_callback(struct pt *pt, struct at_wait *at, int c)) {
     PT_YIELD(pt);
   }
 
-  start_at(&wait_csonmi); /* restart */
+  restart_at(&wait_csonmi); /* restart */
   gprsconn = find_gprs_connection();
   if (gprsconn) {
     gprsconn->input_callback(gprsconn, gprsconn->callback_arg, rcvdata, rcvlen);
   }
-  PT_END(pt);
-}
-
-/*
- * FSM protothread to read characters until end of line
- * Characters are stored into atline buffer, and atpos is the
- * number of chars in the buffer
- */ 
-PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, int c)) {
-  static int atpos;
-
-  PT_BEGIN(pt);
-
-  atpos = 0; 
-  while (c != '\n' && c != '\r') {
-    if (atpos < sizeof(atline)-1)
-      atline[atpos++] = (uint8_t) c;
-    PT_YIELD(pt);
-  }
-  /* done -- mark end of string */
-  atline[atpos] = '\0';
-  PT_END(pt);
-}
-
-PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
-  static int atpos;
-
-  PT_BEGIN(pt);
-  atpos = 0;
-  while (1) {
-    if (c == '\n' || c == '\r') {
-      /* Do nothing???*/;
-    }
-    else {
-      atline[atpos++] = (char ) c;
-      if (atpos == sizeof(atline)-1)
-        break;
-      if (c == 0)
-        break;
-    }
-    PT_YIELD(pt);
-  }
-  /* done -- mark end of string */
-  atline[atpos] = '\0';
   PT_END(pt);
 }
 
@@ -484,39 +407,12 @@ PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c)) {
   struct gprs_connection *gprsconn;
   ret = wait_readline_pt(pt, at, c);
   if (ret == PT_ENDED) {
-    start_at(&wait_tcpclosed); /* restart */
+    restart_at(&wait_tcpclosed); /* restart */
     gprsconn = find_gprs_connection();
     if (gprsconn && gprsconn->socket) {
       call_event(gprsconn->socket, TCP_SOCKET_CLOSED);
     }
   }
-  return ret;
-}
-
-/*
- * Callback function to read the remainder of the line until
- * EOL, and the post an event to signal the match
- */
-static
-PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c)) {
-  char ret;
-  ret = wait_readline_pt(pt, at, c);
-  if (ret == PT_ENDED)
-    process_post(&a6at, at_match_event, at);
-  return ret;
-}
-
-/*
- * Callback function to read all lines until full buffer is full
- * and the post an event to signal the match
- */
-
-static
-PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c)) {
-  char ret;
-  ret = wait_readlines_pt(pt, at, c);
-  if (ret == PT_ENDED)
-    process_post(&a6at, at_match_event, at);
   return ret;
 }
 
@@ -540,10 +436,10 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c)) {
   */
 
   ret = wait_readlines_pt(pt, at, c);
-  printf("GPS=%s\n", atline);
+  printf("GPS=%s\n", at_line);
 
   const char *delim = " \t\r,";
-  time = strtok((char *)&atline[0], (const char *) delim);
+  time = strtok((char *)&at_line[0], (const char *) delim);
 
   if(time) printf("time %s\n", time);
   
@@ -595,7 +491,7 @@ PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c)) {
 
 #if 0
     /* Old. Decode $GPRMC sentense */
-    res = sscanf(atline,"%2d%2d%2d.%3c,%1c,%lf,%1c,%lf,%1c,%lf,%lf,%2d%2d%2d",
+    res = sscanf(at_line,"%2d%2d%2d.%3c,%1c,%lf,%1c,%lf,%1c,%lf,%lf,%2d%2d%2d",
 		 &hour, &min, &sec, foo, &valid, &lat, c, &longi, c, &speed, &course, &day, &mon, &year);
 #endif    
       //nmew_time(year, mon, day, hour, min, sec );
@@ -616,26 +512,6 @@ PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c)) {
 #endif 
   process_post(&a6at, at_match_event, at);
   PT_END(pt);
-}
-
-/*
- * Match functions. Return a negative number if current data string does
- * not match search pattern. If there is a match, return number of bytes that 
- * were consumed in last call.
- */
-
-/* Match byte: check one byte at a time */
-static int at_match_byte(struct at_wait *at, int c) {
-  if (c == at->str[at->pos]) {
-    at->pos += 1;
-    if (at->str[at->pos] == '\0') {
-      return 1;
-    }
-  }
-  else { 
-   at->pos = 0;
-  }
-  return -1;
 }
 
 /* 
@@ -675,141 +551,13 @@ static int at_match_dotquad(struct at_wait *at, int c) {
   return -1;
 }
 
-#define MAXWAIT 6
-struct at_wait *at_waitlist2[MAXWAIT];
-
-uint8_t at_numwait;
-uint8_t at_numwait_permanent;
-
-static void
-start_at(struct at_wait *at) {
-  if (at_numwait >= MAXWAIT) {
-    printf("Error starting %s: too many at_waits (%d)\n", at->str, at_numwait);
-    {
-      int i;
-      for (i = 0; i < at_numwait; i++)
-        printf("%d: %s\n", i, at_waitlist2[i]->str);
-    }
-    return;
-  }
-  at_waitlist2[at_numwait] = at;
-  at_numwait++;
-  at->pos = 0;
-}
-
-static void
-stop_at(struct at_wait *at) {
-  at->pos = 0;
-}
-
-static void
-start_atlist(struct at_wait *at, ...) {
-  va_list valist;
-  
-  va_start(valist, at);
-  while (at) {
-    printf(" '%s' ", at->str);
-    start_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-}
-
-static void
-vstart_atlist(struct at_wait *at, va_list valist) {
-  
-  at = va_arg(valist, struct at_wait *);
-  while (at) {
-    printf(" '%s' ", at->str);
-    start_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-}
-
-static void
-stop_atlist(struct at_wait *at, ...) {
-  va_list valist;
-  
-  va_start(valist, at);
-  while (at) {
-    stop_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-  at_numwait = at_numwait_permanent;
-}
-
-static void
-vstop_atlist(struct at_wait *at, va_list valist) {
-  
-  va_start(valist, at);
-  while (at) {
-    stop_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-  at_numwait = at_numwait_permanent;
-}
-
 static void
 wait_init() {
-  at_numwait = 0;
   /* The following are to detect async events -- permanently active */
-  start_at(&wait_csonmi);
+  atwait_start_permanent(&wait_csonmi, &wait_csoerr, &wait_gpsrd, NULL);
+
   //start_at(&wait_ciprcv);
   //start_at(&wait_tcpclosed);
-  start_at(&wait_csoerr);    
-  start_at(&wait_gpsrd);  
-  at_numwait_permanent = at_numwait;
-}
-
-/*
- * Main loop for input matching. Take one byte at a time, and call each
- * active matching state machine. 
- * If one state mechine returns a non-negative value, it is a complete match. 
- * Then call the corresponding callback protothread with the remaining
- * input data.
- */
-
-/* Flag for locking AT commands. Set to non-zero when trigger has been
- * matched, and callback function is active and consuming input. Don't 
- * issue new AT commands while in this state; it would garble the
- * the input.
- */
-static uint8_t matching = 0; 
-
-
-
-PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
-  static uint8_t i;
-  static struct pt subpt;
-  static struct at_wait *at;
-  int match;
-    
-  PT_BEGIN(pt);
-
-  while (1) {
-    matching = 0;
-    for (i = 0; i < at_numwait; i++) {
-      at = at_waitlist2[i];
-      match = at->match(at, c);
-      if (match >= 0) {
-        /* An async (permanent) event? Then mark that it is active right now
-         * so that other events can be postponed 
-         */
-        if (i < at_numwait_permanent)
-          matching = 1;
-        if (match > 0)
-          PT_YIELD(pt); /* Consume char and wait for next */
-        /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
-        PT_INIT(&subpt);
-        while (at->callback(&subpt, at, c) == PT_YIELDED) {
-          PT_YIELD(pt);
-        }
-        matching = 0;
-      }
-    }
-    /* Yield and wait for next input */
-    PT_YIELD(pt);
-  }
-  PT_END(pt);
 }
 
 static void
@@ -881,9 +629,9 @@ static size_t sendbuf_remain;
 #define sendbuf(buf, len) { \
   sendbuf_remain = len; \
   while (sendbuf_remain > 0) { \
-    if (matching) {	    \
+    if (atwait_matching) {	    \
       printf("MATCHING\n"); \
-      PROCESS_WAIT_UNTIL(matching == 0); \
+      PROCESS_WAIT_UNTIL(atwait_matching == 0); \
       printf("DONE MATCHING\n"); \
     } \
     rs232_send_fix(uart, &(buf)[len - sendbuf_remain]);	\
@@ -892,7 +640,6 @@ static size_t sendbuf_remain;
   } \
 }
 
-static struct etimer et;
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
 
 //#define ATSTR(str) sendbuf_fun(((unsigned char *) str), strlen(str))
@@ -900,114 +647,8 @@ static struct etimer et;
 #define ATSTR(str) {printf("-->%s\n", str); sendbuf(((unsigned char *) str), strlen(str))}
 #define ATBUF(buf, len) sendbuf(buf, len)
 
-#define ATWAIT2_OLD(SEC, ...)  {                    \
-  at = NULL; \
-  printf("---start_atlist:%d: (%d sec)", __LINE__, SEC);    \
-  start_atlist(__VA_ARGS__, NULL);            \
-  printf("\n"); \
-  etimer_set(&et, (SEC)*CLOCK_SECOND);                         \
-  while (1) { \
-    PROCESS_WAIT_EVENT();                           \
-    if(etimer_expired(&et)) { \
-      printf("---timeout:%d\n", __LINE__);                 \
-      stop_atlist(__VA_ARGS__, NULL);                      \
-      break; \
-    } \
-    else if(ev == at_match_event) { \
-      etimer_stop(&et); \
-      at = (struct at_wait *) data;                \
-      printf("\n---got:%d '%s'\n", __LINE__, at->str);     \
-      stop_atlist(__VA_ARGS__, NULL);             \
-      break; \
-    } \
-    else { \
-      if (GPRS_EVENT(ev)) { \
-        /* This event is for us, but we can't do it now. \
-         * Put it on the event queue for later. \
-         */ \
-          printf("---enq:%d\n", __LINE__);     \
-          enqueue_event(ev, data); \
-      } \
-    } \
-  } \
-  }
-
-
-#define ATWAIT2(SEC, ...)  {                    \
-    static struct pt pt;                                                       \
-    printf("---start_atlist:%d: (%d sec)", __LINE__, SEC);\
-    PT_INIT(&pt);                                                       \
-    while (atwait(&pt, ev, data, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
-      PROCESS_WAIT_EVENT();                                             \
-  } \
-}  
-
 static void
 enqueue_event(process_event_t ev, void *data); 
-
-static
-PT_THREAD(atwait(struct pt *pt, process_event_t ev,
-                 process_data_t data, struct at_wait **atp, int seconds, ...)) {
-  va_list valist;
-  struct at_wait *at;
-  static struct etimer et;
-  
-  PT_BEGIN(pt);
-
-  va_start(valist, seconds);
-  at = va_arg(valist, struct at_wait *);
-  while (at) {
-    printf(" '%s' ", at->str);
-    start_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-  printf("\n"); 
-
-  
-  etimer_set(&et, (seconds)*CLOCK_SECOND);
-  while (1) {
-    PT_YIELD(pt);
-    if(etimer_expired(&et)) {
-      printf("---pt_timeout:%d\n", __LINE__);
-      *atp = NULL;
-      break; 
-    } 
-    else if(ev == at_match_event) {
-      etimer_stop(&et); 
-      *atp = (struct at_wait *) data;
-      printf("\n---pt_got:%d '%s'\n", __LINE__, (*atp)->str); 
-      break;
-    } 
-    else { 
-      if (GPRS_EVENT(ev)) { 
-        /* This event is for us, but we can't do it now. 
-         * Put it on the event queue for later. 
-         */ 
-        //printf("Postpone event for current: %d\n", ev);
-        //process_post(PROCESS_CURRENT(), ev, data);    
-
-        printf("---pt_enq %d:%d\n", ev, __LINE__);    
-        printf("THis shouldn't happen now!!!!!!!\n");
-        enqueue_event(ev, data); 
-      } 
-    } 
-  } 
-
-  printf("Stop atlist: ");
-  va_start(valist, seconds);
-  at = va_arg(valist, struct at_wait *);
-  while (at) {
-    printf("'%s' ", at->str);
-    stop_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-  printf("\n");
-  at_numwait = at_numwait_permanent;
-
-  PT_END(pt);
-}
-
-
 
 #define CLOCKDELAY(ticks) {\
   printf("%d: start clock etimer %u, clock_time() = %lu\n", __LINE__, ticks, clock_time()); \
@@ -1143,8 +784,8 @@ PROCESS_THREAD(a6at, ev, data) {
     else {
       int i;
       const char *delim = " \t\r,";
-      char *p = strtok((char *)&atline[0], (const char *) delim);
-      for(i=0; i <  sizeof(atline); i++) {
+      char *p = strtok((char *)&at_line[0], (const char *) delim);
+      for(i=0; i <  sizeof(at_line); i++) {
 	p = strtok(NULL, delim);
 	if(!strcmp(p, "A6")) {
 	  status.module = GPRS_MODULE_A6;
@@ -1197,10 +838,10 @@ PROCESS_THREAD(a6at, ev, data) {
       printf("CREG AT = NULL\n");
       continue;
     }
-    p = (char *)memchr(atline, ',', strlen(atline));
+    p = (char *)memchr(at_line, ',', strlen(at_line));
     p++;
     creg = atoi((char *) p /*foundbuf*/);
-    printf("creg atoi(\"%s\") -> %d\n", atline, creg);
+    printf("creg atoi(\"%s\") -> %d\n", at_line, creg);
     ATWAIT2(30, &wait_ok);
     if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
       status.state = GPRS_STATE_REGISTERED;
@@ -1250,7 +891,7 @@ PROCESS_THREAD(a6at, ev, data) {
       }
       if (at == &wait_cmeerror) {
 #ifdef GPRS_DEBUG
-        printf("CGACT failed with CME ERROR:%s\n", atline);
+        printf("CGACT failed with CME ERROR:%s\n", at_line);
 #endif /* GPRS_DEBUG */
         gprs_statistics.at_errors += 1;
       }
@@ -1266,7 +907,7 @@ PROCESS_THREAD(a6at, ev, data) {
       ATSTR("AT+CIPSTATUS?\r"); 
       ATWAIT2(60, &wait_cipstatus);
       if (at == &wait_cipstatus) {
-        if (strncmp((char *) atline, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
+        if (strncmp((char *) at_line, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
           gcontext->active = 1;
           status.state = GPRS_STATE_ACTIVE;
           break;
@@ -1499,8 +1140,8 @@ PROCESS_THREAD(a6at, ev, data) {
     ATWAIT2(5, &wait_csq);
     if (at == NULL)
       continue;
-    status.rssi = atoi((char *) atline /*foundbuf*/);
-    printf("rssi atoi(\"%s\") -> %d\n", atline, status.rssi);
+    status.rssi = atoi((char *) at_line /*foundbuf*/);
+    printf("rssi atoi(\"%s\") -> %d\n", at_line, status.rssi);
     ATWAIT2(5, &wait_ok);
     continue;
   failed:
