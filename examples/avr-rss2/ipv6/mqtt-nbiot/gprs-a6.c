@@ -72,6 +72,9 @@ process_event_t at_match_event;
 
 static struct gprs_status status;
 
+static void
+enqueue_event(process_event_t ev, void *data);
+
 #define min(A, B) ((A) <= (B) ? (A) : (B))
 /*---------------------------------------------------------------------------*/
 PROCESS(uart_reader, "UART input process");
@@ -209,6 +212,10 @@ gprs_connection(struct gprs_connection *gprsconn,
   gprsconn->socket = socket;
   gprsconn->ipaddr = ipaddr;
   gprsconn->port = port;
+  enqueue_event(a6at_gprs_connection, gprsconn);
+  return gprsconn;
+
+#if 0
   if (process_post(&a6at, a6at_gprs_connection, gprsconn) != PROCESS_ERR_OK) {
     free_gprs_connection(gprsconn);
     return NULL;
@@ -216,17 +223,20 @@ gprs_connection(struct gprs_connection *gprsconn,
   else {
     return gprsconn;
   }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 void
 //gprs_send(struct tcp_socket_gprs *socket) {
 gprs_send(struct gprs_connection *gprsconn) {
-  (void) process_post(&a6at, a6at_gprs_send, gprsconn);
+  //(void) process_post(&a6at, a6at_gprs_send, gprsconn);
+  enqueue_event(a6at_gprs_send, gprsconn);
 }
 /*---------------------------------------------------------------------------*/
 void
 gprs_close(struct tcp_socket_gprs *socket) {
-  (void) process_post(&a6at, a6at_gprs_close, socket->g_c);
+  enqueue_event(a6at_gprs_close, socket->g_c);
+  //(void) process_post(&a6at, a6at_gprs_close, socket->g_c);
 }
 /*---------------------------------------------------------------------------*/
 struct gprs_status *
@@ -276,6 +286,7 @@ struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_
 struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback, at_match_byte};
 struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
+struct at_wait wait_csoerr = {"+CSOERR:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback, at_match_dotquad};
 struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
 struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
@@ -743,7 +754,8 @@ wait_init() {
   /* The following are to detect async events -- permanently active */
   start_at(&wait_csonmi);
   //start_at(&wait_ciprcv);
-  start_at(&wait_tcpclosed);  
+  //start_at(&wait_tcpclosed);
+  start_at(&wait_csoerr);    
   start_at(&wait_gpsrd);  
   at_numwait_permanent = at_numwait;
 }
@@ -923,6 +935,7 @@ static struct etimer et;
 
 #define ATWAIT2(SEC, ...)  {                    \
     static struct pt pt;                                                       \
+    printf("---start_atlist:%d: (%d sec)", __LINE__, SEC);\
     PT_INIT(&pt);                                                       \
     while (atwait(&pt, ev, data, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
       PROCESS_WAIT_EVENT();                                             \
@@ -941,7 +954,6 @@ PT_THREAD(atwait(struct pt *pt, process_event_t ev,
   
   PT_BEGIN(pt);
 
-  printf("---start_atlist:%d: (%d sec)", __LINE__, seconds);
   va_start(valist, seconds);
   at = va_arg(valist, struct at_wait *);
   while (at) {
@@ -971,11 +983,12 @@ PT_THREAD(atwait(struct pt *pt, process_event_t ev,
         /* This event is for us, but we can't do it now. 
          * Put it on the event queue for later. 
          */ 
-        printf("Postpone event for current: %d\n", ev);
-        process_post(PROCESS_CURRENT(), ev, data);    
+        //printf("Postpone event for current: %d\n", ev);
+        //process_post(PROCESS_CURRENT(), ev, data);    
 
-        printf("---pt_enq:%d\n", __LINE__);    
-        //enqueue_event(ev, data); 
+        printf("---pt_enq %d:%d\n", ev, __LINE__);    
+        printf("THis shouldn't happen now!!!!!!!\n");
+        enqueue_event(ev, data); 
       } 
     } 
   } 
@@ -1021,6 +1034,18 @@ PT_THREAD(atwait(struct pt *pt, process_event_t ev,
   CLOCKDELAY((SEC)*CLOCK_SECOND);                                 \
   }
 
+char *eventstr(process_event_t ev) {
+  static char buf[64]; 
+    if (ev == a6at_gprs_init) sprintf(buf, " a6at_gprs_init (%d)", ev); 
+    else if (ev == a6at_gprs_connection) sprintf(buf, "a6at_gprs_connection (%d)", ev); 
+    else if (ev == a6at_gprs_send) sprintf(buf, "a6at_gprs_send (%d)", ev); 
+    else if (ev == a6at_gprs_close) sprintf(buf, "a6at_gprs_close (%d)", ev); 
+    else if (ev == at_match_event) sprintf(buf, "at_match_event (%d)", ev); 
+    else if (ev == uart_input_event) sprintf(buf, "uart_input_event (%d)", ev); 
+    else sprintf(buf, "unknown)(%d)", ev); 
+  return buf;
+}
+    
 static void
 event_init() {
   a6at_gprs_init = process_alloc_event();
@@ -1030,6 +1055,8 @@ event_init() {
   
   at_match_event = process_alloc_event();
   uart_input_event = process_alloc_event();
+
+  printf("a6at_gprs_init == %s\n", eventstr(a6at_gprs_init));
 }
 
 #define GPRS_MAX_NEVENTS 8
@@ -1056,6 +1083,7 @@ enqueue_event(process_event_t ev, void *data) {
   index = (gprs_firstevent+gprs_nevents) % GPRS_MAX_NEVENTS;
   gprs_event_queue[index].ev = ev; gprs_event_queue[index].data = data;
   gprs_nevents++;
+  printf("ENqueue event %s\n", eventstr(ev));
 }
 
 static struct gprs_event *
@@ -1066,6 +1094,7 @@ dequeue_event() {
   gprs_event = &gprs_event_queue[gprs_firstevent];
   gprs_nevents--;
   gprs_firstevent = (gprs_firstevent + 1) % GPRS_MAX_NEVENTS;
+  printf("Dequeue event %s\n", eventstr(gprs_event->ev));
   return gprs_event;
 }
 
@@ -1300,11 +1329,15 @@ PROCESS_THREAD(a6at, ev, data) {
   nextcommand:
     gprs_event = dequeue_event();
     if (gprs_event == NULL) {
+      PROCESS_PAUSE();
+      goto nextcommand;
       PROCESS_WAIT_EVENT();
       if (GPRS_EVENT(ev))
           enqueue_event(ev, data);
       goto nextcommand;
     }
+    else
+      printf("dequeed eveny %d %s\n", gprs_event->ev, eventstr(gprs_event->ev));
 
     if (gprs_event->ev == a6at_gprs_connection) {
 #ifdef GPRS_DEBUG
@@ -1417,8 +1450,8 @@ PROCESS_THREAD(a6at, ev, data) {
           goto failed;
         }
         ATBUF(&ptr[gprsconn->output_data_len-remain], len);
-        ATWAIT2(30, &wait_ok, &wait_commandnoresponse, &wait_dataaccept);
-        if (at == NULL || at == &wait_commandnoresponse) {
+        ATWAIT2(30, &wait_ok, &wait_error, &wait_dataaccept);
+        if (at == NULL || at == &wait_commandnoresponse || at == &wait_error) {
           gprs_statistics.at_timeouts += 1;
           goto failed;
         }        
