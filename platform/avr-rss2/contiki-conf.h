@@ -80,16 +80,13 @@
 /* Use hardware timestamps */
 #ifndef TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS
 #define TSCH_CONF_RESYNC_WITH_SFD_TIMESTAMPS 0
-
 #endif
-
 
 #ifndef TSCH_CONF_BASE_DRIFT_PPM
 /* The drift compared to "true" 10ms slots.
  * Enable adaptive sync to enable compensation for this. */
 //#define TSCH_CONF_BASE_DRIFT_PPM +977
 #endif
-
 
 #ifndef TSCH_CONF_RX_WAIT
 #define TSCH_CONF_RX_WAIT 1800
@@ -98,8 +95,6 @@
 #define WITH_SEND_CCA 0
 #define RF230_CONF_AUTOACK 0
 #define RF230_CONF_AUTORETRIES 0
-
-#define TSCH_LOG_CONF_LEVEL 0
 
 //#define TSCH_DEBUG 0
 #if TSCH_DEBUG
