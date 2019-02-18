@@ -31,10 +31,10 @@
  */
 
 /**
- *      This code is based on code
- *      Robert Olsson <roolss@kth.se>
+ *      This work is based on code from:
  *      Jussi Haikara <haikara@kth.se>
  *      Peter Sjödin  <psj@kth.se>
+ *      Robert Olsson <roolss@kth.se>
  * 
  */
 
