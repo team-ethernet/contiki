@@ -994,12 +994,14 @@ PROCESS_THREAD(a6at, ev, data) {
 	sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
 
         ATSTR(str);
-        ATWAIT2(60, &wait_ok, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
+        //ATWAIT2(60, &wait_ok, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
+        ATWAIT2(60, &wait_ok, &wait_error);        
         if (at == &wait_ok) {
           gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
         }
+#if 0
         else if (at == &wait_connectok) {
           gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
@@ -1014,6 +1016,7 @@ PROCESS_THREAD(a6at, ev, data) {
             goto nextcommand;
           }
         }
+#endif
         /* If we ended up here, we failed to set up connection */
         if (at == NULL) {
           /* Timeout */
@@ -1025,7 +1028,7 @@ PROCESS_THREAD(a6at, ev, data) {
           call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
           goto nextcommand;
         }        
-        else if (at == &wait_cmeerror) {
+        else if (at == &wait_cmeerror || at == &wait_error) {
           /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
           /* Seen +CME ERROR:53 */
           printf("CIPSTART failed\n");
@@ -1067,6 +1070,10 @@ PROCESS_THREAD(a6at, ev, data) {
       remain = gprsconn->output_data_len;
       ATSTR("ATE0\r\n");
       ATWAIT2(5, &wait_ok);
+      if (at == NULL) {
+        gprs_statistics.at_timeouts += 1;
+        goto failed;
+      }
       while (remain > 0) {
         len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
         printf("Send %d bytes @0x%x\n", len, (unsigned) &ptr[gprsconn->output_data_len-remain]);
@@ -1101,11 +1108,16 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif
         remain -= len;
       }
-      ATSTR("ATE1\r\n");
-      ATWAIT2(5, &wait_ok);
 
       //call_event(socket, TCP_SOCKET_DATA_SENT);
       gprs_call_event(gprsconn, GPRS_CONN_DATA_SENT);      
+      ATSTR("ATE1\r\n");
+      ATWAIT2(5, &wait_ok);
+      if (at == NULL) {
+        gprs_statistics.at_timeouts += 1;
+        goto failed;
+      }
+
     } /* ev == a6at_gprs_send */
     else if (gprs_event->ev == a6at_gprs_close) {
 
