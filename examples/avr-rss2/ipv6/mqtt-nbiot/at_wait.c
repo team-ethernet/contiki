@@ -58,17 +58,6 @@ atwait_init() {
   at_numwait = 0;
   at_numwait_permanent = 0;
   atwait_matching = 0;
-
-}
-
-/*
- * Simple match -- matched input string (like "OK"). Post 
- * an event to signal the match.
- */
-PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c)) {
-  PT_BEGIN(pt);
-  /* process_post(at->process, at_match_event, at);*/
-  PT_END(pt);
 }
 
 /*
@@ -92,6 +81,10 @@ PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, int c)) {
   PT_END(pt);
 }
 
+/*
+ * FSM protothread to read all lines until full buffer is full
+ */
+
 PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
   static int atpos;
 
@@ -113,30 +106,6 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
   /* done -- mark end of string */
   at_line[atpos] = '\0';
   PT_END(pt);
-}
-
-/*
- * Callback function to read the remainder of the line until
- * EOL, and the post an event to signal the match
- */
-PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c)) {
-  char ret;
-  ret = wait_readline_pt(pt, at, c);
-  // if (ret == PT_ENDED)
-  //process_post(at->process, at_match_event, at);
-  return ret;
-}
-
-/*
- * Callback function to read all lines until full buffer is full
- * and the post an event to signal the match
- */
-PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c)) {
-  char ret;
-  ret = wait_readlines_pt(pt, at, c);
-  //if (ret == PT_ENDED)
-  //process_post(at->process, at_match_event, at);
-  return ret;
 }
 
 /*
@@ -209,12 +178,6 @@ atwait_start_atlist(uint8_t permanent, ...) {
  * input data.
  */
 
-/* Flag for locking AT commands. Set to non-zero when trigger has been
- * matched, and callback function is active and consuming input. Don't 
- * issue new AT commands while in this state; it would garble the
- * the input.
- */
-
 PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
   static uint8_t i;
   static struct pt subpt;
@@ -230,7 +193,8 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
       match = at->match(at, c);
       if (match >= 0) {
         /* An async (permanent) event? Then mark that it is active right now
-         * so that other events can be postponed 
+         * so that other AT commands can be postponed. Issuing new AT commands 
+         * while in this state would garble the input. 
          */
         if (i < at_numwait_permanent)
           atwait_matching = 1;
@@ -239,11 +203,14 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
             PT_YIELD(pt); /* Consume char and wait for next */
           /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
           PT_INIT(&subpt);
-          while (at->callback(&subpt, at, c) == PT_YIELDED) {
+          while (at->callback(&subpt, at, c) < PT_EXITED) {
             PT_YIELD(pt);
           }
         }
         if (i >= at_numwait_permanent)
+          /* We have a match for a dynamic (non-permanent) event. Set
+           * at_wait_match to non-NULL to signal the match
+           */
           at_wait_match = at;
 
         atwait_matching = 0;
@@ -267,17 +234,7 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
   printf("---start_atlist:%d: ", lineno);
   va_start(valist, seconds);
   vstart_atlist(valist);
-
-#if 0
-  at = va_arg(valist, struct at_wait *);
-  while (at) {
-    printf(" '%s' ", at->str);
-    start_at(at);
-    at = va_arg(valist, struct at_wait *);
-  }
-#endif  
   printf("\n"); 
-
   
   etimer_set(&et, (seconds)*CLOCK_SECOND);
   while (1) {
@@ -286,7 +243,7 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
       *atp = NULL;
       break; 
     } 
-    else if (at_wait_match != (struct at_wait *) 0) {
+    else if (at_wait_match != NULL) {
       etimer_stop(&et); 
       *atp = at_wait_match;
       printf("\n---flag_got:%d '%s'\n", lineno, (*atp)->str); 
@@ -295,7 +252,7 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
     PT_YIELD(pt);
   } 
 
-  /* remove dynamic events, and only keep permanent */
+  /* remove dynamic events, and keep permanent */
   at_numwait = at_numwait_permanent;
 
   PT_END(pt);
