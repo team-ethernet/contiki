@@ -67,7 +67,7 @@ atwait_init() {
  */
 PT_THREAD(wait_simple_callback(struct pt *pt, struct at_wait *at, int c)) {
   PT_BEGIN(pt);
-  process_post(at->process, at_match_event, at);
+  /* process_post(at->process, at_match_event, at);*/
   PT_END(pt);
 }
 
@@ -122,8 +122,8 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
 PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c)) {
   char ret;
   ret = wait_readline_pt(pt, at, c);
-  if (ret == PT_ENDED)
-    process_post(at->process, at_match_event, at);
+  // if (ret == PT_ENDED)
+  //process_post(at->process, at_match_event, at);
   return ret;
 }
 
@@ -134,8 +134,8 @@ PT_THREAD(wait_readline_callback(struct pt *pt, struct at_wait *at, int c)) {
 PT_THREAD(wait_readlines_callback(struct pt *pt, struct at_wait *at, int c)) {
   char ret;
   ret = wait_readlines_pt(pt, at, c);
-  if (ret == PT_ENDED)
-    process_post(at->process, at_match_event, at);
+  //if (ret == PT_ENDED)
+  //process_post(at->process, at_match_event, at);
   return ret;
 }
 
@@ -173,7 +173,6 @@ start_at(struct at_wait *at) {
   at_waitlist2[at_numwait] = at;
   at_numwait++;
   at->pos = 0;
-  at->process = PROCESS_CURRENT();
 }
 
 void
@@ -181,30 +180,25 @@ restart_at(struct at_wait *at) {
   at->pos = 0;
 }
 
-void
-atwait_start_permanent(struct at_wait *at, ...) {
-  va_list valist;
-  struct at_wait *at1;
-  
-  va_start(valist, at);
-  at1 = at;
-  while (at1) {
-    printf(" '%s' ", at1->str);
-    start_at(at1);
-    at1 = va_arg(valist, struct at_wait *);
-  }
-  at_numwait_permanent = at_numwait;
-}
-
 static void
-vstart_atlist(struct at_wait *at, va_list valist) {
-  
+vstart_atlist(va_list valist) {
+  struct at_wait *at;
   at = va_arg(valist, struct at_wait *);
   while (at) {
     printf(" '%s' ", at->str);
     start_at(at);
     at = va_arg(valist, struct at_wait *);
   }
+}
+
+void
+atwait_start_atlist(uint8_t permanent, ...) {
+  va_list valist;
+  
+  va_start(valist, permanent);
+  vstart_atlist(valist);
+  if (permanent)
+    at_numwait_permanent = at_numwait;
 }
 
 /*
@@ -240,13 +234,18 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
          */
         if (i < at_numwait_permanent)
           atwait_matching = 1;
-        if (match > 0)
-          PT_YIELD(pt); /* Consume char and wait for next */
-        /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
-        PT_INIT(&subpt);
-        while (at->callback(&subpt, at, c) == PT_YIELDED) {
-          PT_YIELD(pt);
+        if (at->callback != NULL) {
+          if (match > 0)
+            PT_YIELD(pt); /* Consume char and wait for next */
+          /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
+          PT_INIT(&subpt);
+          while (at->callback(&subpt, at, c) == PT_YIELDED) {
+            PT_YIELD(pt);
+          }
         }
+        if (i >= at_numwait_permanent)
+          at_wait_match = at;
+
         atwait_matching = 0;
       }
     }
@@ -256,41 +255,44 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
   PT_END(pt);
 }
 
-PT_THREAD(atwait(int lineno, struct pt *pt, process_event_t ev,
-                 process_data_t data, struct at_wait **atp, int seconds, ...)) {
+PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, ...)) {
 //PT_THREAD(atwait(struct pt *pt, process_event_t ev,
 //                 process_data_t data, struct at_wait **atp, int seconds, ...)) {
   va_list valist;
-  struct at_wait *at;
   static struct etimer et;
   
   PT_BEGIN(pt);
-
+  at_wait_match = (struct at_wait *) 0;
+  
   printf("---start_atlist:%d: ", lineno);
   va_start(valist, seconds);
+  vstart_atlist(valist);
+
+#if 0
   at = va_arg(valist, struct at_wait *);
   while (at) {
     printf(" '%s' ", at->str);
     start_at(at);
     at = va_arg(valist, struct at_wait *);
   }
+#endif  
   printf("\n"); 
 
   
   etimer_set(&et, (seconds)*CLOCK_SECOND);
   while (1) {
-    PT_YIELD(pt);
     if(etimer_expired(&et)) {
       printf("---pt_timeout:%d\n", lineno);
       *atp = NULL;
       break; 
     } 
-    else if(ev == at_match_event) {
+    else if (at_wait_match != (struct at_wait *) 0) {
       etimer_stop(&et); 
-      *atp = (struct at_wait *) data;
-      printf("\n---pt_got:%d '%s'\n", lineno, (*atp)->str); 
+      *atp = at_wait_match;
+      printf("\n---flag_got:%d '%s'\n", lineno, (*atp)->str); 
       break;
-    } 
+    }      
+    PT_YIELD(pt);
   } 
 
   /* remove dynamic events, and only keep permanent */

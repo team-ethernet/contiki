@@ -68,7 +68,6 @@ struct gprs_connection gprs_connections[GPRS_MAX_CONNECTION];
 struct gprs_context gprs_context;
 
 process_event_t uart_input_event;
-process_event_t at_match_event;
 
 static struct gprs_status status;
 
@@ -260,21 +259,21 @@ static int at_match_dotquad(struct at_wait *at, int c);
 
 struct at_wait wait_csonmi = {"+CSONMI: ", wait_csonmi_callback, at_match_byte};
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
-struct at_wait wait_ok = {"OK", wait_readline_callback, at_match_byte};
-struct at_wait wait_error = {"ERROR", wait_simple_callback, at_match_byte};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_callback, at_match_byte};
-struct at_wait wait_creg = {"+CREG: ", wait_readline_callback, at_match_byte};
-struct at_wait wait_connectok = {"CONNECT OK", wait_simple_callback, at_match_byte};
-struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_callback, at_match_byte};
-struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", wait_simple_callback, at_match_byte};
-struct at_wait wait_sendprompt = {">", wait_simple_callback, at_match_byte};
+struct at_wait wait_ok = {"OK", wait_readline_pt, at_match_byte};
+struct at_wait wait_error = {"ERROR", NULL, at_match_byte};
+struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_pt, at_match_byte};
+struct at_wait wait_creg = {"+CREG: ", wait_readline_pt, at_match_byte};
+struct at_wait wait_connectok = {"CONNECT OK", NULL, at_match_byte};
+struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_pt, at_match_byte};
+struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", NULL, at_match_byte};
+struct at_wait wait_sendprompt = {">", NULL, at_match_byte};
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_csoerr = {"+CSOERR:", wait_tcpclosed_callback, at_match_byte};
 struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback, at_match_dotquad};
-struct at_wait wait_csq = {"+CSQ:", wait_readline_callback, at_match_byte};
+struct at_wait wait_csq = {"+CSQ:", wait_readline_pt, at_match_byte};
 struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
-struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_callback, at_match_byte};
-struct at_wait wait_ati = {"Ai Thinker", wait_readlines_callback, at_match_byte};
+struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_pt, at_match_byte};
+struct at_wait wait_ati = {"Ai Thinker", wait_readlines_pt, at_match_byte};
 
 /*
  * CIPRCV:len,<data>
@@ -510,7 +509,7 @@ PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c)) {
 #else
   snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", dotquadstr);
 #endif 
-  process_post(&a6at, at_match_event, at);
+  //process_post(&a6at, at_match_event, at);
   PT_END(pt);
 }
 
@@ -554,10 +553,7 @@ static int at_match_dotquad(struct at_wait *at, int c) {
 static void
 wait_init() {
   /* The following are to detect async events -- permanently active */
-  atwait_start_permanent(&wait_csonmi, &wait_csoerr, &wait_gpsrd, NULL);
-
-  //start_at(&wait_ciprcv);
-  //start_at(&wait_tcpclosed);
+  atwait_start_atlist(1, &wait_csonmi, &wait_csoerr, &wait_gpsrd, NULL);
 }
 
 static void
@@ -694,7 +690,6 @@ event_init() {
   a6at_gprs_send = process_alloc_event();
   a6at_gprs_close = process_alloc_event();  
   
-  at_match_event = process_alloc_event();
   uart_input_event = process_alloc_event();
 
   printf("a6at_gprs_init == %s\n", eventstr(a6at_gprs_init));
@@ -1126,8 +1121,10 @@ PROCESS_THREAD(a6at, ev, data) {
         call_event(socket, TCP_SOCKET_CLOSED); 
       }
       else {
+        printf("Call socket_closed\n");
         gprs_statistics.at_timeouts += 1;
         call_event(socket, TCP_SOCKET_CLOSED);
+        printf("Called socket_closed\n");
       }
     } /* ev == a6at_gprs_close */
 #ifdef GPRS_DEBUG
