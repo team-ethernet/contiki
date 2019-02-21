@@ -250,29 +250,28 @@ static
 PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c));
 static
 PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c));
-static
-PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c));
-static
-PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c));
 
-static int at_match_dotquad(struct at_wait *at, int c);
-
+static
 struct at_wait wait_csonmi = {"+CSONMI: ", wait_csonmi_callback, at_match_byte};
+static
 struct at_wait wait_ciprcv = {"+CIPRCV:", wait_ciprcv_callback, at_match_byte};
+static
 struct at_wait wait_ok = {"OK", wait_readline_pt, at_match_byte};
+static
 struct at_wait wait_error = {"ERROR", NULL, at_match_byte};
-struct at_wait wait_cipstatus = {"+CIPSTATUS:", wait_readline_pt, at_match_byte};
-struct at_wait wait_creg = {"+CREG: ", wait_readline_pt, at_match_byte};
-struct at_wait wait_connectok = {"CONNECT OK", NULL, at_match_byte};
+static
 struct at_wait wait_cmeerror = {"+CME ERROR:", wait_readline_pt, at_match_byte};
-struct at_wait wait_commandnoresponse = {"COMMAND NO RESPONSE!", NULL, at_match_byte};
+static
 struct at_wait wait_sendprompt = {">", NULL, at_match_byte};
+static
 struct at_wait wait_tcpclosed = {"+TCPCLOSED:", wait_tcpclosed_callback, at_match_byte};
+static
 struct at_wait wait_csoerr = {"+CSOERR:", wait_tcpclosed_callback, at_match_byte};
-struct at_wait wait_dotquad = {"..." /* not used */, wait_dotquad_callback, at_match_dotquad};
+static
 struct at_wait wait_csq = {"+CSQ:", wait_readline_pt, at_match_byte};
-struct at_wait wait_gpsrd = {"$GPRMC,", wait_gpsrd_callback, at_match_byte};
+static
 struct at_wait wait_dataaccept = {"DATA ACCEPT: ", wait_readline_pt, at_match_byte};
+static
 struct at_wait wait_ati = {"Ai Thinker", wait_readlines_pt, at_match_byte};
 
 /*
@@ -415,145 +414,10 @@ PT_THREAD(wait_tcpclosed_callback(struct pt *pt, struct at_wait *at, int c)) {
   return ret;
 }
 
-static
-PT_THREAD(wait_gpsrd_callback(struct pt *pt, struct at_wait *at, int c)) {
-
-  char ret, *valid;
-  /* 
-     unsigned int year, mon, day, hour, min, sec; 
-     char  foo[6], c[1];
-  */
-  char *p, *time, *s1, *s2, *date;
-
-  /* 
-     A7 NMEA sentence
-     PGSV,3,2,11,20,52,092,23,10,33,169,,08,23,291,,30,11,344,*7B*
-     $GPGSV,3,3,11,07,17,318,,26,22,189,,21,55,086,*4B*
-     $GPRMC,112547.000,A,5951.05612,N,01736.86381,E,0.00,0.00,300182,,,A*6D*
-     $GPVTG,0.00,T,,
-     M,0.00,N,0.00,K,A*3D*
-  */
-
-  ret = wait_readlines_pt(pt, at, c);
-  printf("GPS=%s\n", at_line);
-
-  const char *delim = " \t\r,";
-  time = strtok((char *)&at_line[0], (const char *) delim);
-
-  if(time) printf("time %s\n", time);
-  
-  valid = strtok(NULL, delim);
-  if(valid) printf("valid %s\n", valid);
-  
-  p = strtok(NULL, delim);
-  if(p) {
-    status.lat = strtod(p, NULL);
-    status.lat = status.lat/100.;
-  }
-
-  s1 = strtok(NULL, delim);
-  if(p) printf("s1 %s\n", s1);
-
-  p = strtok(NULL, delim);
-  if(p) {
-    status.longi = strtod(p, NULL);
-    status.longi = status.longi/100.;
-  }
-
-  s2 = strtok(NULL, delim);
-  if(p) printf("s2 %s\n", s2);
-
-  p = strtok(NULL, delim);
-  if(p) status.speed = strtod(p, NULL);
-#define KNOT_TO_KMPH 1.852 
-  status.speed = status.speed * KNOT_TO_KMPH;
-
-  p = strtok(NULL, delim);
-  if(p) status.course = strtod(p, NULL);
-
-  date = strtok(NULL, delim);
-  if(p) printf("date %s\n", date);
-
-  if((!strcmp(valid, "A"))) {
-    /* Fix */
-    printf("valid=%s lon=%-lf lat=%-lf speed=%-6.2lf course=%-lf\n", 
-	   valid, status.lat, status.longi, status.speed, status.course);
-    /* year += 2000; */
-  } 
-  else {
-    /* No fix */
-    status.longi = -1;
-    status.lat = -1;
-    status.speed = -1;
-    status.course = -1;
-  }
-
-#if 0
-    /* Old. Decode $GPRMC sentense */
-    res = sscanf(at_line,"%2d%2d%2d.%3c,%1c,%lf,%1c,%lf,%1c,%lf,%lf,%2d%2d%2d",
-		 &hour, &min, &sec, foo, &valid, &lat, c, &longi, c, &speed, &course, &day, &mon, &year);
-#endif    
-      //nmew_time(year, mon, day, hour, min, sec );
-  return ret;
-}
-
-/*
- * Callback for dotted quad matching. Match function already filled in dotquadstr. Copy to status.
- */
-static char dotquadstr[sizeof("255.255.255.255")];
-static
-PT_THREAD(wait_dotquad_callback(struct pt *pt, struct at_wait *at, int c)) {
-  PT_BEGIN(pt);
-#if NETSTACK_CONF_WITH_IPV6
-  snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", dotquadstr);
-#else
-  snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", dotquadstr);
-#endif 
-  //process_post(&a6at, at_match_event, at);
-  PT_END(pt);
-}
-
-/* 
- * Match an IPv4 address in dotted quad notation 
- * Use at->pos to record how many chars have been recognized
- * so far and stored. Matching is rough: wait for newline,
- * and then check if the buffer appears to contain a dotted quad.
- */
-
-static int at_match_dotquad(struct at_wait *at, int c) {
-  int b1, b2, b3, b4;
-
-  if (c == '\r' || c == '\n') {
-    /* End of line -- have we collected a dotted quad in the buffer? */
-    if (at->pos < sizeof(dotquadstr)) {
-      dotquadstr[at->pos] = '\0';
-      /* Rough check -- look for 3 dots and 4 integers */ 
-      if (sscanf(dotquadstr, "%d.%d.%d.%d", &b1, &b2, &b3, &b4) == 4) {
-        at->pos = 0; /* reset */
-        return 1;
-      }
-      else {
-        /* No dotted quad -- restart. */
-        at->pos = 0;
-      }
-    }
-  }
-  else if (at->pos < sizeof(dotquadstr)) {
-    /* One more char for the buffer */ 
-      dotquadstr[at->pos++] = c;    
-  }
-  else {
-    /* too long -- restart. */
-    at->pos = 0;
-  }
-  /* Not done yet */
-  return -1;
-}
-
 static void
 wait_init() {
   /* The following are to detect async events -- permanently active */
-  atwait_start_atlist(1, &wait_csonmi, &wait_csoerr, &wait_gpsrd, NULL);
+  atwait_start_atlist(1, &wait_csonmi, &wait_csoerr, NULL);
 }
 
 static void
@@ -798,52 +662,34 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif
     printf("Module version %d\n", status.module);
 
-    if(status.module == GPRS_MODULE_A7) {
-      ATSTR("AT+GPS=0\r");
-      ATWAIT2(10, &wait_ok);
-      if (at == NULL) {
-	printf("GPS not disabled\n");
-      }
-      
-      ATSTR("AT+GPS=1\r");
-      ATWAIT2(10, &wait_ok);
-      if (at == NULL) {
-	printf("GPS not enabled\n");
-      }
-      
-      ATSTR("AT+GPSRD=30\r");
-      ATWAIT2(10, &wait_gpsrd);
-      if (at == NULL) {
-	printf("GPSRD not enabled\n");
-      }
-    }
   }
 
   /* Wait for registration status to become 1 (local registration)
    * or 5 (roaming) or 10 (roaming, non-preferred)
    */
   major_tries = 0;
+
   while (major_tries++ < 10) {
     static uint8_t creg;
+    char *cregstr;
     char *p;
 
     ATSTR("AT+CREG?\r");
-    ATWAIT2(30, &wait_creg);
-    if (at == NULL) {
-      printf("CREG AT = NULL\n");
+    atwait_record_on();
+    ATWAIT2(10, &wait_ok);
+    atwait_record_off();
+    if (at == NULL)
       continue;
-    }
-    p = (char *)memchr(at_line, ',', strlen(at_line));
-    p++;
-    creg = atoi((char *) p /*foundbuf*/);
-    printf("creg atoi(\"%s\") -> %d\n", at_line, creg);
-    ATWAIT2(30, &wait_ok);
+    cregstr = strstr(at_line, "+CREG: ") + strlen("+CREG: ");
+    cregstr = (char *)memchr(cregstr, ',', strlen(cregstr));
+    creg = atoi((char *) cregstr+1);
+    printf("CREG -> %d\n", creg);
     if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
       status.state = GPRS_STATE_REGISTERED;
-      break;
+      break; 
     }
   }
-  
+
   if (major_tries >= 10) {
 #ifdef GPRS_DEBUG
     printf("GPRS registration timeout\n");
@@ -900,9 +746,13 @@ PROCESS_THREAD(a6at, ev, data) {
     minor_tries = 0;
     while (minor_tries++ < 10) {
       ATSTR("AT+CIPSTATUS?\r"); 
-      ATWAIT2(60, &wait_cipstatus);
-      if (at == &wait_cipstatus) {
-        if (strncmp((char *) at_line, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
+      atwait_record_on();
+      ATWAIT2(60, &wait_ok);
+      atwait_record_off();
+      if (at == &wait_ok) {
+        char *gprsact;
+        gprsact = strstr(at_line, "+CIPSTATUS:") + strlen("+CIPSTATUS:");
+        if (strncmp(gprsact, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
           gcontext->active = 1;
           status.state = GPRS_STATE_ACTIVE;
           break;
@@ -926,33 +776,46 @@ PROCESS_THREAD(a6at, ev, data) {
   
   /* Get IP address */
   ATSTR("AT+CIFSR\r");
-  ATWAIT2(2, &wait_dotquad);
-  if (at == NULL)  {
+  atwait_record_on();
+  ATWAIT2(2, &wait_ok);
+  atwait_record_off();
+  if (at == &wait_ok) {
+    printf("Recorded quad: --- '%s' ---\n", at_line);
+#if 0
+    const char *delim = " \t\r,";
+    char *s = strtok(at_line, delim);
+    printf("First string '%s'\n", s);
+    s = strtok(NULL, delim);
+    printf("Second string '%s'\n", s);
+    s++; /* Skip newline at pos 0 */
+#if NETSTACK_CONF_WITH_IPV6
+    snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", s);
+#else
+    snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", s);
+#endif 
+#endif
+  }
+  else {
     gprs_statistics.at_timeouts += 1;
   }
-
+  
 #ifdef GPRS_DEBUG
   printf("GPRS initialised\n");  
 #endif /* GPRS_DEBUG */
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
 
-  if(status.module == GPRS_MODULE_A7) {
-    ATSTR("AT+AGPS=1\r");
-    ATWAIT2(25, &wait_ok);
-    if (at == NULL) {
-      printf("AGPS not enabled\n");
-    }
-    ATSTR("AT+GPSRD=30\r");
-    ATWAIT2(10, &wait_gpsrd);
-    if (at == NULL) {
-      printf("GPSRD not enabled\n");
-    }
-  }
-#endif
+#endif  /* #if 0 */
   
   /* Get IP address */
     ATSTR("AT+CGCONTRDP\r");
-    ATWAIT2(2, &wait_dotquad);
+    atwait_record_on();
+    ATWAIT2(2, &wait_ok);
+    atwait_record_off();
+    if (at == &wait_ok) {
+      char *dotquad;
+      printf("### Got PDP context params '%s'\n", at_line);
+    }
+
     if (at == NULL)  {
       gprs_statistics.at_timeouts += 1;
     }
@@ -967,14 +830,8 @@ PROCESS_THREAD(a6at, ev, data) {
     if (gprs_event == NULL) {
       PROCESS_PAUSE();
       goto nextcommand;
-      PROCESS_WAIT_EVENT();
-      if (GPRS_EVENT(ev))
-          enqueue_event(ev, data);
-      goto nextcommand;
     }
     else
-      printf("dequeed eveny %d %s\n", gprs_event->ev, eventstr(gprs_event->ev));
-
     if (gprs_event->ev == a6at_gprs_connection) {
 #ifdef GPRS_DEBUG
       printf("A6AT GPRS Connection\n");
@@ -991,32 +848,15 @@ PROCESS_THREAD(a6at, ev, data) {
 	printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
 	ATSTR("AT+CSOC=1,1,1\r");
 	ATWAIT2(10, &wait_ok);
-	sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
 
+	sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
         ATSTR(str);
-        //ATWAIT2(60, &wait_ok, &wait_connectok, &wait_cmeerror, &wait_commandnoresponse);
         ATWAIT2(60, &wait_ok, &wait_error);        
         if (at == &wait_ok) {
           gprs_statistics.connections += 1;
           call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
           goto nextcommand;
         }
-#if 0
-        else if (at == &wait_connectok) {
-          gprs_statistics.connections += 1;
-          call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
-          goto nextcommand;
-        }
-        else if (at == &wait_commandnoresponse) {
-          /* Give it some more time. It happens that the connection succeeds seconds after COMMAND NO RESPONSE! */
-          ATWAIT2(15, &wait_connectok);
-          if (at == &wait_connectok) {
-            gprs_statistics.connections += 1;
-            call_event(gprsconn->socket, TCP_SOCKET_CONNECTED);
-            goto nextcommand;
-          }
-        }
-#endif
         /* If we ended up here, we failed to set up connection */
         if (at == NULL) {
           /* Timeout */
@@ -1028,7 +868,7 @@ PROCESS_THREAD(a6at, ev, data) {
           call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
           goto nextcommand;
         }        
-        else if (at == &wait_cmeerror || at == &wait_error) {
+        else if (at == &wait_error) {
           /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
           /* Seen +CME ERROR:53 */
           printf("CIPSTART failed\n");
@@ -1094,7 +934,10 @@ PROCESS_THREAD(a6at, ev, data) {
         }
         ATBUF(&ptr[gprsconn->output_data_len-remain], len);
         ATWAIT2(30, &wait_ok, &wait_error, &wait_dataaccept);
+#if 0
         if (at == NULL || at == &wait_commandnoresponse || at == &wait_error) {
+#endif
+        if (at == NULL || at == &wait_error) {
           gprs_statistics.at_timeouts += 1;
           goto failed;
         }        
@@ -1146,12 +989,18 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif /* GPRS_DEBUG */
 
     ATSTR("AT+CSQ\r");
+    atwait_record_on();
     ATWAIT2(5, &wait_csq);
+    atwait_record_off();
+
     if (at == NULL)
       continue;
-    status.rssi = atoi((char *) at_line /*foundbuf*/);
-    printf("rssi atoi(\"%s\") -> %d\n", at_line, status.rssi);
-    ATWAIT2(5, &wait_ok);
+    else {
+      char *csq;
+      csq = strstr(at_line, "+CSQ:") + strlen("+CSQ:");    
+      status.rssi = atoi((char *) csq /*foundbuf*/);
+      ATWAIT2(5, &wait_ok);
+    }
     continue;
   failed:
     /* Timeout */

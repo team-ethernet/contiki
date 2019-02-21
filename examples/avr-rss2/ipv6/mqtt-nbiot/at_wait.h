@@ -16,7 +16,7 @@ struct at_wait *at_waitlist2[MAXWAIT];
 
 struct at_wait *at_wait_match; 	/* Latest match */
 
-#define AT_LINE_SIZE 80
+#define AT_LINE_SIZE 200
 char at_line[AT_LINE_SIZE]; /* Where generic callbacks put result */
 
 uint8_t atwait_matching; /* set to true during callback after match */
@@ -46,8 +46,13 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c));
 /* Match functions */
 int
 at_match_byte(struct at_wait *at, int c);
+int
+at_match_null(struct at_wait *at, int c);
 
-
+void
+atwait_record_on();
+void
+atwait_record_off();
 
 PT_THREAD(wait_fsm_pt(struct pt *pt, int c));
 

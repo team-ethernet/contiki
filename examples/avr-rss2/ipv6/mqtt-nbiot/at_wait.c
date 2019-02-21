@@ -62,22 +62,13 @@ atwait_init() {
 
 /*
  * FSM protothread to read characters until end of line
- * Characters are stored into at_line buffer, and atpos is the
- * number of chars in the buffer
  */ 
 PT_THREAD(wait_readline_pt(struct pt *pt, struct at_wait *at, int c)) {
-  static int atpos;
 
   PT_BEGIN(pt);
-
-  atpos = 0; 
   while (c != '\n' && c != '\r') {
-    if (atpos < sizeof(at_line)-1)
-      at_line[atpos++] = (uint8_t) c;
     PT_YIELD(pt);
   }
-  /* done -- mark end of string */
-  at_line[atpos] = '\0';
   PT_END(pt);
 }
 
@@ -128,6 +119,15 @@ int at_match_byte(struct at_wait *at, int c) {
   return -1;
 }
 
+/* Match and store byte: check one byte at a time. 
+ * Also record bytes in at_line buffer. Useful when
+ * need to process the string that lead to
+ * the match.
+ */
+int at_match_null(struct at_wait *at, int c) {
+  return 0;
+}
+
 void
 start_at(struct at_wait *at) {
   if (at_numwait >= MAXWAIT) {
@@ -170,6 +170,20 @@ atwait_start_atlist(uint8_t permanent, ...) {
     at_numwait_permanent = at_numwait;
 }
 
+static uint8_t recording = 0;
+static unsigned int recordpos;
+void
+atwait_record_on() {
+  recording = 1;
+  recordpos = 0;
+}
+
+void
+atwait_record_off() {
+  recording = 0;
+  at_line[recordpos] = '\0';
+}
+
 /*
  * Main loop for input matching. Take one byte at a time, and call each
  * active matching state machine. 
@@ -184,6 +198,16 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
   static struct at_wait *at;
   int match;
     
+  if (recording) {
+    if (recordpos < AT_LINE_SIZE) {
+      at_line[recordpos++] = c;
+    }
+    else {
+      printf("at_line full while recording\n");
+    }
+    at_line[recordpos] = 0;
+  }
+
   PT_BEGIN(pt);
 
   while (1) {
@@ -239,14 +263,14 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
   etimer_set(&et, (seconds)*CLOCK_SECOND);
   while (1) {
     if(etimer_expired(&et)) {
-      printf("---pt_timeout:%d\n", lineno);
+      printf("---timeout:%d\n", lineno);
       *atp = NULL;
       break; 
     } 
     else if (at_wait_match != NULL) {
       etimer_stop(&et); 
       *atp = at_wait_match;
-      printf("\n---flag_got:%d '%s'\n", lineno, (*atp)->str); 
+      printf("\n---got:%d '%s'\n", lineno, (*atp)->str); 
       break;
     }      
     PT_YIELD(pt);
