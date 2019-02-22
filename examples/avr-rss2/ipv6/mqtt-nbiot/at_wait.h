@@ -68,4 +68,12 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
   }                                                                               \
 }  
 
+#define PT_ATWAIT2(SEC, ...)  {                                                      \
+    static struct pt atpt;                                                          \
+    PT_INIT(&atpt);                                                                 \
+    while (atwait(__LINE__, &atpt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
+      PT_YIELD(pt);                                                       \
+  }                                                                               \
+}  
+
 #endif /* AT_WAIT_H */

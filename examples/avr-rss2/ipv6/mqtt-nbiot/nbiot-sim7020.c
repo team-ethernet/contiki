@@ -500,11 +500,26 @@ static size_t sendbuf_remain;
   } \
 }
 
+#define pt_sendbuf(buf, len) { \
+  sendbuf_remain = len; \
+  while (sendbuf_remain > 0) { \
+    if (atwait_matching) {	    \
+      printf("MATCHING\n"); \
+      PT_WAIT_UNTIL(pt, atwait_matching == 0);   \
+      printf("DONE MATCHING\n"); \
+    } \
+    rs232_send_fix(uart, &(buf)[len - sendbuf_remain]);	\
+    sendbuf_remain--; \
+    continue; \
+  } \
+}
+
 #define GPRS_EVENT(E) (E >= a6at_gprs_init && E <= at_match_event)
 
 //#define ATSTR(str) sendbuf_fun(((unsigned char *) str), strlen(str))
 //#define ATSTR(str) sendbuf(((unsigned char *) str), strlen(str))
 #define ATSTR(str) {printf("-->%s\n", str); sendbuf(((unsigned char *) str), strlen(str))}
+#define PT_ATSTR(str) {printf("-->%s\n", str); pt_sendbuf(((unsigned char *) str), strlen(str))}
 #define ATBUF(buf, len) sendbuf(buf, len)
 
 static void
@@ -601,9 +616,38 @@ dequeue_event() {
 static struct tcp_socket_gprs *socket;
 static struct gprs_connection *gprsconn;
 
+static
+PT_THREAD(cell_register(struct pt *pt)) {
+  struct at_wait *at;
+  static char str[80];
+
+  PT_BEGIN(pt);
+
+#ifdef NB_IOT_TELIA	
+  PT_ATSTR("AT+COPS=1,2,\"24001\"\r");
+  PT_ATWAIT2(10, &wait_ok);
+
+  PT_ATSTR("AT+CFUN=0\r");
+  PT_ATWAIT2(10, &wait_ok);
+
+  sprintf(str, "*MCGDEFCONT=\"%s\",%s\r", PDPTYPE, APN); /* Set PDP (Packet Data Protocol) context */
+  PT_ATSTR(str);
+  PT_ATWAIT2(10, &wait_ok);
+
+  PT_ATSTR("AT+CFUN=1\r");
+  PT_ATWAIT2(10, &wait_ok);
+
+  PT_ATSTR("AT+CSQ\r");
+  PT_ATWAIT2(10, &wait_ok);
+  printf("Did IOT telia register\n");
+#endif /* NB_IOT_TELIA */
+  PT_END(pt);
+}
+
 PROCESS_THREAD(a6at, ev, data) {
   //unsigned char *res;
   struct at_wait *at;
+  static struct pt pt;                          \
   static uint8_t minor_tries, major_tries;
   char str[80];
 
@@ -612,6 +656,7 @@ PROCESS_THREAD(a6at, ev, data) {
   event_init();
   event_queue_init();
 
+#undef NB_IOT_TELIA	
 #ifdef NB_IOT_TELIA	
   ATSTR("AT+COPS=1,2,\"24001\"\r");
   ATWAIT2(10, &wait_ok);
@@ -631,6 +676,12 @@ PROCESS_THREAD(a6at, ev, data) {
 
 #endif
   
+  PT_INIT(&pt);
+  while (cell_register(&pt) < PT_EXITED) {
+    PROCESS_PAUSE();
+  } 
+
+  /*  PROCESS_PT_SPAWN(&pt, cell_register(&pt));*/
  again:
 
   {
@@ -683,7 +734,6 @@ PROCESS_THREAD(a6at, ev, data) {
     cregstr = strstr(at_line, "+CREG: ") + strlen("+CREG: ");
     cregstr = (char *)memchr(cregstr, ',', strlen(cregstr));
     creg = atoi((char *) cregstr+1);
-    printf("CREG -> %d\n", creg);
     if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
       status.state = GPRS_STATE_REGISTERED;
       break; 
