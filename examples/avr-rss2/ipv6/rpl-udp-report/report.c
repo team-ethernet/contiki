@@ -56,7 +56,7 @@
 #include "net/ip/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 60
+#define PERIOD 30
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -88,14 +88,15 @@ tcpip_handler(void)
 static void
 send_packet(void *ptr)
 {
-  static int seq_id;
+  static uint32_t seq_id;
   char buf[MAX_PAYLOAD_LEN];
   int len = 0;
-  
+
   seq_id++;
 
   len += snprintf((char *) &buf[len], sizeof(buf), "&: ");
   len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
+  len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-lu ", seq_id);
 
   /* 
    * Cooja needs to set a node_id. So we can skip sensor reading in case of simulation.
