@@ -229,9 +229,8 @@ rtimer_arch_schedule(rtimer_clock_t t)
 #endif /* RTIMER_ARCH_PRESCALER */
 }
 
-#if RDC_CONF_MCU_SLEEP
-
-int16_t wait_clock_tick;
+#ifdef RDC_CONF_MCU_SLEEP
+uint16_t wait_clock_tick;
 volatile uint8_t clock_tick_pending;
 /*---------------------------------------------------------------------------*/
 void
@@ -244,21 +243,23 @@ rtimer_arch_sleep(rtimer_clock_t howlong)
  * precision but smaller maximum sleep time.
  */
 #include <avr/sleep.h>
-
-  //wait_clock_tick = howlong/CLOCK_SECOND;
-  wait_clock_tick = howlong;
-  howlong = 0;
+#include <dev/watchdog.h>
+  
+  wait_clock_tick = (howlong + (RTIMER_SECOND/CLOCK_SECOND)/2) / (RTIMER_SECOND/CLOCK_SECOND);
+  sreg = SREG;
+  cli();
   clock_tick_pending = 0;
-
+  SREG = sreg;
+    
   while(wait_clock_tick > 0)  {
+    watchdog_periodic();
     set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-    sleep_mode();
+    sleep_mode(); 
     /* Only clock timer interrupts is considered */
     if(clock_tick_pending) {
       sreg = SREG;
       cli();
-      wait_clock_tick -= RTIMER_SECOND/CLOCK_SECOND;
-      howlong += RTIMER_SECOND/CLOCK_SECOND;
+      wait_clock_tick--;
       clock_tick_pending = 0;
       SREG = sreg;
     }

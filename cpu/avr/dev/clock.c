@@ -339,7 +339,9 @@ extern volatile uint8_t clock_tick_pending;
 ISR(TIMER2_OVF_vect)
 {
     count++;
+#ifdef  RDC_CONF_MCU_SLEEP
     clock_tick_pending = 1;
+#endif    
 #if TWO_COUNTERS
   if(++scount >= CLOCK_SECOND) {
     scount = 0;

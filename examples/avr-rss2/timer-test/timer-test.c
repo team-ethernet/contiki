@@ -9,7 +9,8 @@
  *
  */
 
-/* Version for 16 bit timrs Robert Olsson */
+/* Version for 16 bit timers Robert Olsson */
+/* mcu_sleep test added */
 
 #include "contiki.h"
 #include "sys/clock.h"
@@ -42,7 +43,7 @@ static clock_time_t count;
 
 #if TEST_RTIMER
 static struct rtimer rt;
-rtimer_clock_t rt_now, rt_for;
+rtimer_clock_t rt_now, rt_for, rt_mcu_sleep;
 static clock_time_t ct;
 #endif
 
@@ -59,6 +60,18 @@ rt_callback(struct rtimer *t, void *ptr)
   ct = clock_time();
   leds_on(LEDS_RED);
 }
+#if RDC_CONF_MCU_SLEEP
+void
+rt_callback_mcu_sleep(struct rtimer *t, void *ptr)
+{
+
+  /* Sleep wait */
+  rtimer_arch_sleep(rt_mcu_sleep);
+  rt_now = RTIMER_NOW();
+  ct = clock_time();
+  leds_on(LEDS_RED);
+}
+#endif
 #endif
 
 #ifdef CONTIKI_TARGET_AVR_RSS2
@@ -116,6 +129,9 @@ PROCESS_THREAD(clock_test_process, ev, data)
 #endif
 
 #if TEST_RTIMER
+
+  rt_mcu_sleep = 10000;
+  
   printf("Rtimer Test, 1 sec (%lu rtimer ticks):\n", RTIMER_SECOND);
   i = 0;
   while(i < 5) {
@@ -134,6 +150,27 @@ PROCESS_THREAD(clock_test_process, ev, data)
     printf("Task called at %u (clock = %lu)\n", rt_now, ct);
     i++;
   }
+
+#if RDC_CONF_MCU_SLEEP
+  printf("Rtimer Test MCU sleep, 1 sec (%lu rtimer ticks):\n", RTIMER_SECOND);
+  i = 0;
+  while(i < 5) {
+    /* One sec extra for etimer to finish befor rtimer */
+    etimer_set(&et, CLOCK_SECOND*11); 
+    printf("rt_mcu_sleep=%-u ==============\n", rt_mcu_sleep);
+    ct = clock_time();
+    rt_now = RTIMER_NOW();
+    rt_for = rt_now + RTIMER_SECOND*10;
+    printf("Now=%u (clock = %lu) Task scheduled for=%u\n", rt_now, ct, rt_for + rt_mcu_sleep);
+    if(rtimer_set(&rt, rt_for, 1, (rtimer_callback_t) rt_callback_mcu_sleep, NULL) !=
+       RTIMER_OK) {
+      printf("Error setting\n");
+    }
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    printf("Task called at %u (clock = %lu)\n", rt_now, ct);
+    i++;
+  }
+#endif  
 #endif
 
 #if TEST_ETIMER
