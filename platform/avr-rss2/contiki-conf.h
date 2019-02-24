@@ -156,6 +156,7 @@
 /* The radio needs to interrupt during an rtimer interrupt */
 #define RTIMER_CONF_NESTED_INTERRUPTS 1
 #define RTIMER_ARCH_PRESCALER 256
+#define RTIMER_ARCH_CORRECTION -1
 
 typedef unsigned long clock_time_t;
 #define CLOCK_LT(a, b)  ((signed long)((a) - (b)) < 0)

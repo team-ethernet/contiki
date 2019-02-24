@@ -204,6 +204,11 @@ rtimer_arch_schedule(rtimer_clock_t t)
 #if RTIMER_ARCH_PRESCALER
   /* Disable interrupts (store old state) */
   uint8_t sreg;
+#if RTIMER_ARCH_CORRECTION 
+#define ABS(x) (x < 0 ? -x : x)
+  if(t > ABS(RTIMER_ARCH_CORRECTION)) t += RTIMER_ARCH_CORRECTION;
+#endif
+  
   sreg = SREG;
   cli ();
   DEBUGFLOW(':');
