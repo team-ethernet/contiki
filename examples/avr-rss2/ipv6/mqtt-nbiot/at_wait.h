@@ -63,7 +63,7 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
 #define ATWAIT2(SEC, ...)  {                                                      \
     static struct pt pt;                                                          \
     PT_INIT(&pt);                                                                 \
-    while (atwait(__LINE__, &pt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
+while (atwait(__LINE__, &pt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
       PROCESS_PAUSE();                                                       \
   }                                                                               \
 }  
@@ -72,6 +72,22 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
     static struct pt atpt;                                                          \
     PT_INIT(&atpt);                                                                 \
     while (atwait(__LINE__, &atpt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
+      PT_YIELD(pt);                                                       \
+  }                                                                               \
+}  
+
+#define DELAY(SEC)  {                                                      \
+    static struct pt pt;                                                          \
+    PT_INIT(&pt);                                                                 \
+    while (atwait(__LINE__, &pt, &at, SEC, NULL) < PT_EXITED) { \
+      PROCESS_PAUSE();                                                       \
+  }                                                                               \
+}  
+
+#define PT_DELAY(SEC)  {                                                      \
+    static struct pt atpt;                                                          \
+    PT_INIT(&atpt);                                                                 \
+    while (atwait(__LINE__, &atpt, &at, SEC, NULL) < PT_EXITED) { \
       PT_YIELD(pt);                                                       \
   }                                                                               \
 }  

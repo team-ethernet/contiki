@@ -545,11 +545,6 @@ enqueue_event(process_event_t ev, void *data);
   } \
   }
 
-#define DELAY(SEC) {\
-  printf("%d: start etimer %lu, clock_time() = %lu\n", __LINE__, (clock_time_t) SEC*CLOCK_SECOND, clock_time()); \
-  CLOCKDELAY((SEC)*CLOCK_SECOND);                                 \
-  }
-
 char *eventstr(process_event_t ev) {
   static char buf[64]; 
     if (ev == a6at_gprs_init) sprintf(buf, " a6at_gprs_init (%d)", ev); 
@@ -616,8 +611,29 @@ dequeue_event() {
 static struct tcp_socket_gprs *socket;
 static struct gprs_connection *gprsconn;
 
+PT_THREAD(read_csq(struct pt *pt)) {
+  struct at_wait *at;
+
+  PT_BEGIN(pt);
+  PT_ATSTR("AT+CSQ\r");
+  atwait_record_on();
+  PT_ATWAIT2(5, &wait_csq);
+  atwait_record_off();
+
+  if (at == NULL)
+    gprs_statistics.at_timeouts += 1;
+  else {
+    char *csq;
+    csq = strstr(at_line, "+CSQ:") + strlen("+CSQ:");    
+    status.rssi = atoi((char *) csq /*foundbuf*/);
+    printf("Got CSQ: %d\n", status.rssi);
+    PT_ATWAIT2(5, &wait_ok);
+  }
+  PT_END(pt);
+}
+
 static
-PT_THREAD(cell_register(struct pt *pt)) {
+PT_THREAD(apn_register(struct pt *pt)) {
   struct at_wait *at;
   static char str[80];
 
@@ -626,28 +642,89 @@ PT_THREAD(cell_register(struct pt *pt)) {
 #ifdef NB_IOT_TELIA	
   PT_ATSTR("AT+COPS=1,2,\"24001\"\r");
   PT_ATWAIT2(10, &wait_ok);
-
+  if (at == NULL) PT_EXIT(pt);
+    
   PT_ATSTR("AT+CFUN=0\r");
   PT_ATWAIT2(10, &wait_ok);
-
+  if (at == NULL) PT_EXIT(pt);
+  
   sprintf(str, "*MCGDEFCONT=\"%s\",%s\r", PDPTYPE, APN); /* Set PDP (Packet Data Protocol) context */
   PT_ATSTR(str);
   PT_ATWAIT2(10, &wait_ok);
-
+  if (at == NULL) PT_EXIT(pt);
+  
   PT_ATSTR("AT+CFUN=1\r");
   PT_ATWAIT2(10, &wait_ok);
 
-  PT_ATSTR("AT+CSQ\r");
-  PT_ATWAIT2(10, &wait_ok);
-  printf("Did IOT telia register\n");
+  {
+    static struct pt _pt;
+    PT_INIT(&_pt);
+    while (read_csq(&_pt) < PT_EXITED) {
+      PT_YIELD(pt);
+    }
+  }
 #endif /* NB_IOT_TELIA */
+
+  static uint8_t major_tries;
+  major_tries = 0;
+  while (major_tries++ < 10) {
+    static uint8_t creg;
+    char *cregstr;
+
+    PT_ATSTR("AT+CREG?\r");
+    atwait_record_on();
+    PT_ATWAIT2(10, &wait_ok);
+    atwait_record_off();
+    if (at == NULL)
+      break;
+    cregstr = strstr(at_line, "+CREG: ") + strlen("+CREG: ");
+    cregstr = (char *)memchr(cregstr, ',', strlen(cregstr));
+    creg = atoi((char *) cregstr+1);
+    if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
+      status.state = GPRS_STATE_REGISTERED;
+      break; 
+    }
+    PT_DELAY(5);
+  }
+
+  if (major_tries >= 10) {
+#ifdef GPRS_DEBUG
+    printf("GPRS registration timeout\n");
+#endif /* GPRS_DEBUG */
+    gprs_statistics.resets += 1;
+  }
+  
+  PT_END(pt);
+}
+
+PT_THREAD(get_module_info(struct pt *pt)) {
+  struct at_wait *at;
+
+  PT_BEGIN(pt);
+  status.module = GPRS_MODULE_UNNKOWN;
+  PT_ATSTR("ATI\r");
+  PT_ATWAIT2(10, &wait_ok);
+  if (at == NULL) {
+    printf("No module version found\n");
+  }
+  else {
+    char *ver;
+    ver = strstr(at_line, "SIM7020E ");
+    if (ver != NULL) {
+      status.module = GPRS_MODULE_SIM7020E;
+    }
+    else {
+      printf("No module version found\n");
+    }
+  }
+  printf("Module version %d\n", status.module);
   PT_END(pt);
 }
 
 PROCESS_THREAD(a6at, ev, data) {
   //unsigned char *res;
   struct at_wait *at;
-  static struct pt pt;                          \
+  static struct pt pt;
   static uint8_t minor_tries, major_tries;
   char str[80];
 
@@ -656,221 +733,36 @@ PROCESS_THREAD(a6at, ev, data) {
   event_init();
   event_queue_init();
 
-#undef NB_IOT_TELIA	
-#ifdef NB_IOT_TELIA	
-  ATSTR("AT+COPS=1,2,\"24001\"\r");
-  ATWAIT2(10, &wait_ok);
-
-  ATSTR("AT+CFUN=0\r");
-  ATWAIT2(10, &wait_ok);
-
-  sprintf(str, "*MCGDEFCONT=\"%s\",%s\r", PDPTYPE, APN); /* Set PDP (Packet Data Protocol) context */
-  ATSTR(str);
-  ATWAIT2(10, &wait_ok);
-
-  ATSTR("AT+CFUN=1\r");
-  ATWAIT2(10, &wait_ok);
-
-  ATSTR("AT+CSQ\r");
-  ATWAIT2(10, &wait_ok);
-
-#endif
-  
+ again:
   PT_INIT(&pt);
-  while (cell_register(&pt) < PT_EXITED) {
+  while (apn_register(&pt) < PT_EXITED) {
     PROCESS_PAUSE();
   } 
-
-  /*  PROCESS_PT_SPAWN(&pt, cell_register(&pt));*/
- again:
-
-  {
-    status.module = GPRS_MODULE_UNNKOWN;
-    ATSTR("ATI\r");
-    ATWAIT2(10, &wait_ati);
-    if (at == NULL) {
-      printf("No module version found\n");
-    }
-    else {
-      int i;
-      const char *delim = " \t\r,";
-      char *p = strtok((char *)&at_line[0], (const char *) delim);
-      for(i=0; i <  sizeof(at_line); i++) {
-	p = strtok(NULL, delim);
-	if(!strcmp(p, "A6")) {
-	  status.module = GPRS_MODULE_A6;
-	  break;
-	}
-	if(!strcmp(p, "A7")) {
-	  status.module = GPRS_MODULE_A7;
-	  break;
-	}
-      }
-    }
-
-#ifdef GPRS_CONF_FORCE_A6
-    status.module = GPRS_MODULE_A6; /* To avoid GPS with A7 */
-#endif
-    printf("Module version %d\n", status.module);
-
-  }
-
-  /* Wait for registration status to become 1 (local registration)
-   * or 5 (roaming) or 10 (roaming, non-preferred)
-   */
-  major_tries = 0;
-
-  while (major_tries++ < 10) {
-    static uint8_t creg;
-    char *cregstr;
-    char *p;
-
-    ATSTR("AT+CREG?\r");
-    atwait_record_on();
-    ATWAIT2(10, &wait_ok);
-    atwait_record_off();
-    if (at == NULL)
-      continue;
-    cregstr = strstr(at_line, "+CREG: ") + strlen("+CREG: ");
-    cregstr = (char *)memchr(cregstr, ',', strlen(cregstr));
-    creg = atoi((char *) cregstr+1);
-    if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
-      status.state = GPRS_STATE_REGISTERED;
-      break; 
-    }
-  }
-
-  if (major_tries >= 10) {
-#ifdef GPRS_DEBUG
-    printf("GPRS registration timeout\n");
-#endif /* GPRS_DEBUG */
-    gprs_statistics.resets += 1;
+  if (status.state < GPRS_STATE_REGISTERED) {
+    printf ("Not ready...\n");
+    ATWAIT2(10, &wait_ati); /* Delay */
+    PT_INIT(&pt);
+    while (read_csq(&pt) < PT_EXITED) {
+      PROCESS_PAUSE();
+    } 
     goto again;
   }
-  
-  /* Then activate context */
-  major_tries = 0;
 
-#if 0
-  while (major_tries++ < 10 && status.state != GPRS_STATE_ACTIVE)
-  {
-    static struct gprs_context *gcontext;
-
-    gcontext = &gprs_context;
-
-    /* Deactivate PDP context */
-    sprintf(str, "AT+CSTT=\"%s\", \"\", \"\"\r", gcontext->apn); /* Start task and set APN */
-    ATSTR(str);   
-    ATWAIT2(20, &wait_ok);
-      
-    ATSTR("AT+CGATT=1\r");
-    ATWAIT2(20, &wait_ok);
-
-    ATSTR("AT+CIPMUX=0\r");
-    ATWAIT2(5, &wait_ok);
-
-    minor_tries = 0;
-    while (minor_tries++ < 10) {
-
-      sprintf(str, "AT+CGDCONT=1,\"%s\",%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
-      ATSTR(str);
-      ATWAIT2(5, &wait_ok);
-      ATSTR("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
-      ATWAIT2(20, &wait_ok,  &wait_cmeerror);
-      if (at == &wait_ok) {
-        break;
-      }
-      if (at == &wait_cmeerror) {
-#ifdef GPRS_DEBUG
-        printf("CGACT failed with CME ERROR:%s\n", at_line);
-#endif /* GPRS_DEBUG */
-        gprs_statistics.at_errors += 1;
-      }
-      else {
-        gprs_statistics.at_timeouts += 1;
-      }
-      DELAY(5);
-    }
-    if (minor_tries++ >= 10)
-      continue;
-    minor_tries = 0;
-    while (minor_tries++ < 10) {
-      ATSTR("AT+CIPSTATUS?\r"); 
-      atwait_record_on();
-      ATWAIT2(60, &wait_ok);
-      atwait_record_off();
-      if (at == &wait_ok) {
-        char *gprsact;
-        gprsact = strstr(at_line, "+CIPSTATUS:") + strlen("+CIPSTATUS:");
-        if (strncmp(gprsact, "0,IP GPRSACT", strlen("0,IP GPRSACT")) == 0) {
-          gcontext->active = 1;
-          status.state = GPRS_STATE_ACTIVE;
-          break;
-        }
-        else {
-          DELAY(5);
-        }
-      }
-    }
-    if (minor_tries++ >= 10) {
-      /* Failed to activate */
-      ATSTR("AT+CIPSHUT\r");
-      ATWAIT2(10, &wait_ok);
-      continue;
-    }
-  } /* Context activated */
-  if (major_tries >= 10) {
-    gprs_statistics.resets += 1;
-    goto again;
-  }
-  
   /* Get IP address */
-  ATSTR("AT+CIFSR\r");
+  ATSTR("AT+CGCONTRDP\r");
   atwait_record_on();
   ATWAIT2(2, &wait_ok);
   atwait_record_off();
   if (at == &wait_ok) {
-    printf("Recorded quad: --- '%s' ---\n", at_line);
-#if 0
-    const char *delim = " \t\r,";
-    char *s = strtok(at_line, delim);
-    printf("First string '%s'\n", s);
-    s = strtok(NULL, delim);
-    printf("Second string '%s'\n", s);
-    s++; /* Skip newline at pos 0 */
-#if NETSTACK_CONF_WITH_IPV6
-    snprintf(status.ipaddr, sizeof(status.ipaddr), "::ffff:%s", s);
-#else
-    snprintf(status.ipaddr, sizeof(status.ipaddr), "%s", s);
-#endif 
-#endif
+    char *dotquad;
+    printf("### Got PDP context params '%s'\n", at_line);
   }
-  else {
+  
+  if (at == NULL)  {
     gprs_statistics.at_timeouts += 1;
   }
-  
-#ifdef GPRS_DEBUG
-  printf("GPRS initialised\n");  
-#endif /* GPRS_DEBUG */
+  status.state = GPRS_STATE_ACTIVE;
   process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
-
-#endif  /* #if 0 */
-  
-  /* Get IP address */
-    ATSTR("AT+CGCONTRDP\r");
-    atwait_record_on();
-    ATWAIT2(2, &wait_ok);
-    atwait_record_off();
-    if (at == &wait_ok) {
-      char *dotquad;
-      printf("### Got PDP context params '%s'\n", at_line);
-    }
-
-    if (at == NULL)  {
-      gprs_statistics.at_timeouts += 1;
-    }
-    status.state = GPRS_STATE_ACTIVE;
-    process_post(PROCESS_BROADCAST, a6at_gprs_init, NULL);
 	  
   /* Main loop. Wait for GPRS command and execute them */
   while(1) {
@@ -881,8 +773,7 @@ PROCESS_THREAD(a6at, ev, data) {
       PROCESS_PAUSE();
       goto nextcommand;
     }
-    else
-    if (gprs_event->ev == a6at_gprs_connection) {
+    else if (gprs_event->ev == a6at_gprs_connection) {
 #ifdef GPRS_DEBUG
       printf("A6AT GPRS Connection\n");
 #endif /* GPRS_DEBUG */
@@ -891,15 +782,15 @@ PROCESS_THREAD(a6at, ev, data) {
       minor_tries = 0;
       while (minor_tries++ < 10) {
 	
-	//printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+        //printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
         //sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
-	//sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
+        //sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", gprsconn->proto, gprsconn->ipaddr, uip_ntohs(gprsconn->port));
 
-	printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
-	ATSTR("AT+CSOC=1,1,1\r");
-	ATWAIT2(10, &wait_ok);
+        printf("Here is connection %s %s:%d\n", gprsconn->proto, gprsconn->ipaddr, uip_htons(gprsconn->port));
+        ATSTR("AT+CSOC=1,1,1\r");
+        ATWAIT2(10, &wait_ok);
 
-	sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
+        sprintf(str, "AT+CSOCON=0,%d,\"%s\"\r", uip_ntohs(gprsconn->port), gprsconn->ipaddr);
         ATSTR(str);
         ATWAIT2(60, &wait_ok, &wait_error);        
         if (at == &wait_ok) {
@@ -930,14 +821,14 @@ PROCESS_THREAD(a6at, ev, data) {
           ATSTR("AT+CIPSHUT\r");
           ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok,  &wait_cmeerror);
 
-	  /* Test to cure deadlock when closing/shutting down  --ro */
-	  if (minor_tries++ > 10) {
-	    gprs_statistics.connfailed += 1;
-	    goto again;
-	  }
-	  else {
-	    continue;
-	  }
+          /* Test to cure deadlock when closing/shutting down  --ro */
+          if (minor_tries++ > 10) {
+            gprs_statistics.connfailed += 1;
+            goto again;
+          }
+          else {
+            continue;
+          }
         }
       } /* minor_tries */
       if (minor_tries >= 10) {
@@ -984,9 +875,6 @@ PROCESS_THREAD(a6at, ev, data) {
         }
         ATBUF(&ptr[gprsconn->output_data_len-remain], len);
         ATWAIT2(30, &wait_ok, &wait_error, &wait_dataaccept);
-#if 0
-        if (at == NULL || at == &wait_commandnoresponse || at == &wait_error) {
-#endif
         if (at == NULL || at == &wait_error) {
           gprs_statistics.at_timeouts += 1;
           goto failed;
@@ -1001,7 +889,6 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif
         remain -= len;
       }
-
       //call_event(socket, TCP_SOCKET_DATA_SENT);
       gprs_call_event(gprsconn, GPRS_CONN_DATA_SENT);      
       ATSTR("ATE1\r\n");
@@ -1010,7 +897,7 @@ PROCESS_THREAD(a6at, ev, data) {
         gprs_statistics.at_timeouts += 1;
         goto failed;
       }
-
+        
     } /* ev == a6at_gprs_send */
     else if (gprs_event->ev == a6at_gprs_close) {
 
@@ -1019,7 +906,7 @@ PROCESS_THREAD(a6at, ev, data) {
 #endif /* GPRS_DEBUG */
       gprsconn = (struct gprs_connection *) gprs_event->data;
       socket = gprsconn->socket;
-
+        
       ATSTR("AT+CIPCLOSE\r");
       ATWAIT2(15, &wait_ok, &wait_cmeerror);
       if (at == &wait_ok) {
@@ -1038,18 +925,12 @@ PROCESS_THREAD(a6at, ev, data) {
     }
 #endif /* GPRS_DEBUG */
 
-    ATSTR("AT+CSQ\r");
-    atwait_record_on();
-    ATWAIT2(5, &wait_csq);
-    atwait_record_off();
-
-    if (at == NULL)
-      continue;
-    else {
-      char *csq;
-      csq = strstr(at_line, "+CSQ:") + strlen("+CSQ:");    
-      status.rssi = atoi((char *) csq /*foundbuf*/);
-      ATWAIT2(5, &wait_ok);
+    {
+      static struct pt _pt;
+      PT_INIT(&_pt);
+      while (read_csq(&_pt) < PT_EXITED) {
+        PROCESS_PAUSE();
+      }
     }
     continue;
   failed:
