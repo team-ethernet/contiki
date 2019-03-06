@@ -40,6 +40,7 @@
  *         Joakim Eriksson <joakime@sics.se>
  *
  *         Make simplier: Constant rate for timer2 use TIMER2_OVF
+ *         Synchronizing strategy for RTC and Xtal timer.
  *         Robert Olsson <roolss@kth.se>
  */
 
@@ -235,50 +236,90 @@ rtimer_arch_schedule(rtimer_clock_t t)
 }
 
 #ifdef RDC_CONF_MCU_SLEEP
-uint16_t wait_clock_tick;
+extern long sleepseconds;
+uint16_t sleep_ticks;
+int16_t  t2_tick;
 volatile uint8_t clock_tick_pending;
+rtimer_clock_t t1, t2, t3, t4;
 /*---------------------------------------------------------------------------*/
 void
 rtimer_arch_sleep(rtimer_clock_t howlong)
 {
   uint8_t sreg;
-/* Deep Sleep for howlong rtimer ticks. This will stop all timers except
+/* 
+ * Deep Sleep for howlong rtimer ticks. This will stop all timers except
  * for TIMER2 which can be clocked using an external crystal.
  * Unfortunately this is an 8 bit timer; a lower prescaler gives higher
  * precision but smaller maximum sleep time.
+ *
+ *
+ * t1      - time in rtime ticks to sync with RTC
+ * t2      - time in rtime ticks running on RTC (rtimer stopped)
+ * t2_tick - number of RTC ticks for t2
+ * t3      - time in rtime ticks starting after t2
+ * t4      - timer buzz at wake-up
+ *
+ *  howlong = t1 + t2 + t3
+ *
  */
+
 #include <avr/sleep.h>
 #include <dev/watchdog.h>
   
-  wait_clock_tick = (howlong + (RTIMER_SECOND/CLOCK_SECOND)/2) / (RTIMER_SECOND/CLOCK_SECOND);
   sreg = SREG;
   cli();
   clock_tick_pending = 0;
   SREG = sreg;
-    
-  while(wait_clock_tick > 0)  {
+
+  t1 = RTIMER_NOW();
+  while(clock_tick_pending == 0) {
+    watchdog_periodic();
+  };
+  t1 = RTIMER_NOW() - t1;
+
+  TCCR3B = 0;
+
+  t2_tick = (howlong + (RTIMER_SECOND/CLOCK_SECOND)/2) / (RTIMER_SECOND/CLOCK_SECOND);
+
+  t2 = t2_tick *  (RTIMER_SECOND/CLOCK_SECOND);
+  t4 = t2_tick;
+
+  while(t2_tick > 0)  {
     watchdog_periodic();
     set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-    sleep_mode(); 
+    sleep_mode();
     /* Only clock timer interrupts is considered */
+    sreg = SREG;
+    cli();
     if(clock_tick_pending) {
-      sreg = SREG;
-      cli();
-      wait_clock_tick--;
+      t2_tick--;
       clock_tick_pending = 0;
-      SREG = sreg;
     }
+    SREG = sreg;
+  }
+
+  t3 = howlong - t2 - t1 -t4;
+  if(t3 > 0) {
+    clock_delay_usec(t3 * 1000000/RTIMER_SECOND);
+    //clock_delay_usec(t3 * 16);
   }
 
 /* Adjust rtimer ticks if rtimer is enabled. TIMER3 is preferred, else TIMER1 */
 #if RTIMER_ARCH_PRESCALER
 #ifdef TCNT3
-  TCNT3 += howlong;
+  TCNT3 += (howlong - t1 );
 #else
- TCNT1 += howlong;
+  TCNT1 += (howlong - t1 );
 #endif
 #endif
- clock_adjust_ticks(howlong/RTIMER_ARCH_SECOND);
+    TCCR3B = 4;
+
+    sleep_ticks += t4;
+
+    while(sleep_ticks >= CLOCK_SECOND) {
+      sleep_ticks -= CLOCK_SECOND;
+      sleepseconds++;
+    }
 }
 #endif /* RDC_CONF_MCU_SLEEP */
 
