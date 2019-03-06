@@ -68,6 +68,8 @@ static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
 
 extern uint16_t node_id; /* Can be set by cooja */
+extern long sleepseconds;
+extern long seconds;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(udp_client_process, "UDP client process");
@@ -97,7 +99,9 @@ send_packet(void *ptr)
   len += snprintf((char *) &buf[len], sizeof(buf), "&: ");
   len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
   len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-lu ", seq_id);
-
+#if RDC_CONF_MCU_SLEEP
+  len += snprintf((char *) &buf[len], sizeof(buf), "SLEEP=%-lu/%-lu ", sleepseconds, seconds);
+#endif
   /* 
    * Cooja needs to set a node_id. So we can skip sensor reading in case of simulation.
    */
