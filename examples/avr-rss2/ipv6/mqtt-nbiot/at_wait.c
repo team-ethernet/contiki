@@ -223,8 +223,12 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
         if (i < at_numwait_permanent)
           atwait_matching = 1;
         if (at->callback != NULL) {
+#if 0
           if (match > 0)
             PT_YIELD(pt); /* Consume char and wait for next */
+#else
+          /* Leave it to callback function to consume last matching char */
+#endif          
           /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
           PT_INIT(&subpt);
           while (at->callback(&subpt, at, c) < PT_EXITED) {
