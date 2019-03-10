@@ -92,4 +92,20 @@ while (atwait(__LINE__, &pt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
   }                                                                               \
 }  
 
+#define ATSPAWN(fun, ...)   { \
+  static struct pt _pt;       \
+  PT_INIT(&_pt); \
+  while (fun(&_pt, ##__VA_ARGS__) < PT_EXITED) { \
+      PROCESS_PAUSE(); \
+    } \
+  }
+
+#define PT_ATSPAWN(fun, ...)   { \
+  static struct pt _pt;       \
+  PT_INIT(&_pt); \
+  while (fun(&_pt, ##__VA_ARGS__) < PT_EXITED) { \
+      PT_YIELD(pt); \
+    } \
+  }
+
 #endif /* AT_WAIT_H */

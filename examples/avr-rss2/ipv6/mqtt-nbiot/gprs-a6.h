@@ -6,6 +6,11 @@
 //#define GPRS_MAX_SEND_LEN 512
 #define GPRS_MAX_RECV_LEN 1024
 
+/* How long to wait for APN registration (sec) */
+#define GPRS_APN_REGISTER_TIMEOUT 60
+/* How long to wait between each attempt (sec) */
+#define GPRS_APN_REGISTER_REATTEMPT 10
+
 #define GPRS_DEBUG
 
 typedef enum {
@@ -40,6 +45,8 @@ typedef void (* gprs_event_callback_t)(struct gprs_connection *gprsconn,
 #define GPRS_MAX_CONNECTION 1
 struct gprs_connection {
   struct gprs_context *context;
+  uint8_t reserved;
+  uint8_t connectionid;
   const char *proto;
   const char *ipaddr;
   uint16_t port;
@@ -54,6 +61,9 @@ struct gprs_connection {
   uint16_t input_data_len;
   uint16_t output_data_len;
 };
+#define GPRS_CONNECTION_IS_RESERVED(GC) (!(GC)->reserved)
+#define GPRS_CONNECTION_RELEASE(GC) (GC)->reserved = 0
+#define GPRS_CONNECTION_RESERVE(GC) (GC)->reserved = 1    
 
 struct gprs_status {
   enum {
@@ -62,6 +72,7 @@ struct gprs_status {
     GPRS_STATE_REGISTERED,
     GPRS_STATE_ACTIVE
   } state;
+
 #if NETSTACK_CONF_WITH_IPV6
   char ipaddr[sizeof("::ffff:255.255.255.255")];
 #else
