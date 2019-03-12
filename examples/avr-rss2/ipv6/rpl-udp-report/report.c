@@ -67,6 +67,7 @@
 static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
 
+extern volatile unsigned long radioontime;
 extern uint16_t node_id; /* Can be set by cooja */
 extern long sleepseconds;
 extern long seconds;
@@ -97,11 +98,16 @@ send_packet(void *ptr)
   seq_id++;
 
   len += snprintf((char *) &buf[len], sizeof(buf), "&: ");
-  len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
+  //len += snprintf((char *) &buf[len], sizeof(buf), "V_MCU=%-d ", battery_sensor.value(0));
   len += snprintf((char *) &buf[len], sizeof(buf), "SEQ=%-lu ", seq_id);
 #if RDC_CONF_MCU_SLEEP
-  len += snprintf((char *) &buf[len], sizeof(buf), "SLEEP=%-lu/%-lu ", sleepseconds, seconds);
+  len += snprintf((char *) &buf[len], sizeof(buf), "MCU_SLEEP=%-lu ", sleepseconds);
 #endif
+#if RADIOSTATS
+  len += snprintf((char *) &buf[len], sizeof(buf), "RADIO_ON=%-lu ",  radioontime);
+#endif
+  len += snprintf((char *) &buf[len], sizeof(buf), "SEC=%-lu ", seconds);
+
   /* 
    * Cooja needs to set a node_id. So we can skip sensor reading in case of simulation.
    */
