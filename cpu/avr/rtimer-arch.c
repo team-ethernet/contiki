@@ -240,7 +240,8 @@ extern long sleepseconds;
 uint16_t sleep_ticks;
 int16_t  t2_tick;
 volatile uint8_t clock_tick_pending;
-rtimer_clock_t t1, t2, t3, t4;
+rtimer_clock_t t1_tmp, t2, t3, t4;
+int16_t t1;
 /*---------------------------------------------------------------------------*/
 void
 rtimer_arch_sleep(rtimer_clock_t howlong)
@@ -271,16 +272,30 @@ rtimer_arch_sleep(rtimer_clock_t howlong)
   clock_tick_pending = 0;
   SREG = sreg;
 
-  t1 = RTIMER_NOW();
+  t1_tmp = RTIMER_NOW();
   while(clock_tick_pending == 0) {
     watchdog_periodic();
   };
-  t1 = RTIMER_NOW() - t1;
 
+  //if( RTIMER_CLOCK_LT(RTIMER_NOW(), t1);
+
+  t1 = RTIMER_CLOCK_DIFF(RTIMER_NOW(), t1_tmp);
+
+  if(t1 < 0) { 
+    t1 = 0;
+    goto done;
+  }
+
+  if(howlong <= t1)
+    goto done;
+  
   TCCR3B = 0;
 
-  t2_tick = (howlong + (RTIMER_SECOND/CLOCK_SECOND)/2) / (RTIMER_SECOND/CLOCK_SECOND);
+  t2_tick = howlong / (RTIMER_SECOND/CLOCK_SECOND);
 
+  if(t2_tick > 0)
+    t2_tick--;
+  
   t2 = t2_tick *  (RTIMER_SECOND/CLOCK_SECOND);
   t4 = t2_tick;
 
@@ -299,11 +314,14 @@ rtimer_arch_sleep(rtimer_clock_t howlong)
   }
 
   t3 = howlong - t2 - t1 -t4;
-  if(t3 > 0) {
+  if(howlong > t3) {
     clock_delay_usec(t3 * 1000000/RTIMER_SECOND);
     //clock_delay_usec(t3 * 16);
   }
 
+done:;
+  
+  
 /* Adjust rtimer ticks if rtimer is enabled. TIMER3 is preferred, else TIMER1 */
 #if RTIMER_ARCH_PRESCALER
 #ifdef TCNT3
