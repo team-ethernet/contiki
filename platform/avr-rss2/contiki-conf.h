@@ -183,9 +183,12 @@ typedef unsigned long off_t;
 /* Logging adds 200 bytes to program size. RS232 output slows down webserver. */
 /* #define LOG_CONF_ENABLED         1 */
 
+/* Saves some cycles for etimer scheduling from ISR */
+#define OPTIMIZE_ETIMER_POLL 1
+
 /* RADIOSTATS is used in rf230bb, clock.c and the webserver cgi to report radio usage */
 /* It has less overhead than ENERGEST */
-#define RADIOSTATS                0
+#define RADIOSTATS                1
 
 /* More extensive stats, via main loop printfs or webserver status pages */
 #define ENERGEST_CONF_ON          0
