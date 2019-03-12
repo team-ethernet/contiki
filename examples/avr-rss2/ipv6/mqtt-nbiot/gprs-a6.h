@@ -61,7 +61,7 @@ struct gprs_connection {
   uint16_t input_data_len;
   uint16_t output_data_len;
 };
-#define GPRS_CONNECTION_IS_RESERVED(GC) (!(GC)->reserved)
+#define GPRS_CONNECTION_RESERVED(GC) ((GC)->reserved)
 #define GPRS_CONNECTION_RELEASE(GC) (GC)->reserved = 0
 #define GPRS_CONNECTION_RESERVE(GC) (GC)->reserved = 1    
 

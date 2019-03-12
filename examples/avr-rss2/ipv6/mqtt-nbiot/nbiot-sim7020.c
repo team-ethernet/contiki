@@ -121,6 +121,10 @@ uart_input_byte(unsigned char c)
 /*---------------------------------------------------------------------------*/
 void
 gprs_init() {
+  int i;
+  for (i = 0; i < GPRS_MAX_CONNECTION; i++) { 
+    GPRS_CONNECTION_RELEASE(&gprs_connections[i]);
+  }
   gprs_set_context(&gprs_context, PDPTYPE, APN);
   memset(&gprs_statistics, 0, sizeof(gprs_statistics));
   process_start(&uart_reader, NULL);
@@ -133,9 +137,9 @@ alloc_gprs_connection() {
   struct gprs_connection *gprsconn;
   for (i = 0; i < GPRS_MAX_CONNECTION; i++) {
     gprsconn = &gprs_connections[i];
-    if (GPRS_CONNECTION_IS_FREE(gprsconn)) {
+    if (!GPRS_CONNECTION_RESERVED(gprsconn)) {
         printf("alloc_gprs_connection -> 0x%x\n", (unsigned) gprsconn);
-        GPRS_CONNECTION_SET_BUSY(gprsconn);
+        GPRS_CONNECTION_RESERVE(gprsconn);
         return gprsconn;
     }
   }
@@ -145,7 +149,7 @@ alloc_gprs_connection() {
 /*---------------------------------------------------------------------------*/
 static void
 free_gprs_connection(struct gprs_connection *gprsconn) {
-  GPRS_CONNECTION_SET_FREE(gprsconn);
+  GPRS_CONNECTION_RELEASE(gprsconn);
   printf("free_gprs_connection(0x%x)\n", (unsigned) gprsconn);  
   return;
 }
@@ -938,10 +942,12 @@ PT_THREAD(sim7020_send(struct pt *pt, struct gprs_connection * gprsconn)) {
   //socket = gprsconn->socket;
   //remain = socket->output_data_len;
   remain = gprsconn->output_data_len;
+#if 0
   PT_ATSTR("ATE0\r\n");
   PT_ATWAIT2(5, &wait_ok);
   if (at == NULL)
     goto timeout;
+#endif
   while (remain > 0) {
     len = (remain <= GPRS_MAX_SEND_LEN ? remain : GPRS_MAX_SEND_LEN);
     printf("Send %d bytes @0x%x\n", len, (unsigned) &ptr[gprsconn->output_data_len-remain]);
@@ -974,8 +980,10 @@ PT_THREAD(sim7020_send(struct pt *pt, struct gprs_connection * gprsconn)) {
   }
   //call_event(socket, TCP_SOCKET_DATA_SENT);
   gprs_call_event(gprsconn, GPRS_CONN_DATA_SENT);      
+#if 0
   PT_ATSTR("ATE1\r\n");
   PT_ATWAIT2(5, &wait_ok);
+#endif
   PT_EXIT(pt);
 
  disconnect:
