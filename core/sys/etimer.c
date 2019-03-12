@@ -49,7 +49,12 @@
 #include "sys/etimer.h"
 #include "sys/process.h"
 
+#if OPTIMIZE_ETIMER_POLL
+struct etimer *timerlist;
+#else
 static struct etimer *timerlist;
+#endif
+
 static clock_time_t next_expiration;
 
 PROCESS(etimer_process, "Event timer");

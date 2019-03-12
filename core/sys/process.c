@@ -72,7 +72,11 @@ static struct event_data events[PROCESS_CONF_NUMEVENTS];
 process_num_events_t process_maxevents;
 #endif
 
+#if OPTIMIZE_ETIMER_POLL
+volatile unsigned char poll_requested;
+#else
 static volatile unsigned char poll_requested;
+#endif
 
 #define PROCESS_STATE_NONE        0
 #define PROCESS_STATE_RUNNING     1

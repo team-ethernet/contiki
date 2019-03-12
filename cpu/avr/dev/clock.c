@@ -342,6 +342,16 @@ ISR(TIMER2_OVF_vect)
 #ifdef  RDC_CONF_MCU_SLEEP
     clock_tick_pending = 1;
 #endif    
+/* Sample radio on time. Less accurate than ENERGEST but a smaller footprint */
+#if RADIOSTATS
+  if (RF230_receive_on) {
+    if (++rcount >= CLOCK_SECOND) {
+      rcount=0;
+      radioontime++;
+    }
+  }
+#endif
+
 #if TWO_COUNTERS
   if(++scount >= CLOCK_SECOND) {
     scount = 0;
@@ -364,15 +374,6 @@ ISR(TIMER2_OVF_vect)
 
   }
 
-#if RADIOSTATS
-   /* Sample radio on time. Less accurate than ENERGEST but a smaller footprint */
-  if (RF230_receive_on) {
-    if (++rcount >= CLOCK_SECOND) {
-      rcount=0;
-      radioontime++;
-    }
-  }
-#endif
 
 #if F_CPU == 0x800000 && USE_32K_CRYSTAL
 /* Special routine to phase lock CPU to 32768 watch crystal.
@@ -409,7 +410,7 @@ volatile static uint8_t osccalhigh,osccallow;
 }
 #endif
 
-#if 1
+#if OPTIMIZE_ETIMER_POLL == 0
 /*  gcc will save all registers on the stack if an external routine is called */
   if(etimer_pending()) {
     etimer_request_poll();
@@ -430,7 +431,7 @@ volatile static uint8_t osccalhigh,osccallow;
     }
   }
 #endif
- }
+  }
 #endif /* defined(DOXYGEN) */
 /*---------------------------------------------------------------------------*/
 /* Debugging aids */
