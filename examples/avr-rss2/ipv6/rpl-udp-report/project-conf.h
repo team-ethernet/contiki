@@ -51,6 +51,4 @@
 #define NETSTACK_CONF_RADIO       rf230_driver
 #define NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE 8
 
-#define RDC_CONF_MCU_SLEEP 1
-
 #endif /* PROJECT_CONF_H_ */

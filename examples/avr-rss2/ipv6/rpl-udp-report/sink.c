@@ -54,6 +54,8 @@
 
 static struct uip_udp_conn *server_conn;
 
+uint32_t rx_pkts;
+
 PROCESS(udp_server_process, "UDP server process");
 AUTOSTART_PROCESSES(&udp_server_process);
 /*---------------------------------------------------------------------------*/
@@ -66,6 +68,7 @@ tcpip_handler(void)
 
     leds_on(LEDS_RED);
 
+    PRINTF("pkts=%-u ", ++rx_pkts);
     appdata = (char *)uip_appdata;
     appdata[uip_datalen()] = 0;
     PRINTF("Report RX '%s' from ", appdata);
@@ -155,6 +158,8 @@ PROCESS_THREAD(udp_server_process, ev, data)
     PRINTF("failed to create a new RPL DAG\n");
   }
 #endif /* UIP_CONF_ROUTER */
+  
+  rx_pkts = 0;
   
   print_local_addresses();
 

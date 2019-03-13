@@ -226,9 +226,7 @@ typedef unsigned short uip_stats_t;
 /* TX routine does automatic cca and optional backoffs */
 #define RDC_CONF_HARDWARE_CSMA   1
 /* Allow MCU sleeping between channel checks */
-#ifndef RDC_CONF_MCU_SLEEP
 #define RDC_CONF_MCU_SLEEP       1
-#endif
 
 #if NETSTACK_CONF_WITH_IPV6
 
@@ -304,11 +302,7 @@ typedef unsigned short uip_stats_t;
 #define RF230_CONF_CSMA_RETRIES   2
 #define CONTIKIMAC_FRAMER_CONF_SHORTEST_PACKET_SIZE   (43 - 18)  /* multicast RPL DIS length */
 /* Not tested much yet -- packet loss with  */
-#if RDC_CONF_MCU_SLEEP
 #define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 0
-#else
-#define CONTIKIMAC_CONF_WITH_PHASE_OPTIMIZATION 1
-#endif
 #define CONTIKIMAC_CONF_COMPOWER               0
 #endif
 #if RDC == NORDC
