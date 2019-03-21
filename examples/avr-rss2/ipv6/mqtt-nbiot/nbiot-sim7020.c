@@ -682,6 +682,11 @@ PT_THREAD(init_module(struct pt *pt)) {
 
   PT_ATSTR("AT+CRESET\r");
   PT_ATWAIT2(10, &wait_ok);
+ again:
+  PT_ATSTR("AT+CPIN?\r");
+  PT_ATWAIT2(10, &wait_ok);
+  if (at == NULL)
+  goto again;
   PT_ATSTR("AT+CSORCVFLAG?\r");
   PT_ATWAIT2(10, &wait_ok);
   /* Receive data in hex */
@@ -869,7 +874,7 @@ PT_THREAD(sim7020_connect(struct pt *pt, struct gprs_connection * gprsconn)) {
     atwait_record_off();
     uint8_t sockid;
     if (at != &wait_ok || 1 != sscanf(at_line, "%*[^:]: %hhd", &sockid)) {
-      break;
+      continue;
     }
     printf("Got socket no %u\n", (unsigned) sockid);
     gprsconn->connectionid = sockid;
@@ -887,6 +892,7 @@ PT_THREAD(sim7020_connect(struct pt *pt, struct gprs_connection * gprsconn)) {
       /* Timeout */
       gprs_statistics.connfailed += 1;
       status.state = GPRS_STATE_NONE;
+      sprintf(str, "AT+CSOCL=%d\r", gprsconn->connectionid);
       call_event(gprsconn->socket, TCP_SOCKET_TIMEDOUT);
       break;
     }        
@@ -897,7 +903,7 @@ PT_THREAD(sim7020_connect(struct pt *pt, struct gprs_connection * gprsconn)) {
       PT_ATSTR("AT+CREG?\r");
       PT_ATWAIT2(2, &wait_ok);
       gprs_statistics.at_errors += 1;
-      sprintf(str, "AT+CSOCLO=%d\r", gprsconn->connectionid);
+      sprintf(str, "AT+CSOCL=%d\r", gprsconn->connectionid);
       PT_ATSTR(str);
       PT_ATWAIT2(15, &wait_ok);//ATWAIT2(5, &wait_ok, &wait_cmeerror);
 
@@ -1007,24 +1013,20 @@ static
 PT_THREAD(sim7020_close(struct pt *pt, struct gprs_connection * gprsconn)) {
   static struct at_wait *at;
   static struct tcp_socket_gprs *socket;
-
+  char str[20];
   PT_BEGIN(pt);
 #ifdef GPRS_DEBUG
   printf("A6AT GPRS Close\n");
 #endif /* GPRS_DEBUG */
 
-        
-  PT_ATSTR("AT+CIPCLOSE\r");
-  PT_ATWAIT2(15, &wait_ok, &wait_cmeerror);
-  if (at == &wait_ok) {
-    call_event(socket, TCP_SOCKET_CLOSED); 
-  }
-  else {
-    printf("Call socket_closed\n");
+  snprintf(str, sizeof(str), "AT+CSOCL=%d\r", gprsconn->connectionid);
+  PT_ATWAIT2(15, &wait_ok, &wait_error);
+  if (at == NULL) {
     gprs_statistics.at_timeouts += 1;
-    call_event(socket, TCP_SOCKET_CLOSED);
-    printf("Called socket_closed\n");
   }
+  printf("Call socket_closed\n");
+  call_event(socket, TCP_SOCKET_CLOSED);
+  printf("Called socket_closed\n");
   PT_END(pt);
 } 
 
@@ -1040,10 +1042,13 @@ PROCESS_THREAD(a6at, ev, data) {
 
  again:
   ATSPAWN(init_module);
-
+  if (status.state < GPRS_STATE_IDLE) {
+    printf ("Not ready...\n");
+    goto again;
+  }
   ATSPAWN(apn_register);
   if (status.state < GPRS_STATE_REGISTERED) {
-    printf ("Not ready...\n");
+    printf ("Not registered...\n");
     ATSPAWN(read_csq);
     goto again;
   }
