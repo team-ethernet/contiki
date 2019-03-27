@@ -214,8 +214,10 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
     atwait_matching = 0;
     for (i = 0; i < at_numwait; i++) {
       at = at_waitlist2[i];
-      match = at->match(at, c);
-      if (match >= 0) {
+      if (c != at->str[at->pos]) {
+        at->pos = 0;
+      }
+      else if (at->str[++at->pos] == '\0') {
         /* An async (permanent) event? Then mark that it is active right now
          * so that other AT commands can be postponed. Issuing new AT commands 
          * while in this state would garble the input. 
