@@ -6,6 +6,9 @@
 //#define GPRS_MAX_SEND_LEN 512
 #define GPRS_MAX_RECV_LEN 1024
 
+#define GRPS_APN_REGISTER_TIMEOUT 60
+#define GRPS_APN_REGISTER_REATTEMPT 10
+
 struct nbiot_status {
   enum {
     STATE_NONE, 

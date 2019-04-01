@@ -29,19 +29,19 @@
  *
  */
 
-#ifndef TCP_SOCKET_GPRS_COMPAT_H
-#define TCP_SOCKET_GPRS_COMPAT_H
+#ifndef TCP_SOCKET_AT_RADIO_COMPAT_H
+#define TCP_SOCKET_AT_RADIO_COMPAT_H
 
-#define tcp_socket tcp_socket_gprs 
+#define tcp_socket tcp_socket_at_radio 
 
-#define tcp_socket_register tcp_socket_gprs_register
-#define tcp_socket_connect tcp_socket_gprs_connect
-#define tcp_socket_listen tcp_socket_gprs_listen
-#define tcp_socket_unlisten  tcp_socket_gprs_unlisten
-#define tcp_socket_send tcp_socket_gprs_send 
-#define tcp_socket_close tcp_socket_gprs_close 
-#define tcp_socket_unregister tcp_socket_gprs_unregister 
-#define tcp_socket_max_sendlen tcp_socket_gprs_max_sendlen 
-#define tcp_socket_queuelen tcp_socket_gprs_queuelen
+#define tcp_socket_register tcp_socket_at_radio_register
+#define tcp_socket_connect tcp_socket_at_radio_connect
+#define tcp_socket_listen tcp_socket_at_radio_listen
+#define tcp_socket_unlisten  tcp_socket_at_radio_unlisten
+#define tcp_socket_send tcp_socket_at_radio_send 
+#define tcp_socket_close tcp_socket_at_radio_close 
+#define tcp_socket_unregister tcp_socket_at_radio_unregister 
+#define tcp_socket_max_sendlen tcp_socket_at_radio_max_sendlen 
+#define tcp_socket_queuelen tcp_socket_at_radio_queuelen
 
-#endif /* TCP_SOCKET_GPRS_COMPAT_H */
+#endif /* TCP_SOCKET_AT_RADIO_COMPAT_H */

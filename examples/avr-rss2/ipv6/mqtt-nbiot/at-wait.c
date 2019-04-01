@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "at_wait.h"
+#include "at-wait.h"
 
 static uint8_t at_numwait;
 static uint8_t at_numwait_permanent;
@@ -99,33 +99,18 @@ PT_THREAD(wait_readlines_pt(struct pt *pt, struct at_wait *at, int c)) {
   PT_END(pt);
 }
 
-/*
- * Match functions. Return a negative number if current data string does
- * not match search pattern. If there is a match, return number of bytes that 
- * were consumed in last call.
- */
-
-/* Match byte: check one byte at a time */
-int at_match_byte(struct at_wait *at, int c) {
-  if (c == at->str[at->pos]) {
-    at->pos += 1;
-    if (at->str[at->pos] == '\0') {
-      return 1;
+size_t at_radio_sendbuf(uint8_t *, size_t);
+PT_THREAD(at_sendbuf(struct pt *pt, unsigned char *buf, size_t len)) {
+  size_t sendbuf_remain = len;
+  PT_BEGIN(pt);
+  sendbuf_remain = len;
+  while (sendbuf_remain > 0) { 
+    while (atwait_matching) {
+      PT_YIELD(pt);
     }
+    sendbuf_remain -= at_radio_sendbuf(&(buf)[len - sendbuf_remain], sendbuf_remain);
   }
-  else { 
-    at->pos = 0;
-  }
-  return -1;
-}
-
-/* Match and store byte: check one byte at a time. 
- * Also record bytes in at_line buffer. Useful when
- * need to process the string that lead to
- * the match.
- */
-int at_match_null(struct at_wait *at, int c) {
-  return 0;
+  PT_END(pt);
 }
 
 void
@@ -196,7 +181,6 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
   static uint8_t i;
   static struct pt subpt;
   static struct at_wait *at;
-  int match;
     
   if (recording) {
     if (recordpos < AT_LINE_SIZE) {
@@ -207,7 +191,6 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
     }
     at_line[recordpos] = 0;
   }
-
   PT_BEGIN(pt);
 
   while (1) {
@@ -225,12 +208,8 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c)) {
         if (i < at_numwait_permanent)
           atwait_matching = 1;
         if (at->callback != NULL) {
-#if 0
-          if (match > 0)
-            PT_YIELD(pt); /* Consume char and wait for next */
-#else
-          /* Leave it to callback function to consume last matching char */
-#endif          
+          /* callback function to consume last matching char */
+
           /* Run callback protothread -- loop until it has finished (PT_ENDED or PT_EXITED) */
           PT_INIT(&subpt);
           while (at->callback(&subpt, at, c) < PT_EXITED) {
@@ -265,7 +244,7 @@ PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, .
   va_start(valist, seconds);
   vstart_atlist(valist);
   printf("\n"); 
-  
+
   etimer_set(&et, (seconds)*CLOCK_SECOND);
   while (1) {
     if(etimer_expired(&et)) {

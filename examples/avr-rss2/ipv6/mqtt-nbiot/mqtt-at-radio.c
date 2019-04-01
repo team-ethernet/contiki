@@ -79,9 +79,9 @@
 #include "radio/rf230bb/rf230bb.h"
 #endif /* #if RF230_DEBUG */
 #endif /* #ifndef RF230_DEBUG */
-#ifdef MQTT_GPRS
-#include "gprs-a6.h"
-#endif /* MQTT_GPRS */  
+#ifdef MQTT_AT_RADIO
+#include "at-radio.h"
+#endif /* MQTT_AT_RADIO */  
 
 
 extern void handle_serial_input(const char *line);
@@ -787,14 +787,14 @@ publish_sensors(void)
 #endif
   }
 
-#ifdef MQTT_GPRS
+#ifdef MQTT_AT_RADIO
   {
-    struct gprs_status *status;
+    struct at_radio_status *status;
     int lb = -113;
-    status = gprs_status();
+    status = at_radio_status();
     if((status->rssi) > 0 )
       lb += (status->rssi)*2;  /* In dBm acording to A6/A7 datasheet */
-    PUTFMT(",{\"n\":\"gprs;linkbudget\",\"v\":%d}", lb);
+    PUTFMT(",{\"n\":\"at_radio;linkbudget\",\"v\":%d}", lb);
   }
 #endif
 
@@ -826,10 +826,10 @@ publish_stats(void)
   /* Circle through different statistics -- one for each publish */
   enum {
     STATS_DEVICE,
-#define GPRS_CONF_STATS 1
-#if GPRS_CONF_STATS
-    STATS_GPRS,
-#endif /* GPRS_CONF_STATS */
+#define AT_RADIO_CONF_STATS 1
+#if AT_RADIO_CONF_STATS
+    STATS_AT_RADIO,
+#endif /* AT_RADIO_CONF_STATS */
     STATS_RPL,
   };
 #define STARTSTATS STATS_DEVICE
@@ -860,11 +860,11 @@ publish_stats(void)
     memset(def_rt_str, 0, sizeof(def_rt_str));
     ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-#ifdef MQTT_GPRS
-    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", gprs_status()->ipaddr);
+#ifdef MQTT_AT_RADIO
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", at_radio_status()->ipaddr);
 #else
     PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);    
-#endif /* MQTT_GPRS */
+#endif /* MQTT_AT_RADIO */
     PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
     extern uint32_t pms5003_valid_frames();
@@ -929,48 +929,48 @@ publish_stats(void)
     remaining -= len;
     buf_ptr += len;
     break;
-#define GPRS_CONF_STATS 1
-#if GPRS_CONF_STATS
-  case STATS_GPRS:
-    PUTFMT(",{\"n\":\"gprs;at_timeouts\",\"v\":%u}", gprs_statistics.at_timeouts);
-    PUTFMT(",{\"n\":\"gprs;at_errors\",\"v\":%u}", gprs_statistics.at_errors);
-    PUTFMT(",{\"n\":\"gprs;at_retries\",\"v\":%u}", gprs_statistics.at_retries);
-    PUTFMT(",{\"n\":\"gprs;resets\",\"v\":%u}", gprs_statistics.resets);
-    PUTFMT(",{\"n\":\"gprs;connections\",\"v\":%u}", gprs_statistics.connections);
-    PUTFMT(",{\"n\":\"gprs;connfailed\",\"v\":%u}", gprs_statistics.connfailed);
+#define AT_RADIO_CONF_STATS 1
+#if AT_RADIO_CONF_STATS
+  case STATS_AT_RADIO:
+    PUTFMT(",{\"n\":\"at_radio;at_timeouts\",\"v\":%u}", at_radio_statistics.at_timeouts);
+    PUTFMT(",{\"n\":\"at_radio;at_errors\",\"v\":%u}", at_radio_statistics.at_errors);
+    PUTFMT(",{\"n\":\"at_radio;at_retries\",\"v\":%u}", at_radio_statistics.at_retries);
+    PUTFMT(",{\"n\":\"at_radio;resets\",\"v\":%u}", at_radio_statistics.resets);
+    PUTFMT(",{\"n\":\"at_radio;connections\",\"v\":%u}", at_radio_statistics.connections);
+    PUTFMT(",{\"n\":\"at_radio;connfailed\",\"v\":%u}", at_radio_statistics.connfailed);
     {
-      struct gprs_status *status;
-      status = gprs_status();
-      PUTFMT(",{\"n\":\"gprs;module\",\"v\":%u}", status->module);
-      PUTFMT(",{\"n\":\"gprs;status\",\"vs\":"); 
+      struct at_radio_status *status;
+      status = at_radio_status();
+      PUTFMT(",{\"n\":\"at_radio;module\",\"v\":%u}", status->module);
+      PUTFMT(",{\"n\":\"at_radio;status\",\"vs\":"); 
       switch (status->state) {
-      case GPRS_STATE_NONE:
+      case AT_RADIO_STATE_NONE:
         PUTFMT("\"none\"}");
         break;
-      case GPRS_STATE_IDLE:
+      case AT_RADIO_STATE_IDLE:
         PUTFMT("\"idle\"}");
         break;
-      case GPRS_STATE_REGISTERED:
+      case AT_RADIO_STATE_REGISTERED:
         PUTFMT("\"registered\"}");
         break;
-      case GPRS_STATE_ACTIVE:
+      case AT_RADIO_STATE_ACTIVE:
         PUTFMT("\"active\"}");
         break;
       default:
         PUTFMT("\"unknown (%d)\"}", status->state);
         break;
       }
-      if (status->state == GPRS_STATE_ACTIVE) {
-        PUTFMT(",{\"n\":\"gprs;local_ip\",\"vs\":\"%s\"}", status->ipaddr); 
+      if (status->state == AT_RADIO_STATE_ACTIVE) {
+        PUTFMT(",{\"n\":\"at_radio;local_ip\",\"vs\":\"%s\"}", status->ipaddr); 
       }
-      PUTFMT(",{\"n\":\"gprs;rssi\",\"v\":%u}", status->rssi);
-      PUTFMT(",{\"n\":\"gprs;gps_longi\",\"v\":%f}", status->longi);
-      PUTFMT(",{\"n\":\"gprs;gps_lat\",\"v\":%f}", status->lat);
-      PUTFMT(",{\"n\":\"gprs;gps_speed\",\"v\":%f}", status->speed);
-      PUTFMT(",{\"n\":\"gprs;gps_course\",\"v\":%f}", status->course);
+      PUTFMT(",{\"n\":\"at_radio;rssi\",\"v\":%u}", status->rssi);
+      PUTFMT(",{\"n\":\"at_radio;gps_longi\",\"v\":%f}", status->longi);
+      PUTFMT(",{\"n\":\"at_radio;gps_lat\",\"v\":%f}", status->lat);
+      PUTFMT(",{\"n\":\"at_radio;gps_speed\",\"v\":%f}", status->speed);
+      PUTFMT(",{\"n\":\"at_radio;gps_course\",\"v\":%f}", status->course);
     }
     break;
-#endif /* GPRS_CONF_STATS */
+#endif /* AT_RADIO_CONF_STATS */
   }
   PUTFMT("]");
 
@@ -1058,11 +1058,11 @@ connect_to_broker(void)
 static void
 ping_parent(void)
 {
-#ifndef MQTT_GPRS
+#ifndef MQTT_AT_RADIO
   if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) {
     return;
   }
-#endif /* MQTT_GPRS */
+#endif /* MQTT_AT_RADIO */
   uip_icmp6_send(uip_ds6_defrt_choose(), ICMP6_ECHO_REQUEST, 0,
                  ECHO_REQ_PAYLOAD_LEN);
 }
@@ -1099,12 +1099,22 @@ state_machine(void)
     DBG("Init\n");
     /* Continue */
   case STATE_REGISTERED:
-#ifdef MQTT_GPRS
-    if (gprs_status()->state == GPRS_STATE_ACTIVE) {
-      printf("MQTT: GPRS active\n");
+#ifdef MQTT_AT_RADIO
+    { static int said = AT_RADIO_STATE_ACTIVE;
+      if (at_radio_status()->state != AT_RADIO_STATE_ACTIVE) {
+        if (said != at_radio_status()->state)  {
+          printf("MQTT: AT_RADIO not active (%d)\n", at_radio_status()->state);
+          said = at_radio_status()->state;
+        }
+      }
+      else
+        said = at_radio_status()->state;
+    }
+    if (at_radio_status()->state == AT_RADIO_STATE_ACTIVE) {
+      printf("MQTT: AT_RADIO active\n");
 #else
     if(uip_ds6_get_global(ADDR_PREFERRED) != NULL) {
-#endif /* MQTT_GPRS */
+#endif /* MQTT_AT_RADIO */
       /* Registered and with a public IP. Connect */
       DBG("Registered. Connect attempt %u\n", connect_attempt);
       ping_parent();
@@ -1262,14 +1272,14 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
                                     echo_reply_handler);
   etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
 
-#ifdef MQTT_GPRS
-  gprs_init();
+#ifdef MQTT_AT_RADIO
+  at_radio_init();
 #else
-  PROCESS_WAIT_EVENT_UNTIL(ev == a6at_gprs_init);
-  printf("Here is MQTT with GPRS again\n");
+  PROCESS_WAIT_EVENT_UNTIL(ev == a6at_at_radio_init);
+  printf("Here is MQTT with AT_RADIO again\n");
   /* Schedule next publication ASAP, to get state machinery going */
   etimer_set(&publish_periodic_timer, 0);
-#endif /* MQTT_GPRS */  
+#endif /* MQTT_AT_RADIO */  
 
   /* Main loop */
   while(1) {

@@ -7,7 +7,7 @@ typedef char (* at_callback_t)(struct pt *, struct at_wait *, int c);
 struct at_wait {
   char *str;   /* String we are matching against */
   at_callback_t callback; /* Callback function when match is complete */
-  int (* match)(struct at_wait *, int c);  /* Match function */
+  //int (* match)(struct at_wait *, int c);  /* Match function */
   uint8_t pos; /* How far into the string we have matched so far */ 
 };
 
@@ -59,6 +59,7 @@ PT_THREAD(wait_fsm_pt(struct pt *pt, int c));
 //PT_THREAD(atwait(struct pt *pt, process_event_t ev,
 //                 process_data_t data, struct at_wait **atp, int seconds, ...));
 PT_THREAD(atwait(int lineno, struct pt *pt, struct at_wait **atp, int seconds, ...));
+PT_THREAD(at_sendbuf(struct pt *pt, unsigned char *buf, size_t len));
 
 #define ATWAIT2(SEC, ...)  {                                                      \
     static struct pt pt;                                                          \
@@ -107,5 +108,19 @@ while (atwait(__LINE__, &pt, &at, SEC, __VA_ARGS__, NULL) < PT_EXITED) { \
       PT_YIELD(pt); \
     } \
   }
+
+
+#define ATSTR2(str) { \
+    printf("-->%s\n", str); \
+    ATSPAWN(at_sendbuf, (unsigned char *) str, strlen(str));    \
+}
+
+#define PT_ATSTR2(str) {\
+    printf("-->%s\n", str); \
+    PT_ATSPAWN(at_sendbuf, (unsigned char *) str, strlen(str));    \
+  }
+
+#define ATBUF2(buf, len)     ATSPAWN(at_sendbuf, buf, len)
+#define PT_ATBUF2(buf, len) PT_ATSPAWN(at_sendbuf, buf, len)
 
 #endif /* AT_WAIT_H */
