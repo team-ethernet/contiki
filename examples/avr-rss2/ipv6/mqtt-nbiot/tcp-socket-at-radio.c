@@ -71,7 +71,6 @@ senddata(struct tcp_socket_at_radio *s)
     at_radioconn = s->g_c;
     at_radioconn->output_data_ptr = s->output_data_ptr;
     at_radioconn->output_data_len = len;
-    printf("at_radio_send(0x%x)\n", (unsigned) at_radioconn);
     at_radio_send(at_radioconn);
   }
 }
@@ -121,7 +120,6 @@ at_radio_input_callback(struct at_radio_connection *at_radioconn, void *callback
 
   len = input_data_len;
   dataptr = input_data_ptr;
-  printf("HERE IS newdata %d @0x%x: '", len, (unsigned) dataptr);
 
   /* We have a segment with data coming in. We copy as much data as
      possible into the input buffer and call the input callback
@@ -278,17 +276,8 @@ tcp_socket_at_radio_connect(struct tcp_socket_at_radio *s,
   char hoststr[sizeof("255.255.255.255")];
   uint8_t *hip4;
   
-  printf("Here is AT_RADIO_CONNECT (%d): ", sizeof(*ipaddr));
-  {
-    int i;
-    for (i = 0; i < sizeof(*ipaddr); i++) {
-      printf(" %02x", ((unsigned char *) (ipaddr))[i]);
-    }
-    printf("\n");
-  }
   hip4 = ((uint8_t *) ipaddr)+12;
   snprintf(hoststr, sizeof(hoststr), "%u.%u.%u.%u", hip4[0], hip4[1], hip4[2], hip4[3]); 
-  printf("hoststr %s\n", hoststr);
   return at_radio_connection(s->g_c, "TCP", ipaddr, uip_htons(port)) != NULL;
   return tcp_socket_at_radio_connect_strhost(s, hoststr, port);
   return -1;  /* Not supported for hprs */
@@ -347,7 +336,6 @@ tcp_socket_at_radio_send(struct tcp_socket_at_radio *s,
     return -1;
   }
 
-  printf("socket send. len %d maxlen %d curlen %d\n", datalen, s->output_data_maxlen, s->output_data_len);
   len = MIN(datalen, s->output_data_maxlen - s->output_data_len);
 
   memcpy(&s->output_data_ptr[s->output_data_len], data, len);

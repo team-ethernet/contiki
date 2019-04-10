@@ -401,12 +401,10 @@ PT_THREAD(apn_register(struct pt *pt)) {
      */
     if (1 != (n = sscanf(at_line, "%*[^:]: %*d,%hhd", &creg))) {
       at_radio_statistics.at_errors += 1;
-      printf("sscanf error %s\n", at_line);
       break;
     }
     if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
       status.state = AT_RADIO_STATE_REGISTERED;
-      printf("registered creg %d\n", creg);
       PT_EXIT(pt);
     }
     /* Registration failed. Delay and try again */
@@ -521,8 +519,6 @@ PT_THREAD(at_radio_connect_pt(struct pt *pt, struct at_radio_connection * at_rad
   while (minor_tries++ < 10) {
 	
     hip4 = (uint8_t *) &at_radioconn->ipaddr + sizeof(at_radioconn->ipaddr) - 4;
-    printf("Here is connection %s %d.%d.%d.%d:%d\n",
-           at_radioconn->proto, hip4[0], hip4[1], hip4[2], hip4[3], uip_htons(at_radioconn->port));
     PT_ATSTR2("AT+CSOC=1,1,1\r");
     atwait_record_on();
     PT_ATWAIT2(10, &wait_ok, &wait_error);
@@ -531,7 +527,6 @@ PT_THREAD(at_radio_connect_pt(struct pt *pt, struct at_radio_connection * at_rad
     if (at != &wait_ok || 1 != sscanf(at_line, "%*[^:]: %hhd", &sockid)) {
       continue;
     }
-    printf("Got socket no %u\n", (unsigned) sockid);
     at_radioconn->connectionid = sockid;
     
     hip4 = (uint8_t *) &at_radioconn->ipaddr + sizeof(at_radioconn->ipaddr) - 4;
@@ -558,7 +553,6 @@ PT_THREAD(at_radio_connect_pt(struct pt *pt, struct at_radio_connection * at_rad
     else if (at == &wait_error) {
       /* COMMAND NO RESPONSE! timeout. Sometimes it take longer though and have seen COMMAND NON RESPONSE! followed by CONNECT OK */ 
       /* Seen +CME ERROR:53 */
-      printf("CIPSTART failed\n");
       PT_ATSTR2("AT+CREG?\r");
       PT_ATWAIT2(2, &wait_ok);
       at_radio_statistics.at_errors += 1;
@@ -615,7 +609,6 @@ PT_THREAD(at_radio_send_pt(struct pt *pt, struct at_radio_connection * at_radioc
     static char buf[40];
 
     len = (remain <= AT_RADIO_MAX_SEND_LEN ? remain : AT_RADIO_MAX_SEND_LEN);
-    printf("Send %d bytes @0x%x\n", len, (unsigned) &ptr[at_radioconn->output_data_len-remain]);
     sprintf((char *) buf, "AT+CSODSEND=%d,%d\r", at_radioconn->connectionid, len);
     PT_ATSTR2((char *) buf); /* sometimes CME ERROR:516 */
     PT_ATWAIT2(5, &wait_ok, &wait_sendprompt, &wait_error);
@@ -673,9 +666,6 @@ PT_THREAD(at_radio_close_pt(struct pt *pt, struct at_radio_connection * at_radio
   static struct at_wait *at;
   char str[20];
   PT_BEGIN(pt);
-#ifdef AT_RADIO_DEBUG
-  printf("A6AT AT_RADIO Close\n");
-#endif /* AT_RADIO_DEBUG */
 
   snprintf(str, sizeof(str), "AT+CSOCL=%d\r", at_radioconn->connectionid);
   PT_ATSTR2(str);
@@ -686,67 +676,3 @@ PT_THREAD(at_radio_close_pt(struct pt *pt, struct at_radio_connection * at_radio
   at_radio_call_event(at_radioconn, AT_RADIO_CONN_SOCKET_CLOSED);
   PT_END(pt);
 } 
-
-#if 0
-PROCESS_THREAD(a6at, ev, data) {
-  static struct at_radio_event *at_radio_event;
-  static struct at_radio_connection * at_radioconn;
-
-  PROCESS_BEGIN();
-  leds_init();
-  event_init();
-  event_queue_init();
-
- again:
-  if (status.state ==  AT_RADIO_STATE_NONE) {
-    ATSPAWN(init_module);
-    goto again;
-  }
-  if (status.state == AT_RADIO_STATE_IDLE) {
-    ATSPAWN(apn_register);
-    goto again;
-  }
-  if (status.state == AT_RADIO_STATE_REGISTERED) {
-    ATSPAWN(read_csq);
-    ATSPAWN(apn_activate);
-    ATSPAWN(get_moduleinfo);
-    ATSPAWN(get_ipconfig);
-    if (status.state != AT_RADIO_STATE_ACTIVE)
-      goto again;
-    process_post(PROCESS_BROADCAST, a6at_at_radio_init, NULL);
-    goto again;
-  }
-  if (status.state == AT_RADIO_STATE_ACTIVE) {
-    at_radio_event = dequeue_event();
-    if (at_radio_event == NULL) {
-      PROCESS_PAUSE();
-      goto again;
-    }
-    at_radioconn = (struct at_radio_connection *) at_radio_event->data;
-
-    printf("dequeed eveny %d %s\n", at_radio_event->ev, eventstr(at_radio_event->ev));
-
-    if (at_radio_event->ev == a6at_at_radio_connection) {
-#ifdef AT_RADIO_DEBUG
-      printf("A6AT AT_RADIO Connection\n");
-#endif /* AT_RADIO_DEBUG */
-      ATSPAWN(at_radio_connect, at_radioconn);
-    } /* ev == a6at_at_radio_connection */
-    else if (at_radio_event->ev == a6at_at_radio_send) {
-      ATSPAWN(at_radio_send, at_radioconn);
-    } /* ev == a6at_at_radio_send */
-    else if (at_radio_event->ev == a6at_at_radio_close) {
-      ATSPAWN(at_radio_close, at_radioconn);
-    } /* ev == a6at_at_radio_close */
-#ifdef AT_RADIO_DEBUG
-    else {
-      printf("A6AT AT_RADIO Unknown event %d\n", at_radio_event->ev);
-    }
-#endif /* AT_RADIO_DEBUG */
-  }
-  ATSPAWN(read_csq);
-  goto again;
-
-  PROCESS_END();
-}
-#endif
