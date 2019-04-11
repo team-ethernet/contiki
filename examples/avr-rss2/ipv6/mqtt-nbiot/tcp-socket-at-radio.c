@@ -128,13 +128,13 @@ at_radio_input_callback(struct at_radio_connection *at_radioconn, void *callback
      consumed. If there is data to be retained, the highest bytes of
      data are copied down into the input buffer. */
   s = callback_arg;
-  if (0){
-    int i;
-    printf("newdata %d @0x%x: '", len, (unsigned) dataptr);
-    for (i = 0; i < len; i++)
-      printf("%c", (char ) dataptr[i]);
-    printf("'\n");
-  }
+#if 0
+  int i;
+  printf("newdata %d @0x%x: '", len, (unsigned) dataptr);
+  for (i = 0; i < len; i++)
+    printf("%02x", (unsigned char ) dataptr[i], i);
+  printf("'\n");
+#endif
   do {
     copylen = MIN(len, s->input_data_maxlen);
     memcpy(s->input_data_ptr, dataptr, copylen);
@@ -178,7 +178,6 @@ at_radio_event_callback(void *callback_arg,
   case AT_RADIO_CONN_SOCKET_TIMEDOUT:
   case AT_RADIO_CONN_ABORTED:
     if (s != NULL && s->event_callback != NULL) {
-      printf("call_event(%s)\n", tcp_event_str(event));
       s->event_callback(s, s->ptr, event);
     }
     else {

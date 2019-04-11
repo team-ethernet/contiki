@@ -63,21 +63,12 @@
 
 #define APN GPRS_CONF_APN
 #define PDPTYPE "IP"
-//#define PDPTYPE "IPV6"
-
-uint32_t baud;
-uint8_t at[] = {'A', 'T', 0xd };
-
 #define AT_RADIO_CONNID 0
 
 struct at_radio_context at_radio_context;
 
 static void
 wait_init();
-
-/*---------------------------------------------------------------------------*/
-
-#define min(A, B) ((A) <= (B) ? (A) : (B))
 /*---------------------------------------------------------------------------*/
 PROCESS(sc16is_reader, "I2C UART input process");
 /* LED debugging process */
@@ -134,14 +125,13 @@ PT_THREAD(wait_ciprcv_callback(struct pt *pt, struct at_wait *at, int c)) {
 
   /* Consume the colon ':' */
   PT_YIELD(pt); 
-
   /* Get length as a decimal number followed by a comma ','
    */
   nbytes = 0;
   while (c != ',') {
     if (!isdigit(c)) {
       /* Error: bad len */
-      printf("ciprcv_callback: bad len 0x%x %d (nbytes %d)\n", c, c, nbytes);
+      at_radio_statistics.at_errors += 1;
       restart_at(&wait_ciprcv); /* restart */
       PT_EXIT(pt);
     }
@@ -313,7 +303,6 @@ static int
 module_init(uint32_t baud)
 {
   if(i2c_probed & I2C_SC16IS) {
-  printf("Here is module_init(%ld)\n",  baud);
 
     sc16is_init();
     //sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
@@ -401,8 +390,6 @@ PT_THREAD(init_module(struct pt *pt)) {
 
   PT_BEGIN(pt);
 
-  printf("INit module\n");
-
   module_init(115200);
 
   set_board_5v(0); /* Power cycle the board */
@@ -422,11 +409,9 @@ PT_THREAD(init_module(struct pt *pt)) {
   sc16is_gpio_set(s);
   /* start */
   PT_DELAY(2);
-  printf("Start Radio\n");
   s = sc16is_gpio_get();
   set_bit(&s, G_PWR);
   sc16is_gpio_set(s);
-
 
   PT_ATSTR2("ATI\r");
   PT_DELAY(5);
@@ -441,8 +426,6 @@ PT_THREAD(init_module(struct pt *pt)) {
     }
   }
       
-  printf("Done INit module\n");
-  
   PT_END(pt);
 }
 /*---------------------------------------------------------------------------*/
@@ -472,7 +455,7 @@ PT_THREAD(apn_register(struct pt *pt)) {
      *  +CREG: 0,0*
      */
     if (1 != (n = sscanf(at_line, "%*[^:]: %*d,%hhd", &creg))) {
-      printf("scan cref fail %d\n", n);
+      printf("scan creg fail %d\n", n);
       break;
     }
     if (creg == 1 || creg == 5 || creg == 10) {/* Wait for registration */
@@ -529,7 +512,7 @@ PT_THREAD(apn_activate(struct pt *pt)) {
       sprintf(str, "AT+CGDCONT=1,%s,%s\r", gcontext->pdptype, gcontext->apn); /* Set PDP (Packet Data Protocol) context */
       PT_ATSTR2(str);
       PT_ATWAIT2(5, &wait_ok);
-      PT_ATSTR2("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially, then it seems to work */
+      PT_ATSTR2("AT+CGACT=1,1\r");       /* Sometimes fails with +CME ERROR:148 -- seen when brought up initially */
       PT_ATWAIT2(20, &wait_ok,  &wait_cmeerror);
       if (at == &wait_ok) {
         break;
@@ -601,7 +584,6 @@ PT_THREAD(get_moduleinfo(struct pt *pt)) {
     goto notfound;
   }
   int i;
-  //const char *delim = " \t\r\n,";
   const char *delim = "\r\n";  
 
   char *p = strtok((char *)&at_line[0], (const char *) delim);
@@ -732,8 +714,6 @@ PT_THREAD(at_radio_connect_pt(struct pt *pt, struct at_radio_connection * at_rad
 
   while (minor_tries++ < 10) {
     hip4 = (uint8_t *) &at_radioconn->ipaddr + sizeof(at_radioconn->ipaddr) - 4;
-    //printf("Here is connection %s %s:%d\n", at_radioconn->proto, at_radioconn->ipaddr, uip_htons(at_radioconn->port));
-    //sprintf(str, "AT+CIPSTART= \"%s\", %s, %d\r", at_radioconn->proto, at_radioconn->ipaddr, uip_ntohs(at_radioconn->port));
     sprintf(str, "AT+CIPSTART= \"%s\", %d.%d.%d.%d, %d\r",
             at_radioconn->proto, hip4[0], hip4[1], hip4[2], hip4[3], uip_ntohs(at_radioconn->port));    
     PT_ATSTR2(str);
@@ -809,9 +789,6 @@ PT_THREAD(at_radio_send_pt(struct pt *pt, struct at_radio_connection * at_radioc
   static uint8_t *ptr;
 
   PT_BEGIN(pt);
-#ifdef AT_RADIO_DEBUG
-  printf("A6AT AT_RADIO Send\n");
-#endif /* AT_RADIO_DEBUG */
 
   ptr = at_radioconn->output_data_ptr;
   remain = at_radioconn->output_data_len;
@@ -880,9 +857,6 @@ PT_THREAD(at_radio_send_pt(struct pt *pt, struct at_radio_connection * at_radioc
 PT_THREAD(at_radio_close_pt(struct pt *pt, struct at_radio_connection * at_radioconn)) {
   static struct at_wait *at;
   PT_BEGIN(pt);
-#ifdef AT_RADIO_DEBUG
-  printf("A6AT AT_RADIO Close\n");
-#endif /* AT_RADIO_DEBUG */
 
   PT_ATSTR2("AT+CIPCLOSE\r");
   PT_ATWAIT2(15, &wait_ok, &wait_cmeerror);
