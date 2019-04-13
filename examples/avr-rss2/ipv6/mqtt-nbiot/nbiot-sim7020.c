@@ -46,10 +46,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "uip.h"
 #include "i2c.h"
 #include "dev/leds.h"
-#include "tcp-socket-at-radio.h"
-//#include "gprs-a6.h"
 #include "at-radio.h"
 #include "at-wait.h"
 

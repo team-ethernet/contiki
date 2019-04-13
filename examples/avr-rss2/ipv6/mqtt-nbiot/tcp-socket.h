@@ -32,6 +32,19 @@
 #ifndef TCP_SOCKET_AT_RADIO_COMPAT_H
 #define TCP_SOCKET_AT_RADIO_COMPAT_H
 
+#include "../../../../core/net/ip/tcp-socket.h"
+
+#ifdef AT_RADIO_SOCKETS
+
+/* Use Contiki socket API to access builtin protocol
+ * stack on cellular data radio modules. 
+ * Lacking a generic interface between TCP sockets and protocol
+ * stack, rename socket operations to use functions from 
+ * tcp-socket-at-radio.h.
+ */
+
+#include "tcp-socket-at-radio.h"
+
 #define tcp_socket tcp_socket_at_radio 
 
 #define tcp_socket_register tcp_socket_at_radio_register
@@ -43,5 +56,5 @@
 #define tcp_socket_unregister tcp_socket_at_radio_unregister 
 #define tcp_socket_max_sendlen tcp_socket_at_radio_max_sendlen 
 #define tcp_socket_queuelen tcp_socket_at_radio_queuelen
-
+#endif /* AT_RADIO_SOCKETS */
 #endif /* TCP_SOCKET_AT_RADIO_COMPAT_H */

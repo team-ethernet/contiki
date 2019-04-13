@@ -25,7 +25,7 @@ PROJECT_OBJECTFILES +=  at-wait.o at-radio.o
 #CFLAGS += -DBME280
 CFLAGS += -DMQTT_AT_RADIO
 CFLAGS += -DAT_RADIO_SOCKETS
-
+CFLAGS += -I/home/peter/src/contiki-coap/examples/avr-rss2/ipv6/mqtt-nbiot
 MODULES += dev/bme280
 MODULES += dev/pms5003
 MODULES += dev/sc16is
