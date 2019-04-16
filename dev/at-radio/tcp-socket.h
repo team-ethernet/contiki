@@ -51,7 +51,8 @@
 #define tcp_socket_connect tcp_socket_at_radio_connect
 #define tcp_socket_listen tcp_socket_at_radio_listen
 #define tcp_socket_unlisten  tcp_socket_at_radio_unlisten
-#define tcp_socket_send tcp_socket_at_radio_send 
+#define tcp_socket_send tcp_socket_at_radio_send
+#define tcp_socket_send_str tcp_socket_at_radio_send_str 
 #define tcp_socket_close tcp_socket_at_radio_close 
 #define tcp_socket_unregister tcp_socket_at_radio_unregister 
 #define tcp_socket_max_sendlen tcp_socket_at_radio_max_sendlen 

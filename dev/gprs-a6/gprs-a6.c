@@ -48,6 +48,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "uip.h"
+#include "gprs-a6-arch.h"
 #include "i2c.h"
 #include "dev/leds.h"
 #include "dev/sc16is/sc16is.h"
@@ -70,7 +71,7 @@ struct at_radio_context at_radio_context;
 static void
 wait_init();
 /*---------------------------------------------------------------------------*/
-PROCESS(sc16is_reader, "I2C UART input process");
+PROCESS(a6_reader, "A6 UART input process");
 /* LED debugging process */
 PROCESS(yled, "Yellow LED");
 static clock_time_t yled_interval = CLOCK_SECOND/2;
@@ -81,7 +82,7 @@ at_radio_module_init() {
   at_radio_set_context(&at_radio_context, PDPTYPE, APN);
   wait_init();
   leds_init();
-  process_start(&sc16is_reader, NULL);
+  process_start(&a6_reader, NULL);
   process_start(&yled, NULL);
 }
 /*---------------------------------------------------------------------------*/
@@ -299,25 +300,7 @@ dumpchar(int c) {
     putchar(c);
 }
 
-static int
-module_init(uint32_t baud)
-{
-  if(i2c_probed & I2C_SC16IS) {
-
-    sc16is_init();
-    //sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_SET | G_LED_YELLOW | G_LED_RED | G_GPIO7);
-    sc16is_gpio_set_dir(G_RESET | G_PWR | G_U_5V_CTRL | G_LED_YELLOW | G_LED_RED | G_GPIO7);
-    sc16is_gpio_set((G_LED_RED|G_LED_YELLOW));
-    sc16is_uart_set_speed(baud);
-    /* sc16is_arch_i2c_write_mem(I2C_SC16IS_ADDR, SC16IS_FCR, SC16IS_FCR_FIFO_BIT); */
-    status.state = AT_RADIO_STATE_IDLE;
-    sc16is_tx((uint8_t *)"AT", sizeof("AT"-1));
-    return 1;
-  }
-  return 0;
-}
-
-PROCESS_THREAD(sc16is_reader, ev, data)
+PROCESS_THREAD(a6_reader, ev, data)
 {
   static struct pt wait_pt;
   static int len;
@@ -329,16 +312,14 @@ PROCESS_THREAD(sc16is_reader, ev, data)
   
   while(1) {
     PROCESS_PAUSE();
-    if( i2c_probed & I2C_SC16IS ) {
-      len = sc16is_rx(buf, sizeof(buf));
-      if (len) {
-        static int i;
-        uint8_t c;
-        for (i = 0; i < len; i++) {
-          c = buf[i];
-          dumpchar(c);
-          wait_fsm_pt(&wait_pt, c);
-        }
+    len = gprs_a6_rx(buf, sizeof(buf));
+    if (len) {
+      static int i;
+      uint8_t c;
+      for (i = 0; i < len; i++) {
+        c = buf[i];
+	dumpchar(c);
+	wait_fsm_pt(&wait_pt, c);
       }
     }
   }
@@ -352,9 +333,8 @@ PROCESS_THREAD(sc16is_reader, ev, data)
  */
 size_t
 at_radio_sendbuf(uint8_t *buf, size_t len) {
-  return sc16is_tx(buf, len);
+  return gprs_a6_tx(buf, len);
 }
-
 /*---------------------------------------------------------------------------*/
 /* read_csq
  * Protothread to read rssi/csq with AT commands. Store result
@@ -386,32 +366,12 @@ PT_THREAD(read_csq(struct pt *pt)) {
 
 PT_THREAD(init_module(struct pt *pt)) {
   struct at_wait *at;
-  uint8_t s;
 
   PT_BEGIN(pt);
 
-  module_init(115200);
+  PT_ATSPAWN(gprs_a6_module_init, 115200);
 
-  set_board_5v(0); /* Power cycle the board */
-  PT_DELAY(2);
-  set_board_5v(1);
-  PT_DELAY(2);
-  s = sc16is_gpio_get();
-  printf("LOOP GPIO=0x%02x\n", sc16is_gpio_get());
-  clr_bit(&s, G_PWR);
-  set_bit(&s, G_RESET);
-
-  set_bit(&s, G_LED_RED); /*OFF */
-  set_bit(&s, G_LED_YELLOW);
-  sc16is_gpio_set(s);
-  PT_DELAY(2);
-  clr_bit(&s, G_RESET);
-  sc16is_gpio_set(s);
-  /* start */
-  PT_DELAY(2);
-  s = sc16is_gpio_get();
-  set_bit(&s, G_PWR);
-  sc16is_gpio_set(s);
+  status.state = AT_RADIO_STATE_IDLE;
 
   PT_ATSTR2("ATI\r");
   PT_DELAY(5);
