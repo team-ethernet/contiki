@@ -9,7 +9,7 @@
 #include "lib/sensors.h"
 #include "rss2.h"
 
-static double read_noise_value(void)
+double read_noise_value(void)
 {
   return ((adc_read_a1()*100)+4);
 }
