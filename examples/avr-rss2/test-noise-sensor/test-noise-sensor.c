@@ -26,7 +26,7 @@ printf("NODE_ID=");
 for(i=0; i < 15; i++){
   printf("%02x", serial[i]);
 }
-  printf("%02x", serial[15]);
+  //printf("%02x", serial[15]);
 
   printf(" DB=%-4.2f\n", (adc_read_a1()*100)+4);
 
