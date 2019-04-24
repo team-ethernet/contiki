@@ -35,7 +35,7 @@ for(i=0; i < 15; i++){
 }
   printf("%02x\n", serial[15]);
 
-  printf("NOICE=%-d dB", noise_sensor.value());
+  printf("NOICE=%-d dB", noise_sensor.value(0));
 
 
 }
