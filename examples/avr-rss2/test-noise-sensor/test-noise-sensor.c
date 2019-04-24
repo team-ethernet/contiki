@@ -44,7 +44,7 @@ double read_noise_sensor(void)
 {
   return ((((double)adc_read(A1)) * V_IN_FACTOR)*100)+4;
 }
-  PROCESS_THREAD(noise_sensors_proacess, ev, data)
+  PROCESS_THREAD(noise_sensors_process, ev, data)
   {
     PROCESS_BEGIN();
 

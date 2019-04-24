@@ -5,7 +5,9 @@
 #include "adc.h"
 #include "lib/sensors.h"
 
-double value(int type)
+const struct sensors_sensor noise_sensor;
+
+static double value(int type)
 {
   return ((((double)adc_read(A1)) * V_IN_FACTOR)*100)+4;
 }
