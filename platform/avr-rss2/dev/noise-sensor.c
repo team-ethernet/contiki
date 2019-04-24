@@ -1,6 +1,6 @@
 #include "contiki.h"
 #include "lib/sensors.h"
-#include "dev/light-sensor.h"
+#include "dev/noise-sensor.h"
 #include "rss2.h"
 #include "adc.h"
 #include "lib/sensors.h"
