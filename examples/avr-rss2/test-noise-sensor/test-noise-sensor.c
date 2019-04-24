@@ -35,7 +35,7 @@ for(i=0; i < 15; i++){
 }
   printf("%02x\n", serial[15]);
 
-  printf("NOICE=%-d dB", adc_read_a1());
+  printf("NOICE=%-4.2f dB", adc_read_a1());
 
 
 }
