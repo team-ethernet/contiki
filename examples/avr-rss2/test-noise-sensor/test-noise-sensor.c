@@ -3,14 +3,6 @@
 #include <stdio.h>
 #include "adc.h"
 #include "i2c.h"
-#include "dev/leds.h"
-#include "dev/battery-sensor.h"
-#include "dev/temp-sensor.h"
-#include "dev/temp_mcu-sensor.h"
-#include "dev/light-sensor.h"
-#include "dev/pulse-sensor.h"
-#include "dev/bme280/bme280-sensor.h"
-#include "dev/co2_sa_kxx-sensor.h"
 #include "dev/button-sensor.h"
 #include "dev/noise-sensor.h"
 
@@ -49,17 +41,7 @@ double read_noise_sensor(void)
     PROCESS_BEGIN();
 
     SENSORS_ACTIVATE(button_sensor);
-
-    if( i2c_probed & I2C_BME280 ) {
-      SENSORS_ACTIVATE(bme280_sensor);
-    }
-
-    if( i2c_probed & I2C_CO2SA ) {
-      SENSORS_ACTIVATE(co2_sa_kxx_sensor);
-    }
-    leds_init();
-    leds_on(LEDS_RED);
-    leds_on(LEDS_YELLOW);
+	SENSORS_ACTIVATE(noise_sensor);
 
     /*
      * Delay 5 sec
