@@ -1,29 +1,15 @@
 #include "contiki.h"
-#include "lib/sensors.h"
-#include "dev/noise-sensor.h"
-#include "rss2.h"
+#include "sys/etimer.h"
+#include <stdio.h>
 #include "adc.h"
+#include "i2c.h"
+#include "dev/leds.h"
+#include "dev/button-sensor.h"
+#include "dev/noise-sensor.h"
 #include "lib/sensors.h"
+#include "rss2.h"
 
-const struct sensors_sensor noise_sensor;
-
-static double value(int type)
+static double read_noise_value(void)
 {
-  return ((((double)adc_read(A1)) * V_IN_FACTOR)*100)+4;
+  return ((adc_read_a1()*100)+4);
 }
-
-static int status(int type)
-{
-  return 0;
-}
-
-static int configure(int type, int c)
-{
-  DDRF &= ~(1 << A1); /* Noise sensor */
-  DDRF &= ~(1 << A1_PWR);
-
-  PORTF |= (1 << A1_PWR); /* Noise sensor */
-  return 0;
-}
-
-SENSORS_SENSOR(noise_sensor, "Noise", value, configure, status);

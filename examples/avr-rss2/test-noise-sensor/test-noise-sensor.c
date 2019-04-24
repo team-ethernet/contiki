@@ -26,9 +26,11 @@ printf("NODE_ID=");
 for(i=0; i < 15; i++){
   printf("%02x", serial[i]);
 }
-  //printf("%02x", serial[15]);
+  printf("%02x", serial[15]);
 
   printf(" DB=%-4.2f\n", (adc_read_a1()*100)+4);
+  printf("\n hejsan \n");
+  printf(read_noise_value());
 
 }
 
@@ -47,7 +49,7 @@ for(i=0; i < 15; i++){
      * Gives a chance to trigger some pulses
      */
 
-      etimer_set(&et, CLOCK_SECOND * 5);
+      etimer_set(&et, CLOCK_SECOND * 1);
     while(1) {
       PROCESS_YIELD();
       //PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
