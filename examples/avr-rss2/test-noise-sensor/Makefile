@@ -1,5 +1,5 @@
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
-CONTIKI_PROJECT = hello-sensors
+CONTIKI_PROJECT = noise-sensors
 all: $(CONTIKI_PROJECT)
 
 # We use floating vars. Add library.

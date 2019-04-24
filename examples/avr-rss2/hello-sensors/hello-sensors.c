@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB  
+ * Copyright (c) 2015, Copyright Robert Olsson / Radio Sensors AB
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,13 +58,12 @@ AUTOSTART_PROCESSES(&hello_sensors_process);
 
 static struct etimer et;
 
-static void
-read_values(void)
+static void read_values(void)
 {
   char serial[16];
 
   int i;
- 
+
  /* Read out mote unique 128 bit ID */
   i2c_at24mac_read((char *) &serial, 0);
   printf("128_bit_ID=");
@@ -82,7 +81,7 @@ read_values(void)
   printf(" PULSE_1=%-d", pulse_sensor.value(1));
 
   printf("\n");
-  
+
   if( i2c_probed & I2C_CO2SA ) {
     printf(" CO2=%-d", co2_sa_kxx_sensor.value( CO2_SA_KXX_CO2));
   }
@@ -92,7 +91,7 @@ read_values(void)
     printf(" BME280_TEMP=%-d", bme280_sensor.value(BME280_SENSOR_TEMP));
     printf(" BME280_RH=%-d", bme280_sensor.value(BME280_SENSOR_HUMIDITY));
     printf(" BME280_P=%-d", bme280_sensor.value(BME280_SENSOR_PRESSURE));
-#else 
+#else
     /* Trigger burst read */
     bme280_sensor.value(BME280_SENSOR_TEMP);
     printf(" T_BME280=%5.2f", (double)bme280_mea.t_overscale100 / 100.);
@@ -117,7 +116,7 @@ PROCESS_THREAD(hello_sensors_process, ev, data)
   SENSORS_ACTIVATE(light_sensor);
   SENSORS_ACTIVATE(pulse_sensor);
   SENSORS_ACTIVATE(button_sensor);
-  
+
   if( i2c_probed & I2C_BME280 ) {
     SENSORS_ACTIVATE(bme280_sensor);
   }
@@ -125,12 +124,12 @@ PROCESS_THREAD(hello_sensors_process, ev, data)
   if( i2c_probed & I2C_CO2SA ) {
     SENSORS_ACTIVATE(co2_sa_kxx_sensor);
   }
-  leds_init(); 
+  leds_init();
   leds_on(LEDS_RED);
   leds_on(LEDS_YELLOW);
 
-  /* 
-   * Delay 5 sec 
+  /*
+   * Delay 5 sec
    * Gives a chance to trigger some pulses
    */
 
