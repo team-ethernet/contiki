@@ -5,7 +5,7 @@
 #include "i2c.h"
 #include "dev/leds.h"
 #include "dev/button-sensor.h"
-#include "dev/noise-sensor.c"
+#include "dev/noise-sensor.h"
 
 
 PROCESS(noise_sensors_process, "Noise sensor process");
