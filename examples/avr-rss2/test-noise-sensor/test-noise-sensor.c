@@ -35,12 +35,16 @@ for(i=0; i < 15; i++){
 }
   printf("%02x\n", serial[15]);
 
-  printf("NOICE=%-d dB", noise_sensor.value(0));
+  printf("NOICE=%-d dB", noise_sensor.value());
 
 
 }
 
-  PROCESS_THREAD(noise_sensors_process, ev, data)
+double read_noise_sensor(void)
+{
+  return ((((double)adc_read(A1)) * V_IN_FACTOR)*100)+4;
+}
+  PROCESS_THREAD(noise_sensors_proacess, ev, data)
   {
     PROCESS_BEGIN();
 
