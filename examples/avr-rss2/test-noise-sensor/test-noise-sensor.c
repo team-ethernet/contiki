@@ -28,7 +28,7 @@ for(i=0; i < 15; i++){
 }
   printf("%02x", serial[15]);
 
-  printf("V_AD1=%-4.2f/n", (adc_read_a1()*100)+4);
+  printf(" DB=%-4.2f\n", (adc_read_a1()*100)+4);
 
 }
 
