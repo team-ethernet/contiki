@@ -35,7 +35,7 @@ for(i=0; i < 15; i++){
 }
   printf("%02x\n", serial[15]);
 
-  printf("NOICE=%-d dB", noise_sensor.value(0));
+  printf("NOICE=%-d dB", adc_read_a1());
 
 
 }
@@ -49,7 +49,6 @@ double read_noise_sensor(void)
     PROCESS_BEGIN();
 
     SENSORS_ACTIVATE(button_sensor);
-	SENSORS_ACTIVATE(noise_sensor);
 	
     if( i2c_probed & I2C_BME280 ) {
       SENSORS_ACTIVATE(bme280_sensor);
