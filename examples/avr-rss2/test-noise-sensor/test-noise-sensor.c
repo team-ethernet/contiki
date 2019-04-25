@@ -39,6 +39,7 @@ for(i=0; i < 15; i++){
     PROCESS_BEGIN();
 
     SENSORS_ACTIVATE(button_sensor);
+	SENSORS_ACTIVATE(noise_sensor);
 	
     leds_init();
     leds_on(LEDS_RED);
