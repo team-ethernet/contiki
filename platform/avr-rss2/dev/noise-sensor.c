@@ -14,7 +14,6 @@
 *	This file contains the driver for the external noise sensor
 *	Digital sound level meter version 1358-EN-00
 *	
-
 */	
 
 double read_noise_value(void)

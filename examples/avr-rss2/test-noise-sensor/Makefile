@@ -1,6 +1,7 @@
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 CONTIKI_PROJECT = test-noise-sensor
 all: $(CONTIKI_PROJECT)
+PROJECT_SOURCEFILES = noise-sensor.c
 
 # We use floating vars. Add library.
 PRINTF_LIB_FLT  = -Wl,-u,vfprintf -lprintf_flt -lm
