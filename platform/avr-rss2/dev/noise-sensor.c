@@ -26,14 +26,12 @@ double value(void)
 }
 
 /*---------------------------------------------------------------------------*/
-static int
-status(int type)
+int status(int type)
 {
   return 0;
 }
 /*---------------------------------------------------------------------------*/
-static int
-configure(int type, int c)
+int configure(int type, int c)
 {
   return 0;
 }
