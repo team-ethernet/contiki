@@ -5,6 +5,7 @@
 #include "i2c.h"
 #include "lib/sensors.h"
 #include "rss2.h"
+#include "dev/noise-sensor.h"
 
 double read_noise_value(void)
 {
