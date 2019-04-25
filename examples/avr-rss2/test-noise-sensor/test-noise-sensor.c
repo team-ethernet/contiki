@@ -30,7 +30,7 @@ for(i=0; i < 15; i++){
 
   printf(" DB=%-4.2f\n", (adc_read_a1()*100)+4);
   printf("\n hejsan \n");
-  printf(" DB=%-4.2f\n", ((double)read_noise_value()));
+  printf(" DB=%-4.2f\n", ((double)noise-sensor.read_noise_value()));
 
 }
 
