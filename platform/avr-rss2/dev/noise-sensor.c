@@ -38,4 +38,4 @@ configure(int type, int c)
   return 0;
 }
 /*---------------------------------------------------------------------------*/
-SENSORS_SENSOR(noise_sensor, "Noise", value, configure, status);
+SENSORS_SENSOR(noise_sensor, "Noise", read_noise_value, configure, status);
