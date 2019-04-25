@@ -6,6 +6,8 @@
 #include "dev/leds.h"
 #include "dev/button-sensor.h"
 #include "dev/noise-sensor.h"
+#include "dev/noise-sensor.c"
+
 
 
 PROCESS(noise_sensors_process, "Noise sensor process");
@@ -30,7 +32,7 @@ for(i=0; i < 15; i++){
 
   printf(" DB=%-4.2f\n", (adc_read_a1()*100)+4);
   printf("\n hejsan \n");
-  printf(" DB=%-4.2f\n", ((double)noise_sensor.value(0)));
+  printf(" DB=%-4.2f\n", ((double)/*noise_sensor.*/value(0)));
 
 }
 

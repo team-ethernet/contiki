@@ -16,7 +16,7 @@
 *	
 */	
 
-const struct sensors_sensor noise_sensor;
+//const struct sensors_sensor noise_sensor;
 
 static double value(int type)
 {
@@ -24,16 +24,17 @@ static double value(int type)
 								//100 as the voltage is linearly proportional 
 								//with the dB value but 100 times smaller
 }
-
-/*---------------------------------------------------------------------------*/
-static int status(int type)
-{
-  return 0;
-}
-/*---------------------------------------------------------------------------*/
-static int configure(int type, int c)
-{
-  return 0;
-}
-/*---------------------------------------------------------------------------*/
-SENSORS_SENSOR(noise_sensor, "Noise", value, configure, status);
+/*
+*	---------------------------------------------------------------------------
+*	static int status(int type)
+*	{
+* 	 return 0;
+*	}
+*	---------------------------------------------------------------------------
+*	static int configure(int type, int c)
+*	{
+*	  return 0;
+*	}
+*	---------------------------------------------------------------------------
+*	SENSORS_SENSOR(noise_sensor, "Noise", value, configure, status);
+*/
