@@ -744,7 +744,8 @@ publish_sensors(void)
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"dB\":%-4.2f}", value(0));
+  PUTFMT(",\"dB\":%-4.2f}", ((double)value(0)));
+  printf("printing publis_sensors")
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
 
 #ifdef CO2
@@ -819,8 +820,8 @@ publish_stats(void)
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
   PUTFMT(",\"bu\":\"count\"");
-  PUTFMT(",\"dB\":%-4.2f}", value(0));
-
+  PUTFMT(",\"dB\":%-4.2f}", ((double)value(0)));
+  printf("printing publish_stats")
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
   switch (stats) {
   case STATS_DEVICE:
