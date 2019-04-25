@@ -188,7 +188,7 @@ static struct {
 } watchdog_stats = {0, 0, 0};
 #endif /* MQTT_WATCHDOG */
 /* Publish statistics every N publication */
-#define PUBLISH_STATS_INTERVAL 8
+//#define PUBLISH_STATS_INTERVAL 8 //COMMENTED FOR NOISESENSOR
 
 
 /*---------------------------------------------------------------------------*/
@@ -742,52 +742,10 @@ publish_sensors(void)
 
   seq_nr_value++;
 
-  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"dB\":%-4.2f}", ((double)value(0)));
-  printf("printing publish_sensors, dB=%-4.2f\n", ((double)value(0)));
-  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
-
-#ifdef CO2
-  PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
-#endif
-
-    if(lc.no2_corr) {
-      /* Assume 5V VCC and 0 correection */
-      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", no2());
-      PUTFMT(",{\"n\":\"a2\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
-    }
-
-  if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));
-
-    if(lc.dustbin) {
-      PUTFMT(",{\"n\":\"pms5003;db;0_3\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_3));
-      PUTFMT(",{\"n\":\"pms5003;db;0_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_5));
-      PUTFMT(",{\"n\":\"pms5003;db;1\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB1));
-      PUTFMT(",{\"n\":\"pms5003;db;2_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB2_5));
-      PUTFMT(",{\"n\":\"pms5003;db;5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
-      PUTFMT(",{\"n\":\"pms5003;db;10\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB10));
-    }
-
-  }
-  if( i2c_probed & I2C_BME280 ) {
-    bme280_sensor.value(BME280_SENSOR_TEMP);
-    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%4.2f}", (double)bme280_mea.t_overscale100/100.0);
-    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%4.2f}", (double)bme280_mea.h_overscale1024 / 1024.0);
-#ifdef BME280_64BIT
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p_overscale256/ (256.0*100));
-#else
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p);
-#endif
-  }
-
-  PUTFMT("]");
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */  
+  PUTFMT("NODE_ID=%s", node_id);
+  PUTFMT(" dB=%-4.2f}", ((double)value(0)));
+  printf("printing publish_sensors: NODE_ID=%s  dB=%-4.2f\n", node_id, ((double)value(0)));
 
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
@@ -818,11 +776,9 @@ publish_stats(void)
   seq_nr_value++;
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"bu\":\"count\"");
-  PUTFMT(",\"dB\":%-4.2f}", ((double)value(0)));
-  printf("printing publish_sensors, dB=%-4.2f\n", ((double)value(0)));
-  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+  PUTFMT("NODE_ID=%s", node_id);
+  PUTFMT(" dB=%-4.2f}", ((double)value(0)));
+  printf("printing publish_stats: NODE_ID=%s  dB=%-4.2f\n", node_id, ((double)value(0)));
   switch (stats) {
   case STATS_DEVICE:
 
@@ -965,12 +921,12 @@ publish(void)
 {
   if (pub_now_message)
     publish_now();
-  else if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2)
-    publish_stats();
-  else if (((seq_nr_value % PUBLISH_STATS_INTERVAL) == 6) && (lc.cca_test)) {
-    do_all_chan_cca(cca);
-    publish_cca_test();
-  }
+//  else if ((seq_nr_value % PUBLISH_STATS_INTERVAL) == 2) COMMENTED FOR NOISESENSOR
+//    publish_stats();
+//  else if (((seq_nr_value % PUBLISH_STATS_INTERVAL) == 6) && (lc.cca_test)) {
+//    do_all_chan_cca(cca);
+//   publish_cca_test();
+//  }
   else
     //publish_stats();
     publish_sensors();
