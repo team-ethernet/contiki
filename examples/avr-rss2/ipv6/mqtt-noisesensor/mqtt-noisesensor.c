@@ -67,6 +67,10 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+
+#include "dev/noise-sensor.c"
+#include "dev/noise-sensor.h"
+
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
 #define RF230_DEBUG 0
@@ -740,7 +744,7 @@ publish_sensors(void)
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",\"dB\":%-4.2f}", value(0));
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
 
 #ifdef CO2
@@ -815,7 +819,7 @@ publish_stats(void)
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
   PUTFMT(",\"bu\":\"count\"");
-  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",\"dB\":%-4.2f}", value(0));
 
   PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
   switch (stats) {
