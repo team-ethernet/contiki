@@ -18,7 +18,7 @@
 
 const struct sensors_sensor noise_sensor;
 
-double read_noise_value(void)
+double value(void)
 {
   return ((adc_read_a1()*100)); //Multiply voltage value with
 								//100 as the voltage is linearly proportional 
