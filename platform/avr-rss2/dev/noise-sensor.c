@@ -18,7 +18,7 @@
 
 const struct sensors_sensor noise_sensor;
 
-double value(void)
+static double value(int type)
 {
   return ((adc_read_a1()*100)); //Multiply voltage value with
 								//100 as the voltage is linearly proportional 
@@ -26,12 +26,12 @@ double value(void)
 }
 
 /*---------------------------------------------------------------------------*/
-int status(int type)
+static int status(int type)
 {
   return 0;
 }
 /*---------------------------------------------------------------------------*/
-int configure(int type, int c)
+static int configure(int type, int c)
 {
   return 0;
 }
