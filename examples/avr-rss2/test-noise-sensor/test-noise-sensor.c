@@ -30,7 +30,7 @@ for(i=0; i < 15; i++){
 }
   printf("%02x", serial[15]);
 
-  printf(" DB=%-4.2f\n", ((double)/*noise_sensor.*/value(0)));
+  printf(" DB=%d\n", value(0));
 
 }
 
