@@ -743,8 +743,8 @@ publish_sensors(void)
   seq_nr_value++;
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */  
-  PUTFMT("NODE_ID=%s", node_id);
-  PUTFMT(" dB=%-4.2f", ((double)value(0)));
+  PUTFMT("{\"node_id\":\"%s\"", node_id);
+  PUTFMT(",\"db\":%d}", value(0));
   printf("printing publish_sensors: NODE_ID=%s dB=%-4.2f\n", node_id, ((double)value(0)));
 
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
