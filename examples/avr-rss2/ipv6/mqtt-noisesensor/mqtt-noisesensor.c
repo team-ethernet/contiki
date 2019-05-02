@@ -182,7 +182,7 @@ static struct etimer checktimer;
 #define STALE_CONNECTING_WATCHDOG 20
 
 static struct {
-  unsigned int stale_publishing;
+  unsigned int stale_publishing; 
   unsigned int stale_connecting;
   unsigned int closed_connection;
 } watchdog_stats = {0, 0, 0};
@@ -199,8 +199,8 @@ double m = MIC2714_M;
 double a = MIC2714_A;
 
 /*
-  EC  20C 1013mB  NO2 1 ppb= 1.9125 μg/m**3
-  WHO 25C 1013mB  NO2 1 ppb= 1.88   μg/m**3
+  EC  20C 1013mB  NO2 1 ppb= 1.9125 μg/m**3 
+  WHO 25C 1013mB  NO2 1 ppb= 1.88   μg/m**3 
 
   https://uk-air.defra.gov.uk/assets/documents/reports/cat06/0502160851_Conversion_Factors_Between_ppb_and.pdf
 
@@ -244,7 +244,7 @@ typedef struct mqtt_client_config {
 } mqtt_client_config_t;
 /*---------------------------------------------------------------------------*/
 /* Maximum TCP segment size for outgoing segments of our socket */
-#define MAX_TCP_SEGMENT_SIZE  32
+#define MAX_TCP_SEGMENT_SIZE  32  
 /*---------------------------------------------------------------------------*/
 #define STATUS_LED LEDS_YELLOW
 /*---------------------------------------------------------------------------*/
@@ -273,7 +273,7 @@ static char *pub_now_topic;
  * The main MQTT buffers.
  * We will need to increase if we start publishing more data.
  */
-#if RF230_DEBUG || RPL_CONF_STATS
+#if RF230_DEBUG || RPL_CONF_STATS 
 /* increase buffer size when debug/statistics is enabled */
 #define APP_BUFFER_SIZE 2048
 #else
@@ -362,7 +362,7 @@ set_chan(uint8_t chan)
 
 extern bool rf230_blackhole_rx;
 
-void
+void 
 do_all_chan_cca(uint8_t *cca)
 {
   int i, j;
@@ -396,7 +396,7 @@ static void
 pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
             uint16_t chunk_len)
 {
-
+  
   char *cmd_topic, *reply_topic;
 
   DBG("Pub Handler: topic='%s' (len=%u), chunk_len=%u\n", topic, topic_len,
@@ -410,7 +410,7 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
   }
 
   if (chunk[chunk_len-1] != 0 && chunk[chunk_len] != 0) {
-    printf("MQTT chunk not null terminated\n");
+    printf("MQTT chunk not null terminated\n");  
     return;
   }
 
@@ -431,7 +431,7 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
     printf("Ignoring pub. topic %s\n", topic);
   }
 #endif /* MQTT_CLI */
-}
+} 
 
 static struct mqtt_app_statistics {
   unsigned int connected;
@@ -499,7 +499,7 @@ static char *
 construct_topic(char *suffix)
 {
   static char buf[BUFFER_SIZE];
-
+  
   int len = snprintf(buf, sizeof(buf), "%s/%s/%s", MQTT_DEMO_TOPIC_BASE, node_id, suffix);
 
   /* len < 0: Error. Len >= BUFFER_SIZE: Buffer too small */
@@ -527,7 +527,7 @@ construct_client_id(void)
 static int
 construct_node_id(void)
 {
-int len = snprintf(node_id, NODEID_SIZE,
+int len = snprintf(node_id, NODEID_SIZE, 
 			   "%02x%02x%02x%02x%02x%02x%02x%02x",
 			   linkaddr_node_addr.u8[0], linkaddr_node_addr.u8[1],
 			   linkaddr_node_addr.u8[2], linkaddr_node_addr.u8[3],
@@ -584,59 +584,59 @@ struct {
 } lc;
 
 /*---------------------------------------------------------------------------*/
-// static void
-// init_node_local_config()
-// {
-//   unsigned char node_mac[8];
-//   unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa }; /* Stadhus north side - has NO2 sensor */
-//   unsigned char n050f[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x05, 0x0f }; /* Stadhus south side - no NO2 sensor */
-//   unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 }; /* SLB station - has NO2 sensor */
-//   unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 }; /* SLB station - has NO2 sensor */
-//   unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e }; /* RO test */
-//   unsigned char n1242[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x12, 0x42 }; /* lab node */
-//
-//   memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
-//
-//   if(memcmp(node_mac, n06aa, 8) == 0) {
-//     lc.dustbin = 1;
-//     lc.cca_test = 1;
-//     lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
-//   }
-//   else if(memcmp(node_mac, n050f, 8) == 0) {
-//     lc.dustbin = 1;
-//     lc.cca_test = 1;
-//     lc.no2_corr = 0;
-//   }
-//   else if(memcmp(node_mac, n63a7, 8) == 0) {
-//     lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
-//     lc.cca_test = 1;
-//     lc.no2_corr = 1600; /* Experiment with SLB Uppsala */
-//     lc.no2_rev = 1;
-//   }
-//   else if(memcmp(node_mac, n8554, 8) == 0) {
-//     lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
-//     lc.cca_test = 1;
-//     lc.no2_corr = 1; /* Experiment with SLB Uppsala */
-//     lc.no2_rev = 1;
-//   }
-//   else if(memcmp(node_mac, n837e, 8) == 0) {
-//     lc.dustbin = 0; /*  */
-//     lc.cca_test = 0;
-//     lc.no2_corr = 100; /* Comparing SLB urban background sthlm with Kista */
-//   }
-//   else if(memcmp(node_mac, n1242, 8) == 0) {
-//     lc.dustbin = 1; /*  */
-//     lc.cca_test = 0;
-//     lc.no2_corr = 0;
-//   }
-//   else {
-//     lc.dustbin = 0;
-//     lc.cca_test = 0;
-//     lc.no2_corr = 0;
-//     lc.no2_rev = 0;
-//   }
-//   printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
-// }
+static void
+init_node_local_config()
+{
+  unsigned char node_mac[8];
+  unsigned char n06aa[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x06, 0xaa }; /* Stadhus north side - has NO2 sensor */
+  unsigned char n050f[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x05, 0x0f }; /* Stadhus south side - no NO2 sensor */
+  unsigned char n63a7[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x63, 0xa7 }; /* SLB station - has NO2 sensor */
+  unsigned char n8554[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x85, 0x54 }; /* SLB station - has NO2 sensor */
+  unsigned char n837e[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x01, 0x83, 0x7e }; /* RO test */
+  unsigned char n1242[8] = { 0xfc, 0xc2, 0x3d, 0x00, 0x00, 0x00, 0x12, 0x42 }; /* lab node */
+
+  memcpy(node_mac, &uip_lladdr.addr, sizeof(linkaddr_t));
+
+  if(memcmp(node_mac, n06aa, 8) == 0) {
+    lc.dustbin = 1;
+    lc.cca_test = 1;
+    lc.no2_corr = 20.9; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n050f, 8) == 0) {
+    lc.dustbin = 1;
+    lc.cca_test = 1;
+    lc.no2_corr = 0;
+  }
+  else if(memcmp(node_mac, n63a7, 8) == 0) {
+    lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
+    lc.cca_test = 1;
+    lc.no2_corr = 1600; /* Experiment with SLB Uppsala */
+    lc.no2_rev = 1;
+  }
+  else if(memcmp(node_mac, n8554, 8) == 0) {
+    lc.dustbin = 1; /* 63a7 is at SLB station with dustbin enabled */
+    lc.cca_test = 1;
+    lc.no2_corr = 1; /* Experiment with SLB Uppsala */
+    lc.no2_rev = 1;
+  }
+  else if(memcmp(node_mac, n837e, 8) == 0) {
+    lc.dustbin = 0; /*  */
+    lc.cca_test = 0;
+    lc.no2_corr = 100; /* Comparing SLB urban background sthlm with Kista */
+  }
+  else if(memcmp(node_mac, n1242, 8) == 0) {
+    lc.dustbin = 1; /*  */
+    lc.cca_test = 0;
+    lc.no2_corr = 0; 
+  }
+  else {
+    lc.dustbin = 0;
+    lc.cca_test = 0;
+    lc.no2_corr = 0;
+    lc.no2_rev = 0;
+  }
+  printf("Local node settings: Dustbin=%d, CCA_TEST=%d, NO2_CORR=%-4.2f\n", lc.dustbin, lc.cca_test, lc.no2_corr);
+}
 /*---------------------------------------------------------------------------*/
 static int
 init_config()
@@ -662,10 +662,10 @@ init_config()
   conf.keep_alive_timer = MQTT_CONF_KEEP_ALIVE_TIMER;
 #else
   conf.keep_alive_timer = DEFAULT_KEEP_ALIVE_TIMER;
-#endif /* MQTT_CONF_KEEP_ALIVE_TIMER */
+#endif /* MQTT_CONF_KEEP_ALIVE_TIMER */ 
   conf.def_rt_ping_interval = DEFAULT_RSSI_MEAS_INTERVAL;
 
-// init_node_local_config();
+  init_node_local_config();
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -675,7 +675,7 @@ subscribe(void)
   /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
   char *topic;
-
+  
 #ifdef MQTT_CLI
   topic = construct_topic("cli/cmd");
   if (topic) {
@@ -702,33 +702,33 @@ subscribe(void)
 	}
 
 
-/* Converts to NO2 ppm according to MIC2714 NO2 curve
+/* Converts to NO2 ppm according to MIC2714 NO2 curve 
    We assume pure NO2 */
 
-// double mics2714(double vcc, double v0, double corr)
-// {
-//   double no2, rsr0;
-//   /* Voltage divider */
-//
-//   /* Experimental fix */
-//   if( lc.no2_rev)
-//     v0 = vcc - v0;
-//
-//   if(v0 == 0)
-//     return 9999.99;
-//   rsr0 = (vcc - v0)/v0;
-//   rsr0 = rsr0 * corr;
-//   /* Transfer function */
-//   no2 = a * pow(rsr0, m);
-//   return no2;
-// }
+double mics2714(double vcc, double v0, double corr)
+{
+  double no2, rsr0;
+  /* Voltage divider */
 
-// double no2(void)
-// {
-//   double no2;
-//   no2 = mics2714(5, adc_read_a2(), lc.no2_corr) * NO2_CONV_EC;
-//   return no2;
-// }
+  /* Experimental fix */
+  if( lc.no2_rev)
+    v0 = vcc - v0;
+
+  if(v0 == 0)
+    return 9999.99;
+  rsr0 = (vcc - v0)/v0;
+  rsr0 = rsr0 * corr;
+  /* Transfer function */
+  no2 = a * pow(rsr0, m);
+  return no2;
+}
+
+double no2(void) 
+{
+  double no2;
+  no2 = mics2714(5, adc_read_a2(), lc.no2_corr) * NO2_CONV_EC;
+  return no2;
+}
 
 static void
 publish_sensors(void)
@@ -742,7 +742,7 @@ publish_sensors(void)
 
   seq_nr_value++;
 
-  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */  
   PUTFMT("{\"node_id\":\"%s\"", node_id);
   PUTFMT(",\"db\":%d}", value(0));
   printf("printing publish_sensors: NODE_ID=%s dB=%d\n", node_id, value(0));
@@ -754,120 +754,120 @@ publish_sensors(void)
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }
 
-// static void
-// publish_stats(void)
-// {
-//   /* Publish MQTT topic in SenML format */
-//   /* Circle through different statistics -- one for each publish */
-//   enum {
-//     STATS_DEVICE,
-//     STATS_RPL,
-//   };
-// #define STARTSTATS STATS_DEVICE
-// #define ENDSTATS STATS_RPL
-//
-//   static int stats = STARTSTATS;
-//   int len;
-//   int remaining = APP_BUFFER_SIZE;
-//   char *topic;
-//
-//   buf_ptr = app_buffer;
-//
-//   seq_nr_value++;
-//
-//   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
-//   PUTFMT("NODE_ID=%s", node_id);
-//   PUTFMT(" dB=%-4.2f}", ((double)value(0)));
-//   printf("printing publish_stats: NODE_ID=%s  dB=%-4.2f\n", node_id, ((double)value(0)));
-//   switch (stats) {
-//   case STATS_DEVICE:
-//
-//     PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
-//
-//     /* Put our Default route's string representation in a buffer */
-//     char def_rt_str[64];
-//     memset(def_rt_str, 0, sizeof(def_rt_str));
-//     ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
-//
-//     PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
-//     PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
-//
-//     extern uint32_t pms5003_valid_frames();
-//     extern uint32_t pms5003_invalid_frames();
-//
-//     PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
-//     PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
-//
-// #if RF230_DEBUG
-//     PUTFMT(",{\"n\":\"rf230;no_ack\",\"v\":%u}", count_no_ack);
-//     PUTFMT(",{\"n\":\"rf230;cca_fail\",\"v\":%u}", count_cca_fail);
-// #endif
-//
-//      /* case STATS_MQTT:*/
-//
-//     PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
-//     PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
-//     PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
-//     PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
-//
-// #ifdef MQTT_WATCHDOG
-//     PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
-//     PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
-//     PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
-// #endif
-//
-// #ifdef CONTIKI_TARGET_AVR_RSS2
-//     PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
-//     /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
-//     if (seq_nr_value < 40) {
-//       PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
-//     }
-// #endif
-//
-//     PUTFMT(",");
-//     len = mqtt_i2c_pub(buf_ptr, remaining);
-//     if (len < 0 || len >= remaining) {
-//       printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len);
-//       return;
-//     }
-//     remaining -= len;
-//     buf_ptr += len;
-//     break;
-//   case STATS_RPL:
-// #if RPL_CONF_STATS
-//     PUTFMT(",{\"n\":\"rpl;mem_overflows\",\"v\":%u}", rpl_stats.mem_overflows);
-//     PUTFMT(",{\"n\":\"rpl;local_repairs\",\"v\":%u}", rpl_stats.local_repairs);
-//     PUTFMT(",{\"n\":\"rpl;global_repairs\",\"v\":%u}", rpl_stats.global_repairs);
-//     PUTFMT(",{\"n\":\"rpl;malformed_msgs\",\"v\":%u}", rpl_stats.malformed_msgs);
-//     PUTFMT(",{\"n\":\"rpl;resets\",\"v\":%u}", rpl_stats.resets);
-//     PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
-//     PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
-//     PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
-//     PUTFMT(",{\"n\":\"rpl;loop_warnings\",\"v\":%u}", rpl_stats.loop_warnings);
-//     PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
-// #endif
-//     PUTFMT(",");
-//     len = mqtt_rpl_pub(buf_ptr, remaining);
-//     if (len < 0 || len >= remaining) {
-//       printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len);
-//       return;
-//     }
-//     remaining -= len;
-//     buf_ptr += len;
-//     break;
-//   }
-//   PUTFMT("]");
-//
-//   DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
-//   //printf("%s\n", app_buffer);
-//   topic = construct_topic("status");
-//   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
-//                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-//
-//   if (++stats > ENDSTATS)
-//     stats = STARTSTATS;
-//
-// }
+static void
+publish_stats(void)
+{
+  /* Publish MQTT topic in SenML format */
+  /* Circle through different statistics -- one for each publish */
+  enum {
+    STATS_DEVICE,
+    STATS_RPL,
+  };
+#define STARTSTATS STATS_DEVICE
+#define ENDSTATS STATS_RPL
+
+  static int stats = STARTSTATS;
+  int len;
+  int remaining = APP_BUFFER_SIZE;
+  char *topic;
+  
+  buf_ptr = app_buffer;
+
+  seq_nr_value++;
+
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+  PUTFMT("NODE_ID=%s", node_id);
+  PUTFMT(" dB=%-4.2f}", ((double)value(0)));
+  printf("printing publish_stats: NODE_ID=%s  dB=%-4.2f\n", node_id, ((double)value(0)));
+  switch (stats) {
+  case STATS_DEVICE:
+
+    PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
+
+    /* Put our Default route's string representation in a buffer */
+    char def_rt_str[64];
+    memset(def_rt_str, 0, sizeof(def_rt_str));
+    ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
+
+    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
+    PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
+
+    extern uint32_t pms5003_valid_frames();
+    extern uint32_t pms5003_invalid_frames();
+
+    PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
+    PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
+
+#if RF230_DEBUG
+    PUTFMT(",{\"n\":\"rf230;no_ack\",\"v\":%u}", count_no_ack);
+    PUTFMT(",{\"n\":\"rf230;cca_fail\",\"v\":%u}", count_cca_fail);
+#endif
+    
+     /* case STATS_MQTT:*/
+     
+    PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
+    PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
+    PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
+    PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
+
+#ifdef MQTT_WATCHDOG
+    PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
+    PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
+    PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
+#endif
+
+#ifdef CONTIKI_TARGET_AVR_RSS2
+    PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
+    /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
+    if (seq_nr_value < 40) {
+      PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
+    }
+#endif
+
+    PUTFMT(",");
+    len = mqtt_i2c_pub(buf_ptr, remaining);
+    if (len < 0 || len >= remaining) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+      return;
+    }
+    remaining -= len;
+    buf_ptr += len;
+    break;
+  case STATS_RPL:
+#if RPL_CONF_STATS
+    PUTFMT(",{\"n\":\"rpl;mem_overflows\",\"v\":%u}", rpl_stats.mem_overflows);
+    PUTFMT(",{\"n\":\"rpl;local_repairs\",\"v\":%u}", rpl_stats.local_repairs);
+    PUTFMT(",{\"n\":\"rpl;global_repairs\",\"v\":%u}", rpl_stats.global_repairs);
+    PUTFMT(",{\"n\":\"rpl;malformed_msgs\",\"v\":%u}", rpl_stats.malformed_msgs);
+    PUTFMT(",{\"n\":\"rpl;resets\",\"v\":%u}", rpl_stats.resets);
+    PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
+    PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
+    PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
+    PUTFMT(",{\"n\":\"rpl;loop_warnings\",\"v\":%u}", rpl_stats.loop_warnings);
+    PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
+#endif
+    PUTFMT(",");
+    len = mqtt_rpl_pub(buf_ptr, remaining);
+    if (len < 0 || len >= remaining) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+      return;
+    }
+    remaining -= len;
+    buf_ptr += len;
+    break;
+  }
+  PUTFMT("]");
+
+  DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
+  //printf("%s\n", app_buffer);
+  topic = construct_topic("status");
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+
+  if (++stats > ENDSTATS)
+    stats = STARTSTATS;
+  
+}
 
 static void
 publish_now(void)
@@ -884,37 +884,37 @@ publish_now(void)
   }
 }
 
-// static void
-// publish_cca_test(void)
-// {
-//
-//   int len;
-//   int i;
-//   int remaining = APP_BUFFER_SIZE;
-//   char *topic;
-//   buf_ptr = app_buffer;
-//
-//   seq_nr_value++;
-//
-//   /* Publish MQTT topic not in SenML format */
-//
-//   PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-//   PUTFMT(",\"bt\":%lu}", clock_seconds());
-//   PUTFMT(",{\"n\":\"cca_test\",\"v\":\"");
-//
-//     PUTFMT("%d", 100-cca[0]);
-//   for(i = 1; i < 16; i++) {
-//     PUTFMT(" %d", 100-cca[i]);
-//   }
-//
-//   PUTFMT("\"}");
-//   PUTFMT("]");
-//
-//   DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
-//   topic = construct_topic("cca_test");
-//   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
-//                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
-// }
+static void
+publish_cca_test(void)
+{
+
+  int len;
+  int i;
+  int remaining = APP_BUFFER_SIZE;
+  char *topic;
+  buf_ptr = app_buffer;
+
+  seq_nr_value++;
+
+  /* Publish MQTT topic not in SenML format */
+
+  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
+  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  PUTFMT(",{\"n\":\"cca_test\",\"v\":\"");
+
+    PUTFMT("%d", 100-cca[0]);
+  for(i = 1; i < 16; i++) {
+    PUTFMT(" %d", 100-cca[i]);
+  }
+
+  PUTFMT("\"}");
+  PUTFMT("]");
+
+  DBG("MQTT publish CCA test, seq %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
+  topic = construct_topic("cca_test");
+  mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
+               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+}
 
 static void
 publish(void)
@@ -1052,7 +1052,7 @@ state_machine(void)
 #else
       DBG("Publishing... (MQTT state %d conn.state=%d, q=%u) mqtt_ready %d out_buffer_sent %d\n", state, conn.state,
           conn.out_queue_full, mqtt_ready(&conn), conn.out_buffer_sent);
-#endif
+#endif      
     }
     break;
   case STATE_DISCONNECTED:
@@ -1107,10 +1107,10 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
   SENSORS_ACTIVATE(temp_sensor);
   SENSORS_ACTIVATE(battery_sensor);
-// #ifdef CO2
-//   SENSORS_ACTIVATE(co2_sa_kxx_sensor);
-// #endif
-  leds_init();
+#ifdef CO2
+  SENSORS_ACTIVATE(co2_sa_kxx_sensor);
+#endif
+  leds_init(); 
   SENSORS_ACTIVATE(pulse_sensor);
   SENSORS_ACTIVATE(pms5003_sensor);
   if( i2c_probed & I2C_BME280 ) {
@@ -1120,8 +1120,8 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 #if RF230_DEBUG
   printf("RF230_CONF_FRAME_RETRIES: %d\n", RF230_CONF_FRAME_RETRIES);
   printf("RF230_CONF_CMSA_RETRIES: %d\n", RF230_CONF_CSMA_RETRIES);
-#endif
-  /* The data sink runs with a 100% duty cycle in order to ensure high
+#endif  
+  /* The data sink runs with a 100% duty cycle in order to ensure high 
      packet reception rates. */
   //NETSTACK_MAC.off(1);
 
@@ -1194,7 +1194,7 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
 
     if((ev == PROCESS_EVENT_TIMER) && (data == &checktimer)) {
       printf("MQTT: state %d conn.state %d\n", state, conn.state);
-      if (state == STATE_PUBLISHING) {
+      if (state == STATE_PUBLISHING) { 
        stale_connecting = 0;
        if (seq_nr_value > seen_seq_nr_value) {
          stale_publishing = 0;
@@ -1202,7 +1202,7 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
        else {
          stale_publishing++;
          if (stale_publishing > STALE_PUBLISHING_WATCHDOG) {
-           /* In publishing state, but nothing published for a while.
+           /* In publishing state, but nothing published for a while. 
             * Milder reset -- call mqtt_disconnect() to trigger mqtt to restart the session
             */
            mqtt_disconnect(&conn);
@@ -1217,13 +1217,13 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
        if (stale_connecting > STALE_CONNECTING_WATCHDOG) {
          if(conn.state > MQTT_CONN_STATE_NOT_CONNECTED) {
            /* Waiting for mqtt connection, but nothing happened for a while.
-            * Trigger communication error by closing TCP socket
+            * Trigger communication error by closing TCP socket 
             */
            tcp_socket_close(&conn.socket);
 	   watchdog_stats.stale_connecting++;
-         }
+         }       
          else {
-	   watchdog_stats.closed_connection++;
+	   watchdog_stats.closed_connection++;	   
 	 }
          stale_connecting = 0;
        }
