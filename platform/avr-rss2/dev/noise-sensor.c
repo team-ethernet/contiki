@@ -18,9 +18,9 @@
 
 //const struct sensors_sensor noise_sensor;
 
-static int value(int type)
+static float value(int type)
 {
-  return ((int)(adc_read_a1()*100)); //Multiply voltage value with
+  return ((float)(adc_read_a1()*100)); //Multiply voltage value with
 								//100 as the voltage is linearly proportional 
 								//with the dB value but 100 times smaller
 }

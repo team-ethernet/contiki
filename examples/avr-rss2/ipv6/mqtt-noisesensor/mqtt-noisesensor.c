@@ -68,9 +68,6 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
-#include "dev/noise-sensor.c"
-#include "dev/noise-sensor.h"
-
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
 #define RF230_DEBUG 0
@@ -730,6 +727,11 @@ double no2(void)
   return no2;
 }
 
+static float noise(void)
+{
+  return ((float)(adc_read_a1()*100));			
+}
+
 static void
 publish_sensors(void)
 {
@@ -743,9 +745,10 @@ publish_sensors(void)
   seq_nr_value++;
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */  
-  PUTFMT("{\"node_id\":\"%s\"", node_id);
-  PUTFMT(",\"db\":%d}", value(0));
-  printf("printing publish_sensors: NODE_ID=%s dB=%d\n", node_id, value(0));
+  PUTFMT("[{\"n\":\"urn:dev:mac:%s\"", node_id);
+  PUTFMT(",\"u\":\"db\",\"v\":%-4.2f}]", (float)noise());
+
+  printf("printing publish_sensors: NODE_ID=%s dB=%d\n", node_id, noise());
 
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
