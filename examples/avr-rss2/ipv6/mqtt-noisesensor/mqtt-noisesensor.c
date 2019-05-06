@@ -746,7 +746,7 @@ publish_sensors(void)
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s\"", node_id);
-  PUTFMT(",\"u\":\"db\",\"v\":%-4.2f}]", (float)noise());
+  PUTFMT(",\"u\":\"dB\",\"v\":%-4.2f}]", (float)noise());
 
   printf("printing publish_sensors: NODE_ID=%s dB=%d\n", node_id, noise());
 
