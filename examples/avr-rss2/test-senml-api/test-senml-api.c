@@ -2,8 +2,8 @@
 #include "sys/etimer.h"
 #include <stdio.h>
 #include "dev/leds.h"
-#include "../senml-api/senml-api.h"
-#include "../senml-api/senml-api.c"
+#include "senml-api.h"
+#include "senml-json-formatter.h"
 static char app_buffer[1024];
 
 PROCESS(senml_api_process, "Noise sensor process");
@@ -28,8 +28,10 @@ static struct etimer et;
       etimer_set(&et, CLOCK_SECOND * 1);
     while(1) {
       PROCESS_YIELD();
+
       char* buf_ptr = app_buffer;
-      init_senml(buf_ptr, 1024);
+
+      init_senml(buf_ptr, 1024, senml_json_formatter);
       add_record(BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u", END);
       add_record(BASE_NAME, "test_name", BASE_TIME, 0.0, BASE_UNIT, "u/u", END);
       add_record(BASE_NAME, "test_name",
