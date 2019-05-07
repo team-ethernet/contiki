@@ -4,7 +4,7 @@ The unit tests to run are defined in **unit-testing.c**. The print function for 
 ## How to run
 ```
 make
-./make.native
+./unit-testing.native
 ```
 
 ## Common errors
