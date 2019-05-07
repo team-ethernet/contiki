@@ -17,16 +17,16 @@ PROCESS_THREAD(unit_testing, ev, data)
   PROCESS_END();
 }
 
-static char * app_buffer[1024];
+static char * buffer_pointer[1024];
 
 //Run with json file included.
 UNIT_TEST(json_empty_string) {
   UNIT_TEST_BEGIN();
 
-  init(app_buffer, 1024);
-  end();
+  init_senml(buffer_pointer, 1024);
+  end_senml();
 
-  UNIT_TEST_ASSERT(*app_buffer == "[]");
+  UNIT_TEST_ASSERT(*buffer_pointer == "[]");
 
   UNIT_TEST_END();
 }
@@ -36,19 +36,39 @@ UNIT_TEST(json_empty_string) {
 Test(json_noise_sensor) {
   UNIT_TEST_BEGIN();
 
-  init(app_buffer, 1024);
-  add_record(BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", VALUE, "50.00", NULL);
-  end();
+  init_senml(buffer_pointer, 1024);
+  add_record(BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", VALUE, 50.00, NULL);
+  end_senml();
 
-  UNIT_TEST_ASSERT(*app_buffer == "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.00}]");
+  UNIT_TEST_ASSERT(*buffer_pointer == "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.00}]");
 
   UNIT_TEST_END();
 }
 
+Test(cbor_empty_string){
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "80");
+
+  UNIT_TEST_END();
+
+}
+Test(cbor_noise_sensor){
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  add_record(BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", VALUE, 50.00, NULL);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "81A362626E781C75726E3A6465763A6D61633A6663633233643030303030303337393061756264426176F95240");
+
+  UNIT_TEST_END();
+}
 
 //Add test cases
-//add_start() {
-//add_end()   }
 
 
 //Add test cases for CBOR
