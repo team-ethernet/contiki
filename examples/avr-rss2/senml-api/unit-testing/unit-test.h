@@ -37,7 +37,7 @@
 #ifndef UNIT_TEST_H
 #define UNIT_TEST_H
 
-#include "sys/rtimer.h"
+#include "core/sys/rtimer.h"
 
 typedef enum unit_test_result {
   unit_test_failure = 0,
