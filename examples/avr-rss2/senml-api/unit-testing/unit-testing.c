@@ -1,64 +1,74 @@
 #include "contiki.h"
 #include "unit-test.h"
-#include <stdio.h>
 
+UNIT_TEST_REGISTER(json_empty_string, "empty string");
+UNIT_TEST_REGISTER(json_noise_sensor, "noise sensor example");
 
-void
-unit_test_print_report(const unit_test_t *utp)
-{
-  printf("\nUnit test: %s\n", utp->descr);
-  printf("Result: %s\n", utp->result == unit_test_failure ?
-                         "failure" : "success");
-  printf("Exit point: %s:%u\n", utp->test_file, utp->exit_line);
-  printf("Start: %u\n", utp->start);
-  printf("End: %u\n", utp->end);
-  printf("Duration: %u\n", utp->end - utp->start);
-  printf("Ticks per second: %u\n", RTIMER_SECOND);
-}
-
-/* Register two unit tests that will be executed by using 
-   the UNIT_TEST_RUN macro. */
-UNIT_TEST_REGISTER(arithmetic, "Arith ops");
-UNIT_TEST_REGISTER(string, "String ops");
-
-/* arithmetic: Demonstrates a test that succeeds. The exit point will be 
-   the line where UNIT_TEST_END is called. */
-UNIT_TEST(arithmetic)
-{
-  int a, b;
-
-  UNIT_TEST_BEGIN();
-
-  a = 1;
-  b = 2;
-
-  UNIT_TEST_ASSERT(a + b == 3);
-
-  UNIT_TEST_END();
-}
-
-/* string: Demonstrates a test that fails. The exit point will be 
-   the line where the call to UNIT_TEST_ASSERT fails. */
-UNIT_TEST(string)
-{
-  char str1[] = "A";
-
-  UNIT_TEST_BEGIN();
-
-  UNIT_TEST_ASSERT(str1[0] == 'B');
-
-  UNIT_TEST_END();
-}
-
-PROCESS(test_process, "Unit testing");
+PROCESS(unit_testing, "Unit Testing");
 AUTOSTART_PROCESSES(&test_process);
 
-PROCESS_THREAD(test_process, ev, data)
+PROCESS_THREAD(unit_testing, ev, data)
 {
   PROCESS_BEGIN();
 
-  UNIT_TEST_RUN(arithmetic);
-  UNIT_TEST_RUN(string);
+  UNIT_TEST_RUN(json_empty_string);
+  UNIT_TEST_RUN(json_noise_sensor);
 
   PROCESS_END();
 }
+
+static char * buffer_pointer[1024];
+
+//Run with json file included.
+UNIT_TEST(json_empty_string) {
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "[]");
+
+  UNIT_TEST_END();
+}
+
+
+//Run with json file included.
+Test(json_noise_sensor) {
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  add_record(BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", VALUE, 50.00, NULL);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.00}]");
+
+  UNIT_TEST_END();
+}
+
+Test(cbor_empty_string){
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "80");
+
+  UNIT_TEST_END();
+
+}
+Test(cbor_noise_sensor){
+  UNIT_TEST_BEGIN();
+
+  init_senml(buffer_pointer, 1024);
+  add_record(BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", VALUE, 50.00, NULL);
+  end_senml();
+
+  UNIT_TEST_ASSERT(*buffer_pointer == "81A362626E781C75726E3A6465763A6D61633A6663633233643030303030303337393061756264426176F95240");
+
+  UNIT_TEST_END();
+}
+
+//Add test cases
+
+
+//Add test cases for CBOR
