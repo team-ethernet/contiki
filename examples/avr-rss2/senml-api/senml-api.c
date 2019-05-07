@@ -7,16 +7,6 @@ int len = 0;
 int remaining = 0;
 char * buf_ptr;
 
-// #define PUTFMT(...) { \
-// 		len = snprintf(buf_ptr, remaining, __VA_ARGS__);	\
-// 		if (len < 0 || len >= remaining) { \
-// 			printf("SenML: Buffer too short. Have %d, need %d + \\0", remaining, len); \
-// 			return; \
-// 		} \
-// 		remaining -= len; \
-// 		buf_ptr += len; \
-// 	}
-
 #define BUFFER(len) { \
 		if (len < 0 || len >= remaining) { \
 			printf("SenML: Buffer too short. Have %d, need %d + \\0", remaining, len); \
@@ -26,13 +16,13 @@ char * buf_ptr;
 		buf_ptr += len; \
 	}
 
-void init_pack(char * buffer_pointer, int size){
+void init_senml(char * buffer_pointer, int size){
 	buf_ptr = buffer_pointer;
 	remaining = size;
 	BUFFER(senml_json.start_pack(buf_ptr, remaining));
 }
 
-void end_pack(){
+void end_senml(){
 	BUFFER(senml_json.end_pack(buf_ptr, remaining));
 }
 
