@@ -7,14 +7,13 @@ UNIT_TEST_REGISTER(json_many_parameters, "json many parameters");
 UNIT_TEST_REGISTER(json_multiple_records, "json many records");
 UNIT_TEST_REGISTER(cbor_empty_string, "cbor empty string");
 UNIT_TEST_REGISTER(cbor_noise_sensor, "cbor noise sensor example");
-UNIT_TEST_REGISTER(cbor_many_paramters, "cbor many parameters");
+UNIT_TEST_REGISTER(cbor_many_parameters, "cbor many parameters");
 
 
 PROCESS(unit_testing, "Unit Testing");
 AUTOSTART_PROCESSES(&test_process);
 
-PROCESS_THREAD(unit_testing, ev, data)
-{
+PROCESS_THREAD(unit_testing, ev, data){
   PROCESS_BEGIN();
 
   UNIT_TEST_RUN(json_empty_string);
@@ -25,14 +24,13 @@ PROCESS_THREAD(unit_testing, ev, data)
   UNIT_TEST_RUN(cbor_noise_sensor);
   UNIT_TEST_RUN(cbor_many_parameters);
 
-
   PROCESS_END();
 }
 
 static char * buffer_pointer[1024];
 
 //Run with json file included.
-UNIT_TEST(json_empty_string) {
+UNIT_TEST(json_empty_string){
   UNIT_TEST_BEGIN();
 
   init_senml(buffer_pointer, 1024);
@@ -45,7 +43,7 @@ UNIT_TEST(json_empty_string) {
 
 
 //Run with json file included.
-Test(json_noise_sensor) {
+Test(json_noise_sensor){
   UNIT_TEST_BEGIN();
 
   init_senml(buffer_pointer, 1024);
@@ -68,7 +66,7 @@ Test(json_many_parameters){
 
 }
 
-Test(json_multiple_records) {
+Test(json_multiple_records){
   UNIT_TEST_BEGIN();
 
   init_senml(buffer_pointer, 1024);
