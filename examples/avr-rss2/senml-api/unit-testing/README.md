@@ -19,6 +19,12 @@ make
 
 ```UNIT_TEST_REGISTER(name, "description")```
 
+### Running new tests
+
+In the ```PROCESS_THREAD``` method:
+
+```UNIT_TEST_RUN(name);```
+
 ### Example test design
 
 ```
