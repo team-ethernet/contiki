@@ -2,6 +2,20 @@
 #include "unit-test.h"
 #include <stdio.h>
 
+
+void
+unit_test_print_report(const unit_test_t *utp)
+{
+  printf("\nUnit test: %s\n", utp->descr);
+  printf("Result: %s\n", utp->result == unit_test_failure ?
+                         "failure" : "success");
+  printf("Exit point: %s:%u\n", utp->test_file, utp->exit_line);
+  printf("Start: %u\n", utp->start);
+  printf("End: %u\n", utp->end);
+  printf("Duration: %u\n", utp->end - utp->start);
+  printf("Ticks per second: %u\n", RTIMER_SECOND);
+}
+
 /* Register two unit tests that will be executed by using 
    the UNIT_TEST_RUN macro. */
 UNIT_TEST_REGISTER(arithmetic, "Arith ops");
