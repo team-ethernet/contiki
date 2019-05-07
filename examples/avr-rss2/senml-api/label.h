@@ -1,0 +1,21 @@
+#ifndef LABEL_H_
+#define LABEL_H_
+typedef enum {
+	BASE_NAME,
+	BASE_TIME,
+	BASE_UNIT,
+	BASE_VALUE,
+	BASE_SUM,
+	BASE_VERSION,
+	NAME,
+	UNIT,
+	VALUE,
+	STRING_VALUE,
+	BOOLEAN_VALUE,
+	DATA_VALUE,
+	SUM,
+	TIME,
+	UPDATE_TIME,
+	END
+} Label;
+#endif
