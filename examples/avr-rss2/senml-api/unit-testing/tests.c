@@ -17,7 +17,7 @@ PROCESS_THREAD(unit_testing, ev, data)
   PROCESS_END();
 }
 
-char * app_buffer[1024];
+static char * app_buffer[1024];
 
 //Run with json file included.
 UNIT_TEST(json_empty_string) {
