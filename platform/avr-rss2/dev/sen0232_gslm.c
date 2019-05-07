@@ -2,6 +2,7 @@
 #include "lib/sensors.h"
 #include "rss2.h"
 #include "pwr.c"
+#include "adc.c"
 
 #define multiply_value 57
 
