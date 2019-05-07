@@ -1,8 +1,10 @@
 #include "contiki.h"
 #include "unit-test.h"
 
-UNIT_TEST_REGISTER(json_empty_string, "empty string");
-UNIT_TEST_REGISTER(json_noise_sensor, "noise sensor example");
+UNIT_TEST_REGISTER(json_empty_string, "json empty string");
+UNIT_TEST_REGISTER(json_noise_sensor, "json noise sensor example");
+UNIT_TEST_REGISTER(cbor_empty_string, "cbor empty string");
+UNIT_TEST_REGISTER(cbor_noise_sensor, "cbor noise sensor example");
 
 PROCESS(unit_testing, "Unit Testing");
 AUTOSTART_PROCESSES(&test_process);
@@ -13,6 +15,8 @@ PROCESS_THREAD(unit_testing, ev, data)
 
   UNIT_TEST_RUN(json_empty_string);
   UNIT_TEST_RUN(json_noise_sensor);
+  UNIT_TEST_RUN(cbor_empty_string);
+  UNIT_TEST_RUN(cbor_noise_sensor);
 
   PROCESS_END();
 }
@@ -56,6 +60,7 @@ Test(cbor_empty_string){
   UNIT_TEST_END();
 
 }
+
 Test(cbor_noise_sensor){
   UNIT_TEST_BEGIN();
 
@@ -69,6 +74,3 @@ Test(cbor_noise_sensor){
 }
 
 //Add test cases
-
-
-//Add test cases for CBOR
