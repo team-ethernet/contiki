@@ -10,7 +10,7 @@ UNIT_TEST_REGISTER(cbor_noise_sensor, "cbor noise sensor example");
 UNIT_TEST_REGISTER(cbor_many_parameters, "cbor many parameters");
 UNIT_TEST_REGISTER(cbor_multiple_records, "cbor multiple records");
 
-
+//Equivalent to the main() and is where the unit-testing starts.
 PROCESS(unit_testing, "Unit Testing");
 AUTOSTART_PROCESSES(&test_process);
 
@@ -29,9 +29,10 @@ PROCESS_THREAD(unit_testing, ev, data){
   PROCESS_END();
 }
 
+//Buffer used to store the things we want to send with add_record
 static char * buffer_pointer[1024];
 
-//Run with json file included.
+//All json tests should be run wiht json file included
 UNIT_TEST(json_empty_string){
   UNIT_TEST_BEGIN();
 
@@ -44,7 +45,6 @@ UNIT_TEST(json_empty_string){
 }
 
 
-//Run with json file included.
 Test(json_noise_sensor){
   UNIT_TEST_BEGIN();
 
