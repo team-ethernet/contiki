@@ -68,6 +68,9 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
+#include "dev/sen0232_gslm.c"
+#include "dev/pwr.h"
+
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
 #define RF230_DEBUG 0
@@ -729,8 +732,9 @@ double no2(void)
 
 static float noise(void)
 {
-  return ((float)(adc_read_a1()*100));
-}
+	sen0232_init();
+	return (float)value(0);
+}	
 
 static void
 publish_sensors(void)
@@ -743,13 +747,15 @@ publish_sensors(void)
   buf_ptr = app_buffer;
 
   seq_nr_value++;
+  
+  float noiseValue = noise();
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s\"", node_id);
-  PUTFMT(",\"u\":\"dB\",\"v\":%-4.2f}]", (float)noise());
+  PUTFMT(",\"u\":\"dB\",\"v\":%-4.2f}]", noiseValue);
 
-  printf("printing publish_sensors: NODE_ID=%s dB=%d\n", node_id, noise());
-
+  printf("printing publish_sensors: id=%s dB=%f\n", node_id, noiseValue);
+  
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
   topic = construct_topic("sensors");

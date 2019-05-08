@@ -81,7 +81,7 @@
 #define RPL_CONF_WITH_DAO_ACK 1
 #else	/* KTH configuration: this is a default configuration */
 #define MQTT_DEMO_TOPIC_BASE 	"noisesensor"
-#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::82e5:b469"
+#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::82e5:8e34"
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::c0a8:0103"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define IEEE802154_CONF_PANID 0xFEED

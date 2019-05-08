@@ -8,7 +8,7 @@
 #include "dev/noise-sensor.h"
 #include "dev/noise-sensor.c"
 
-
+#include "dev/sen0232_gslm.c"
 
 PROCESS(noise_sensors_process, "Noise sensor process");
 AUTOSTART_PROCESSES(&noise_sensors_process);
