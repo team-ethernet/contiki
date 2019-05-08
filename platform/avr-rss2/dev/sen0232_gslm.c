@@ -2,6 +2,8 @@
 #include "lib/sensors.h"
 #include "rss2.h"
 #include "pwr.c"
+#include "pwr.h"
+#include "adc.c"
 
 #define multiply_value 57
 
@@ -17,7 +19,15 @@ const struct sensors_sensor sen0232_gslm;
 	* Turn power on 175 ticks before reading
 	* clock_wait(time) waits time*8 ms
 	*/
-static int value(int type)
+void sen0232_init(void) {
+	pwr_1_init();
+}
+
+void sen0232_disable(void) {
+	pwr_1_disable();
+}
+
+int value(int type)
 {
 	pwr_1_on();
 	clock_wait(175);

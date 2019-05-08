@@ -2,6 +2,7 @@
 The unit tests to run are defined in **unit-testing.c**. The print function for the unit tests is also defined there.
 
 ## How to run
+We use make to make sure the unit-test.c is correctly compiled and hence our unit-testing.c file can find the compiled file unit-test.h
 ```
 make
 ./unit-testing.native

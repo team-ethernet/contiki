@@ -7,6 +7,10 @@ void pwr_1_init() {
 	pwr_1_off();
 }
 
+void pwr_1_disable() {
+	DDRE &= ~(1<<PWR_1);
+}
+
 void pwr_1_on() {
 	PORTE &= ~(1<<PWR_1);
 }
