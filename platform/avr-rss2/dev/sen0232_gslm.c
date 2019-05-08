@@ -1,9 +1,10 @@
 #include "contiki.h"
 #include "lib/sensors.h"
 #include "rss2.h"
-#include "pwr.c"
 #include "pwr.h"
-#include "adc.c"
+#include "pwr.c"
+#include "adc.h"
+#include "sen0232_gslm.h"
 
 #define multiply_value 57
 
@@ -45,4 +46,4 @@ static int configure(int type, int c)
   return 0;
 }
 
-SENSORS_SENSOR(sen0232_gslm, "Noise", value, configure, status);
+SENSORS_SENSOR(sen0232_gslm, "sen0232_gslm", value, configure, status);
