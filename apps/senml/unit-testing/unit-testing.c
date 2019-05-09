@@ -1,6 +1,7 @@
 #include "contiki.h"
 #include "unit-test.h"
 #include "senml-json.h"
+#include "senml-cbor.h"
 #include <string.h>
 #include <stdio.h>
 
