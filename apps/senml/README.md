@@ -78,9 +78,17 @@ END_SENML()
 ```c
 static char buffer[1024];
 char* buf_ptr = buffer;
+
 INIT_SENML_JSON(buf_ptr, 1024);
-ADD_RECORD(BASE_NAME, "name", BASE_TIME, );
-ADD_RECORD(BASE_NAME, "test_name"
+ADD_RECORD(BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
+ADD_RECORD(NAME, "current", UNIT, "A", VALUE, 1.2);
+END_RECORD();
+
+printf(buffer);
+```
+Should print
+```json
+[{"bn":"urn:dev:ow:10e2073a01080063:","n":"voltage","u":"V","v":120.100000},{"n":"current","u":"A","v":1.200000}]
 ```
 ## Code structure
 The different lables are defined in `label.h`.  
