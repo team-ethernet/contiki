@@ -47,7 +47,7 @@ int append_str_field(char * buf_ptr, int remaining, Label label, char * str) {
 }
 
 int append_dbl_field(char * buf_ptr, int remaining, Label label, double dbl){
-    return snprintf(buf_ptr, remaining, "\"%s\":\"%f\",", label_strings[label], dbl);
+    return snprintf(buf_ptr, remaining, "\"%s\":%f,", label_strings[label], dbl);
 }
 
 int append_bol_field(char * buf_ptr, int remaining, Label label, int bol){
