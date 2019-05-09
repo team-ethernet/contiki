@@ -1,5 +1,3 @@
-CFLAGS+=-std=c99
-
 CONTIKI_PROJECT = unit-testing
 all: $(CONTIKI_PROJECT)
 
