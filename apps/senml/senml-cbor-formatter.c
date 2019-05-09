@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "label.h"
+#include "senml-formatter.h"
 
 // translated labels from string to CBOR according to RFC8428 page 19
 static const unsigned char label_cbor[] = {
@@ -33,7 +34,6 @@ int end_pack(char * buffer, int buffer_len){
 }
 // 0xBF stands for start indefinite length map
 int start_record(char * buffer, int buffer_len){
-        uint8_t len = 0;
         return snprintf(buffer, buffer_len,"%c", 0xBF);
 }
 // 0xFF stands for "break" indefinite length map
@@ -116,3 +116,13 @@ int append_bool_field(char * buffer, int buffer_len, Label label, int value)
         }
         return len;
 }
+
+const struct senml_formatter senml_cbor_formatter = { 
+    start_record, 
+    end_record, 
+    start_pack,
+    end_pack,
+    append_str_field, 
+    append_dbl_field, 
+    append_bool_field
+};

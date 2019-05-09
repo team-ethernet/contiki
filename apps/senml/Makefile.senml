@@ -1,1 +1,1 @@
-senml_src = senml-api.c senml-json-formatter.c
+senml_src = senml-api.c senml-json-formatter.c senml-cbor-formatter.c
