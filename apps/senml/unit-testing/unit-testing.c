@@ -64,7 +64,7 @@ char buffer_pointer[1024];
 
   UNIT_TEST_ASSERT(buffer_pointer == "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"bt\":123456789,\"bu\":\"Volt\",\"bv\":2,\"v\":-1,\"s\":0,\"t\":643,\"tu\":000}]");
 
-  UNIT_TEST_END()
+  UNIT_TEST_END();
 }
 
 UNIT_TEST(json_multiple_records){
@@ -108,7 +108,7 @@ char buffer_pointer[1024];
   UNIT_TEST_END();
 }
 
-UNIT_TEST(cbor_many_paramters){
+UNIT_TEST(cbor_many_parameters){
 char buffer_pointer[1024];
   UNIT_TEST_BEGIN();
 
