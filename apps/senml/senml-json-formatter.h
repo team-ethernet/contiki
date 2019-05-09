@@ -1,5 +1,5 @@
-#ifndef SENML_JSON_H_
-#define SENML_JSON_H_
+#ifndef SENML_JSON_FORMATTER_H_
+#define SENML_JSON_FORMATTER_H_
 #include "label.h"
 #include "senml-formatter.h"
 

@@ -30,7 +30,7 @@ static struct etimer et;
 
       char* buf_ptr = app_buffer;
 
-      INIT_SENML(buf_ptr, 1024, senml_json_formatter);
+      INIT_SENML_JSON(buf_ptr, 1024);
       ADD_RECORD(BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u", BASE_UNIT, "u/u");
       ADD_RECORD(BASE_NAME, "test_name", BASE_TIME, 0.0, BASE_UNIT, "u/u");
       ADD_RECORD(BASE_NAME, "test_name",
