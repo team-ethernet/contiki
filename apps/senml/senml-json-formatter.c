@@ -26,7 +26,11 @@ int start_pack(char * buf_ptr, int remaining) {
 
 int end_pack(char * buf_ptr, int remaining) {
 	buf_ptr -= sizeof(char);
-    return snprintf(buf_ptr, remaining, "]") - 1;
+	if (buf_ptr[0] == "[") {
+		buf_ptr += sizeof(char);
+		return snprintf(buf_ptr, remaining, "]");
+	}
+	else return snprintf(buf_ptr, remaining, "]") - 1;
 }
 
 int start_record(char * buf_ptr, int remaining) {
