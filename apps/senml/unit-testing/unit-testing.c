@@ -22,9 +22,7 @@ char buffer_pointer[1024];
   INIT_SENML_JSON(buffer_pointer, 1024);
   END_SENML();
 
-  printf("==> %s", buffer_pointer);
-
-  //UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[]") == 0);
 
   UNIT_TEST_END();
 }
