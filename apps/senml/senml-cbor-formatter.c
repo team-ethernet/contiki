@@ -41,7 +41,7 @@ int end_record_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0xFF);
 }
 
-int initial_value_cbor(char * buffer, int buffer_len, unsigned char type,  int value)
+int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
 {
         uint8_t len = 0;
 
