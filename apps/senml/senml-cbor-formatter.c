@@ -116,37 +116,3 @@ int append_bool_field(char * buffer, int buffer_len, Label label, int value)
         }
         return len;
 }
-
-int main(int argc, char const *argv[]) {
-
-        uint8_t len = 0;
-        char buffer [500];
-
-
-        len += start_pack(buffer, sizeof(buffer));
-
-        len += start_record(&buffer[len], sizeof(buffer) - len);
-
-        len += append_str_field(&buffer[len], sizeof(buffer) - len, BASE_NAME, "123456789abcdef123456789abcdef");
-
-        len += append_bool_field(&buffer[len], sizeof(buffer) - len, BOOLEAN_VALUE, 1);
-
-        len += end_record(&buffer[len], sizeof(buffer) - len);
-
-        len += start_record(&buffer[len], sizeof(buffer) - len);
-
-        len += append_str_field(&buffer[len], sizeof(buffer) - len, STRING_VALUE, "hello");
-
-        len += append_dbl_field(&buffer[len], sizeof(buffer) - len, VALUE, 73.3);
-
-        len += end_record(&buffer[len], sizeof(buffer) - len);
-
-        len += end_pack(&buffer[len], sizeof(buffer) - len);
-
-        for (int i = 0; i < len; i++) {
-                printf("%02x", (unsigned char)buffer[i]);
-
-        }
-        printf("\n");
-        return 0;
-}
