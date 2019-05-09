@@ -48,10 +48,10 @@ char buffer_pointer[1024];
   UNIT_TEST_BEGIN();
 
   INIT_SENML_JSON(buffer_pointer, 1024);
-  ADD_RECORD(BASE_NAME, "urn:dev:mac:fcc23d0000003790", BASE_TIME, 123456789, BASE_UNIT, "Volt", BASE_VERSION, 2, VALUE, -1, SUM, 0, TIME, 643, UPDATE_TIME, 0.00);
+  ADD_RECORD(BASE_NAME, "urn:dev:mac:fcc23d0000003790", BASE_TIME, 123456789.00, BASE_UNIT, "Volt", BASE_VERSION, 2.00, VALUE, -1.00, SUM, 0.00, TIME, 643.00, UPDATE_TIME, 0.00);
   END_SENML();
 
-  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"bt\":123456789,\"bu\":\"Volt\",\"bv\":2,\"v\":-1,\"s\":0,\"t\":643,\"tu\":000}]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"bt\":123456789.000000,\"bu\":\"Volt\",\"bver\":2.000000,\"v\":-1.000000,\"s\":0.000000,\"t\":643.000000,\"ut\":0.000000}]") == 0);
 
   UNIT_TEST_END();
 }
@@ -66,7 +66,7 @@ char buffer_pointer[1024];
   ADD_RECORD(BASE_NAME, "urn:dev:mac:fcc23d0000013290", UNIT, "m", VALUE, 35.25);
   END_SENML();
 
-  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.00},{\"bn\":\"urn:dev:mac:fcc23d0000003788\",\"u\":\"w\",\"v\":0.00},{\"bn\":\"fcc23d0000013290\",\"u\":\"m\",\"v\":35.25}]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.000000},{\"bn\":\"urn:dev:mac:fcc23d0000003788\",\"u\":\"w\",\"v\":0.000000},{\"bn\":\"urn:dev:mac:fcc23d0000013290\",\"u\":\"m\",\"v\":35.250000}]") == 0);
 
   UNIT_TEST_END();
 }
