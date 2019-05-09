@@ -52,6 +52,16 @@ int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
                 len += snprintf(buffer, buffer_len, "%c", type | 0x18 );
                 len += snprintf(&buffer[len], buffer_len - len, "%c", (unsigned char)value);
         }
+        else if (value < 65536) {
+                len += snprintf(buffer, buffer_len, "%c", type | 0x19 );
+                uint8_t v [2];
+                int i;
+                for (i = 0; i < 2; i++) {
+                        v[i] = (uint8_t)((value >> 8*(1 - i)) & 0xFF);
+                }
+                for (i = 0; i < 2; i++) {
+                        len += snprintf(&buffer[len], buffer_len - len, "%c", v[i]);
+                }
         return len;
 }
 
@@ -109,7 +119,7 @@ int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double val
                 result[i] = (uint8_t)((u64.u_val >> 8*(7 - i)) & 0xFF);
 
         }
-        
+
         for (i = 0; i < 8; i++) {
                 len += snprintf(&buffer[len], buffer_len - len, "%c", result[i]);
         }
@@ -131,13 +141,13 @@ int append_bool_field_cbor(char * buffer, int buffer_len, Label label, int value
         return len;
 }
 
-const struct senml_formatter senml_cbor_formatter = { 
-    start_record_cbor, 
-    end_record_cbor, 
+const struct senml_formatter senml_cbor_formatter = {
+    start_record_cbor,
+    end_record_cbor,
     start_pack_cbor,
     end_pack_cbor,
-    append_str_field_cbor, 
-    append_dbl_field_cbor, 
+    append_str_field_cbor,
+    append_dbl_field_cbor,
     append_bool_field_cbor,
     append_int_field_cbor
 };
