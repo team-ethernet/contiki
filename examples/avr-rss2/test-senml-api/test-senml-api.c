@@ -38,7 +38,7 @@ static struct etimer et;
       BASE_UNIT, "u/u",
       BASE_VALUE, 1.0,
       BASE_SUM, 2.0,
-      BASE_VERSION, 3.0,
+      BASE_VERSION, 3,
       NAME, "name",
       UNIT, "unit",
       VALUE, 4.12,

@@ -49,7 +49,6 @@ void add_record(Label label, ...) {
 			case BASE_TIME:
 			case BASE_VALUE:
 			case BASE_SUM:
-			case BASE_VERSION:
 			case VALUE:
 			case SUM:
 			case TIME:
@@ -63,6 +62,11 @@ void add_record(Label label, ...) {
 			{
 				int bol = va_arg(args, int);
 				BUFFER(formatter.append_bol_field(buf_ptr, remaining, label, bol));
+			}
+			case BASE_VERSION:
+			{
+				int i = va_arg(args, int);
+				BUFFER(formatter.append_int_field(buf_ptr, remaining, label, i));
 			}
 				break;
 			default:

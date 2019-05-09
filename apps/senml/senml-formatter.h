@@ -11,6 +11,6 @@ struct senml_formatter
     int    (* append_str_field)     (char * buf_ptr, int remaining, Label label, char * str);
     int    (* append_dbl_field)     (char * buf_ptr, int remaining, Label label, double dbl);
     int    (* append_bol_field)     (char * buf_ptr, int remaining, Label label, int bol);
-
+    int    (* append_int_field)     (char * buf_ptr, int remaining, Label label, int i);
 };
 #endif

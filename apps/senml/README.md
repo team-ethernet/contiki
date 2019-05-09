@@ -42,7 +42,7 @@ ADD_RECORD takes field name-value pairs as arguments. The supported fields are:
 | BASE_UNIT     | char *    |
 | BASE_VALUE    | double    |
 | BASE_SUM      | double    |
-| BASE_VERSION  | double    |
+| BASE_VERSION  | int       |
 | NAME          | char *    |
 | UNIT          | char *    |
 | VALUE         | double    |

@@ -77,6 +77,18 @@ int append_str_field(char * buffer, int buffer_len, Label label, char * value)
         return len;
 }
 
+int append_int_field(char * buffer, int buffer_len, Label label, int value)
+{
+        uint8_t len = 0;
+
+        len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
+
+        // 0x00 for positive/unsigned int
+        len += initial_value(&buffer[len], buffer_len - len, 0x00, value);
+
+        return len;
+}
+
 int append_dbl_field(char * buffer, int buffer_len, Label label, double value)
 {
         uint8_t len = 0;
@@ -92,11 +104,13 @@ int append_dbl_field(char * buffer, int buffer_len, Label label, double value)
         u64.d_val = value;
 
         uint8_t result [8];
-        for (int i = 0; i < 8; i++) {
+        int i;
+        for (i = 0; i < 8; i++) {
                 result[i] = (uint8_t)((u64.u_val >> 8*(7 - i)) & 0xFF);
 
         }
-        for (int i = 0; i < 8; i++) {
+        
+        for (i = 0; i < 8; i++) {
                 len += snprintf(&buffer[len], buffer_len - len, "%c", result[i]);
         }
 
@@ -124,5 +138,6 @@ const struct senml_formatter senml_cbor_formatter = {
     end_pack,
     append_str_field, 
     append_dbl_field, 
-    append_bool_field
+    append_bool_field,
+    append_int_field
 };

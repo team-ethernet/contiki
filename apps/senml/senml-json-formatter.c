@@ -53,11 +53,15 @@ int append_dbl_field(char * buf_ptr, int remaining, Label label, double dbl){
 int append_bol_field(char * buf_ptr, int remaining, Label label, int bol){
 	if(bol) {
 
-		return snprintf(buf_ptr, remaining, "\"%s\":\"true\",", label_strings[label]);
+		return snprintf(buf_ptr, remaining, "\"%s\":true,", label_strings[label]);
 	}
 	else {
-		return snprintf(buf_ptr, remaining, "\"%s\":\"false\",", label_strings[label]);
+		return snprintf(buf_ptr, remaining, "\"%s\":false,", label_strings[label]);
 	}
+}
+
+int append_int_field(char * buf_ptr, int remaining, Label label, int i){
+	return snprintf(buf_ptr, remaining, "\"%s\":%d,", label_strings[label], i);
 }
 
 const struct senml_formatter senml_json_formatter = { 
@@ -67,5 +71,6 @@ const struct senml_formatter senml_json_formatter = {
 	end_pack,
     append_str_field, 
     append_dbl_field, 
-    append_bol_field
+    append_bol_field,
+	append_int_field
 };
