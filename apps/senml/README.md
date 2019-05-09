@@ -82,7 +82,26 @@ INIT_SENML_JSON(buf_ptr, 1024);
 ADD_RECORD(BASE_NAME, "name", BASE_TIME, );
 ADD_RECORD(BASE_NAME, "test_name"
 ```
+## Code structure
+The different lables are defined in `label.h`.  
+The main code that handles the different labels is in `senml-api.c`.  
+Formatting is handled in `senml-cbor-fomatter.c` and `senml-json-formatter.c`, both implementing the functions defined in `senml-formatter.h`  
+User macros defined in `senml-json.h` and `senml-cbor.h` provide a formatter to the main functions in `senml-api.c`.  
 
+## TODO
+Implementation of XML and EXI.  
 
 ## Authors
-TODO
+Anton Bothin  
+Erik Flink  
+Nelly Friman  
+Jacob Klasmark  
+Valter Lundegårdh  
+Isak Olsson  
+Andreas Sjödin  
+Carina Wickström  
+
+
+
+
+
