@@ -20,11 +20,11 @@ static const char * label_strings[] = {
 	"ut"
 };
 
-int start_pack(char * buf_ptr, int remaining) {
+int start_pack_json(char * buf_ptr, int remaining) {
     return snprintf(buf_ptr, remaining, "[");
 }
 
-int end_pack(char * buf_ptr, int remaining) {
+int end_pack_json(char * buf_ptr, int remaining) {
 	buf_ptr -= sizeof(char);
 	if (buf_ptr[0] == '[') {
 		buf_ptr += sizeof(char);
@@ -33,25 +33,25 @@ int end_pack(char * buf_ptr, int remaining) {
 	else return snprintf(buf_ptr, remaining, "]") - 1;
 }
 
-int start_record(char * buf_ptr, int remaining) {
+int start_record_json(char * buf_ptr, int remaining) {
     return snprintf(buf_ptr, remaining, "{");
 }
 
-int end_record(char * buf_ptr, int remaining) {
+int end_record_json(char * buf_ptr, int remaining) {
 	buf_ptr -= sizeof(char);
     return snprintf(buf_ptr, remaining, "},") - 1;
 }
 
-int append_str_field(char * buf_ptr, int remaining, Label label, char * str) {
+int append_str_field_json(char * buf_ptr, int remaining, Label label, char * str) {
     return snprintf(buf_ptr, remaining, "\"%s\":\"%s\",", label_strings[label], str);
 }
 
-int append_dbl_field(char * buf_ptr, int remaining, Label label, double dbl){
+int append_dbl_field_json(char * buf_ptr, int remaining, Label label, double dbl){
     return snprintf(buf_ptr, remaining, "\"%s\":%f,", label_strings[label], dbl);
 }
 
-int append_bol_field(char * buf_ptr, int remaining, Label label, int bol){
-	if(bol) {
+int append_bool_field_json(char * buf_ptr, int remaining, Label label, int b){
+	if(b) {
 
 		return snprintf(buf_ptr, remaining, "\"%s\":true,", label_strings[label]);
 	}
@@ -60,17 +60,17 @@ int append_bol_field(char * buf_ptr, int remaining, Label label, int bol){
 	}
 }
 
-int append_int_field(char * buf_ptr, int remaining, Label label, int i){
+int append_int_field_json(char * buf_ptr, int remaining, Label label, int i){
 	return snprintf(buf_ptr, remaining, "\"%s\":%d,", label_strings[label], i);
 }
 
 const struct senml_formatter senml_json_formatter = { 
-    start_record, 
-    end_record, 
-	start_pack,
-	end_pack,
-    append_str_field, 
-    append_dbl_field, 
-    append_bol_field,
-	append_int_field
+    start_record_json, 
+    end_record_json, 
+	start_pack_json,
+	end_pack_json,
+    append_str_field_json, 
+    append_dbl_field_json, 
+    append_bool_field_json,
+	append_int_field_json
 };

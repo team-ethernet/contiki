@@ -25,23 +25,23 @@ static const unsigned char label_cbor[] = {
 //                  { “bn”, “bt”, “bu”, “bv”, “bs”, “bver”, “n”, “u”, “v”, “vs”, “vb”, “vd”, ”s”, “t”, “ut”};
 
 // 0x9F stands for start of indefinite length array
-int start_pack(char * buffer, int buffer_len){
+int start_pack_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0x9F);
 }
 // 0xFF stands for "break" indefinite length array
-int end_pack(char * buffer, int buffer_len){
+int end_pack_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0xFF);;
 }
 // 0xBF stands for start indefinite length map
-int start_record(char * buffer, int buffer_len){
+int start_record_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0xBF);
 }
 // 0xFF stands for "break" indefinite length map
-int end_record(char * buffer, int buffer_len){
+int end_record_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0xFF);
 }
 
-int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
+int initial_value_cbor(char * buffer, int buffer_len, unsigned char type,  int value)
 {
         uint8_t len = 0;
 
@@ -55,7 +55,7 @@ int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
         return len;
 }
 
-int append_str_field(char * buffer, int buffer_len, Label label, char * value)
+int append_str_field_cbor(char * buffer, int buffer_len, Label label, char * value)
 {
         uint8_t len = 0;
 
@@ -77,7 +77,7 @@ int append_str_field(char * buffer, int buffer_len, Label label, char * value)
         return len;
 }
 
-int append_int_field(char * buffer, int buffer_len, Label label, int value)
+int append_int_field_cbor(char * buffer, int buffer_len, Label label, int value)
 {
         uint8_t len = 0;
 
@@ -89,7 +89,7 @@ int append_int_field(char * buffer, int buffer_len, Label label, int value)
         return len;
 }
 
-int append_dbl_field(char * buffer, int buffer_len, Label label, double value)
+int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double value)
 {
         uint8_t len = 0;
 
@@ -117,7 +117,7 @@ int append_dbl_field(char * buffer, int buffer_len, Label label, double value)
         return len;
 }
 
-int append_bool_field(char * buffer, int buffer_len, Label label, int value)
+int append_bool_field_cbor(char * buffer, int buffer_len, Label label, int value)
 {
         uint8_t len = 0;
 
@@ -132,12 +132,12 @@ int append_bool_field(char * buffer, int buffer_len, Label label, int value)
 }
 
 const struct senml_formatter senml_cbor_formatter = { 
-    start_record, 
-    end_record, 
-    start_pack,
-    end_pack,
-    append_str_field, 
-    append_dbl_field, 
-    append_bool_field,
-    append_int_field
+    start_record_cbor, 
+    end_record_cbor, 
+    start_pack_cbor,
+    end_pack_cbor,
+    append_str_field_cbor, 
+    append_dbl_field_cbor, 
+    append_bool_field_cbor,
+    append_int_field_cbor
 };

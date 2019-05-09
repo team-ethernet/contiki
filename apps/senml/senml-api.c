@@ -60,8 +60,8 @@ void add_record(Label label, ...) {
 			  	break;
 			case BOOLEAN_VALUE:
 			{
-				int bol = va_arg(args, int);
-				BUFFER(formatter.append_bol_field(buf_ptr, remaining, label, bol));
+				int b = va_arg(args, int);
+				BUFFER(formatter.append_bool_field(buf_ptr, remaining, label, b));
 			}
 			case BASE_VERSION:
 			{
