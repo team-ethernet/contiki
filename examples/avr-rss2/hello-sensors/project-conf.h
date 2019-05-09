@@ -51,4 +51,13 @@
 //#define NETSTACK_CONF_MAC         csma_driver
 //#define NETSTACK_CONF_RDC         contikimac_driver
 
+/* USART1 is usage. Enable and set BAUD  */
+/* #define USART1_CONF_ENABLE 1  */
+/* #define USART1_CONF_BAUD_RATE   USART_BAUD_38400 */
+
+/* Redirect console io to USART1 */
+/* #define SERIAL_LINE_CONF_UART 1 */
+
+/* For generic usart1 io. See usart1.c */
+
 #endif /* PROJECT_CONF_H_ */

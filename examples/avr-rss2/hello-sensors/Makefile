@@ -11,6 +11,9 @@ CLIBS           = $(PRINTF_LIB)
 MODULES += dev/bme280
 
 CUSTOM_RULE_LINK = 1
+
+#PROJECT_OBJECTFILES += usart1.o
+
 %.$(TARGET): %.co $(PROJECT_OBJECTFILES) $(PROJECT_LIBRARIES) contiki-$(TARGET).a 
 	$(LD) $(LDFLAGS) $(TARGET_STARTFILES) ${filter-out %.a,$^} ${filter %.a,$^} $(TARGET_LIBFILES) -o $@ $(CLIBS)
 
