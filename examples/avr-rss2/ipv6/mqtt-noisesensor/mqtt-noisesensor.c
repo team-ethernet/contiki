@@ -68,10 +68,12 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
-static const int USE_OLD_MIC = 0;
+static const int USE_OLD_MIC = 1;
 
 #include "dev/sen0232_gslm.h"
 #include "dev/pwr.h"
+
+#include "dev/noise-sensor.c"
 
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
@@ -733,15 +735,9 @@ double no2(void)
 }
 
 static float noise(void)
-{
+{	
 	if(USE_OLD_MIC == 1) {
-		
-	} else {
-		
-	}
-	
-	if(USE_OLD_MIC == 1) {
-		return (float)value(0);
+		return (float)OLDMICvalue(0);
 	}
 	
 	sen0232_init();
