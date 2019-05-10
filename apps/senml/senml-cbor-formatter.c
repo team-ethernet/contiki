@@ -44,21 +44,15 @@ int data_type_cbor_convert(char * buffer, int buffer_len, unsigned char type,  i
         uint8_t len = 0;
 
         if (value < 24) {
-                len += snprintf(buffer, buffer_len, "%c",  type | (unsigned char)value);
+                return snprintf(buffer, buffer_len, "%c",  type | (unsigned char)value);
         }
         else if (value < 256) {
-                len += snprintf(buffer, buffer_len, "%c", type | 0x18 );
-                len += snprintf(&buffer[len], buffer_len - len, "%c", (unsigned char)value);
+                return snprintf(buffer, buffer_len, "%c%c", type | 0x18, (unsigned char)value);
         }
         else if (value < 65536) {
-                len += snprintf(buffer, buffer_len, "%c", type | 0x19 );
-
-                int i;
-                for (i = 0; i < 2; i++) {
-                        len += snprintf(&buffer[len], buffer_len - len, "%c", (uint8_t)((value >> 8*(1 - i)) & 0xFF));
-                }
+                return snprintf(buffer, buffer_len, "%c%c%c", type | 0x19,(uint8_t)(value >> 8) & 0xFF,(uint8_t)value & 0xFF);
         }
-        return len;
+        return 0;
 }
 
 int append_str_field_cbor(char * buffer, int buffer_len, Label label, char * value)
@@ -88,7 +82,6 @@ int append_int_field_cbor(char * buffer, int buffer_len, Label label, int value)
         uint8_t len = 0;
 
         len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
-
         // 0x00 for positive/unsigned int
         len += data_type_cbor_convert(&buffer[len], buffer_len - len, 0x00, value);
 
@@ -99,9 +92,8 @@ int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double val
 {
         uint8_t len = 0;
 
-        len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
         // 0xFB for start of double value
-        len += snprintf(&buffer[len], buffer_len - len, "%c", 0xFB);
+        len += snprintf(&buffer[len], buffer_len - len,"%c%c", label_cbor[label], 0xFB);
 
         union {
                 double d_val;
@@ -119,16 +111,11 @@ int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double val
 
 int append_bool_field_cbor(char * buffer, int buffer_len, Label label, int value)
 {
-        uint8_t len = 0;
-
-        len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
-
         if (value == 0) {
-                len += snprintf(&buffer[len], buffer_len - len,"%c", 0xF4);
+                return snprintf(buffer, buffer_len,"%c%c",label_cbor[label], 0xF4);
         } else {
-                len += snprintf(&buffer[len], buffer_len - len,"%c", 0xF5);
+                return snprintf(buffer, buffer_len,"%c%c",label_cbor[label], 0xF5);
         }
-        return len;
 }
 
 const struct senml_formatter senml_cbor_formatter = {
