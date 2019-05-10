@@ -1,28 +1,19 @@
 # Unit testing for SenML API
-The unit tests to run are defined in **unit-testing.c**. The print function for the unit tests is also defined there.
+Unit tests for the SenML API using the unit-test app.
 
 ## How to run
-We use make to make sure the unit-test.c is correctly compiled and hence our unit-testing.c file can find the compiled file unit-test.h
 ```
 make
 ./unit-testing.native
 ```
 
-## Common errors
-
-
-**make can't find curses.h**
-
-`sudo apt-get install libncurses5-dev libncursesw5-dev`
-
-## Creating tests
+## Use
 ### Registering new tests
-
+In unit-testing.c, register new tests by adding
 ```UNIT_TEST_REGISTER(name, "description")```
+in the start of the file.
 
-In the ```PROCESS_THREAD``` method:
-
-```UNIT_TEST_RUN(name);```
+Run the test by adding ```UNIT_TEST_RUN(name);``` in the ```PROCESS_THREAD``` method:
 
 ### Example test design
 
@@ -38,13 +29,25 @@ UNIT_TEST(name) {
 ```
 This test will pass since 1+2=3
 
+## Common errors
+
+**make can't find curses.h**
+
+`sudo apt-get install libncurses5-dev libncursesw5-dev`
+
 ## Authors
 Anton Bothin
-Erik Flink
-Nelly Friman
-Jacob Klasmark
-Valter Lundegårdh
-Isak Olsson
-Andreas Sjödin
-Carina Wickström
 
+Erik Flink
+
+Nelly Friman
+
+Jacob Klasmark
+
+Valter Lundegårdh
+
+Isak Olsson
+
+Andreas Sjödin
+
+Carina Wickström
