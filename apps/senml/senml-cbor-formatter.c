@@ -62,6 +62,7 @@ int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
                 for (i = 0; i < 2; i++) {
                         len += snprintf(&buffer[len], buffer_len - len, "%c", v[i]);
                 }
+		}
         return len;
 }
 
