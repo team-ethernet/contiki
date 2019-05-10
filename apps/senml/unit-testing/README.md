@@ -37,3 +37,15 @@ UNIT_TEST(name) {
 }
 ```
 This test will pass since 1+2=3
+
+#Authors:
+
+Anton Bothin
+Erik Flink
+Nelly Friman
+Jacob Klasmark
+Valter Lundegårdh
+Isak Olsson
+Andreas Sjödin
+Carina Wickström
+
