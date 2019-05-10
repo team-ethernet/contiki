@@ -2,6 +2,7 @@
 Unit tests for the SenML API using the unit-test app.
 
 ## How to run
+Create the build using make. Native will be used by default if no target is specified.
 ```
 make
 ./unit-testing.native
