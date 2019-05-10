@@ -54,6 +54,7 @@ ADD_RECORD takes field name-value pairs as arguments. The supported fields are:
 | UPDATE_TIME   | double    |
 
 (*) 0 = false, all other values = true
+
 Maximum int value and string length is 65535 in CBOR formatter (can be extended if needed).
 
 ### Macros:
