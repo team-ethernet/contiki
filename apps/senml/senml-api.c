@@ -63,6 +63,7 @@ void add_record(Label label, ...) {
 				int b = va_arg(args, int);
 				BUFFER(formatter.append_bool_field(buf_ptr, remaining, label, b));
 			}
+				break;
 			case BASE_VERSION:
 			{
 				int i = va_arg(args, int);
