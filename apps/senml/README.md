@@ -1,10 +1,6 @@
 # senml app
-
-## senml Code
-
-apps/senml/senml-api.c  
-apps/senml/senml-json-formatter.c
-
+The senml app is an API for creating SenML messages in JSON or CBOR format.  
+It handles the formatting of the SenML pack conforming to [RFC 8428](https://tools.ietf.org/html/rfc8428).
 
 ## Project code needs
 
@@ -61,16 +57,19 @@ Maximum int value and string length is 65535 in CBOR formatter (can be extended 
 ```c
 // Creates and begins new SenML message in JSON format, given a buffer and its size
 INIT_SENML_JSON(char* buffer_pointer, int size)
-
+```
+```c
 // Creates and begins new SenML message in CBOR format
 INIT_SENML_CBOR(char* buffer_pointer, int size)
-
+```
+```c
 // Adds a record with the given fields
 // For example 
 // ADD_RECORD(BASE_NAME, "name", BASE_UNIT, "unit", VALUE, 4.6)
 // adds a record with the fields bn = name, bu = unit, v = 4.6
 ADD_RECORD(...)
-
+```
+```c
 // Ends the SenML message
 END_SENML()
 ```
@@ -108,9 +107,4 @@ Jacob Klasmark
 Valter Lundegårdh  
 Isak Olsson  
 Andreas Sjödin  
-Carina Wickström  
-
-
-
-
-
+Carina Wickström
