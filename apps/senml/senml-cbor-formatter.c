@@ -4,7 +4,7 @@
 #include "label.h"
 #include "senml-formatter.h"
 
-// translated labels from string to CBOR according to RFC8428 page 19
+// translated SenML labels to CBOR labels according to RFC8428 page 19
 static const unsigned char label_cbor[] = {
         0x21,
         0x22,
@@ -22,8 +22,6 @@ static const unsigned char label_cbor[] = {
         0x06,
         0x07
 };
-//                  { “bn”, “bt”, “bu”, “bv”, “bs”, “bver”, “n”, “u”, “v”, “vs”, “vb”, “vd”, ”s”, “t”, “ut”};
-
 // 0x9F stands for start of indefinite length array
 int start_pack_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0x9F);
@@ -40,8 +38,8 @@ int start_record_cbor(char * buffer, int buffer_len){
 int end_record_cbor(char * buffer, int buffer_len){
         return snprintf(buffer, buffer_len,"%c", 0xFF);
 }
-
-int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
+// max int value or length of string is 65535. Can be extended if needed.
+int data_type_cbor_convert(char * buffer, int buffer_len, unsigned char type,  int value)
 {
         uint8_t len = 0;
 
@@ -54,15 +52,12 @@ int initial_value(char * buffer, int buffer_len, unsigned char type,  int value)
         }
         else if (value < 65536) {
                 len += snprintf(buffer, buffer_len, "%c", type | 0x19 );
-                uint8_t v [2];
+
                 int i;
                 for (i = 0; i < 2; i++) {
-                        v[i] = (uint8_t)((value >> 8*(1 - i)) & 0xFF);
+                        len += snprintf(&buffer[len], buffer_len - len, "%c", (uint8_t)((value >> 8*(1 - i)) & 0xFF));
                 }
-                for (i = 0; i < 2; i++) {
-                        len += snprintf(&buffer[len], buffer_len - len, "%c", v[i]);
-                }
-		}
+        }
         return len;
 }
 
@@ -73,14 +68,14 @@ int append_str_field_cbor(char * buffer, int buffer_len, Label label, char * val
         len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
 
         int number_of_chars = 0;
-        char *copy = value;
-        while (*copy != '\0') {
+        while (*value != '\0') {
                 number_of_chars++;
-                copy++;
+                value++;
         }
         // 0x60 for text
-        len += initial_value(&buffer[len], buffer_len - len, 0x60, number_of_chars);
+        len += data_type_cbor_convert(&buffer[len], buffer_len - len, 0x60, number_of_chars);
 
+        value = value - number_of_chars;
         while (*value != '\0') {
                 len += snprintf(&buffer[len], buffer_len - len, "%c", *value);
                 value++;
@@ -95,7 +90,7 @@ int append_int_field_cbor(char * buffer, int buffer_len, Label label, int value)
         len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
 
         // 0x00 for positive/unsigned int
-        len += initial_value(&buffer[len], buffer_len - len, 0x00, value);
+        len += data_type_cbor_convert(&buffer[len], buffer_len - len, 0x00, value);
 
         return len;
 }
@@ -114,17 +109,10 @@ int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double val
 
         u64.d_val = value;
 
-        uint8_t result [8];
         int i;
         for (i = 0; i < 8; i++) {
-                result[i] = (uint8_t)((u64.u_val >> 8*(7 - i)) & 0xFF);
-
+                len += snprintf(&buffer[len], buffer_len - len, "%c", (uint8_t)((u64.u_val >> 8*(7 - i)) & 0xFF));
         }
-
-        for (i = 0; i < 8; i++) {
-                len += snprintf(&buffer[len], buffer_len - len, "%c", result[i]);
-        }
-
         return len;
 }
 
@@ -143,12 +131,12 @@ int append_bool_field_cbor(char * buffer, int buffer_len, Label label, int value
 }
 
 const struct senml_formatter senml_cbor_formatter = {
-    start_record_cbor,
-    end_record_cbor,
-    start_pack_cbor,
-    end_pack_cbor,
-    append_str_field_cbor,
-    append_dbl_field_cbor,
-    append_bool_field_cbor,
-    append_int_field_cbor
+        start_record_cbor,
+        end_record_cbor,
+        start_pack_cbor,
+        end_pack_cbor,
+        append_str_field_cbor,
+        append_dbl_field_cbor,
+        append_bool_field_cbor,
+        append_int_field_cbor
 };
