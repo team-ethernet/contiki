@@ -41,8 +41,6 @@ int end_record_cbor(char * buffer, int buffer_len){
 // max int value or length of string is 65535. Can be extended if needed.
 int data_type_cbor_convert(char * buffer, int buffer_len, unsigned char type,  int value)
 {
-        uint8_t len = 0;
-
         if (value < 24) {
                 return snprintf(buffer, buffer_len, "%c",  type | (unsigned char)value);
         }
@@ -70,10 +68,8 @@ int append_str_field_cbor(char * buffer, int buffer_len, Label label, char * val
         len += data_type_cbor_convert(&buffer[len], buffer_len - len, 0x60, number_of_chars);
 
         value = value - number_of_chars;
-        while (*value != '\0') {
-                len += snprintf(&buffer[len], buffer_len - len, "%c", *value);
-                value++;
-        }
+        len += snprintf(&buffer[len], buffer_len - len, "%s", value);
+
         return len;
 }
 
