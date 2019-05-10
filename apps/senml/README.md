@@ -57,7 +57,7 @@ ADD_RECORD takes field name-value pairs as arguments. The supported fields are:
 
 Maximum int value and string length is 65535 in CBOR formatter (can be extended if needed).
 
-### Macros:
+### Macros
 ```c
 // Creates and begins new SenML message in JSON format, given a buffer and its size
 INIT_SENML_JSON(char* buffer_pointer, int size)
