@@ -100,6 +100,7 @@ int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double val
         uint8_t len = 0;
 
         len += snprintf(&buffer[len], buffer_len - len,"%c", label_cbor[label]);
+        // 0xFB for start of double value
         len += snprintf(&buffer[len], buffer_len - len, "%c", 0xFB);
 
         union {
