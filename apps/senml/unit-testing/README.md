@@ -38,8 +38,7 @@ UNIT_TEST(name) {
 ```
 This test will pass since 1+2=3
 
-# Authors:
-
+## Authors
 Anton Bothin
 Erik Flink
 Nelly Friman
