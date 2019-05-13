@@ -68,8 +68,12 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
-#include "dev/sen0232_gslm.c"
+static const int USE_OLD_MIC = 0;
+
+#include "dev/sen0232_gslm.h"
 #include "dev/pwr.h"
+
+//#include "dev/noise-sensor.c"
 
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
@@ -731,9 +735,13 @@ double no2(void)
 }
 
 static float noise(void)
-{
+{	
+	if(USE_OLD_MIC == 1) {
+		return (float)OLDMICvalue(0);
+	}
+	
 	sen0232_init();
-	return (float)value(0);
+	return (float)sen0232_gslm.value(0);
 }	
 
 static void
@@ -1116,6 +1124,7 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
   SENSORS_ACTIVATE(temp_sensor);
   SENSORS_ACTIVATE(battery_sensor);
+  SENSORS_ACTIVATE(sen0232_gslm);
 #ifdef CO2
   SENSORS_ACTIVATE(co2_sa_kxx_sensor);
 #endif

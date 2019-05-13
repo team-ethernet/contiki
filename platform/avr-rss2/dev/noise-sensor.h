@@ -3,7 +3,7 @@
 
 #include "lib/sensors.h"
 
-double read_noise_value(void);
 extern const struct sensors_sensor noise_sensor;
+int OLDMICvalue(int type);
 
 #endif
