@@ -82,7 +82,7 @@ char* buf_ptr = buffer;
 INIT_SENML_JSON(buf_ptr, 1024);
 ADD_RECORD(BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
 ADD_RECORD(NAME, "current", UNIT, "A", VALUE, 1.2);
-END_RECORD();
+END_SENML();
 
 printf(buffer);
 ```
