@@ -7,8 +7,6 @@
 #include "sen0232_gslm.h"
 
 #define multiply_value 57
-
-const struct sensors_sensor sen0232_gslm;
 	/*
 	* Multiply voltage value with
 	* a constant as the voltage is linearly proportional 
@@ -17,9 +15,10 @@ const struct sensors_sensor sen0232_gslm;
 	* slightly above 55 for our microphone
 	* Testing will need to be done for other microphones
 	*
-	* Turn power on 175 ticks before reading
-	* clock_wait(time) waits time*8 ms
 	*/
+	
+const struct sensors_sensor sen0232_gslm;
+
 void sen0232_init(void) {
 	pwr_1_init();
 }
@@ -27,7 +26,10 @@ void sen0232_init(void) {
 void sen0232_disable(void) {
 	pwr_1_disable();
 }
-
+	/*
+	* Turn power on 175 ticks before reading
+	* clock_wait(time) waits time*8 ms
+	*/
 int value(int type)
 {
 	pwr_1_on();
@@ -40,7 +42,6 @@ static int status(int type)
 {
   return 0;
 }
-/*---------------------------------------------------------------------------*/
 static int configure(int type, int c)
 {
   return 0;

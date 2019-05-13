@@ -68,12 +68,12 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
-static const int USE_OLD_MIC = 1;
+static const int USE_OLD_MIC = 0;
 
 #include "dev/sen0232_gslm.h"
 #include "dev/pwr.h"
 
-#include "dev/noise-sensor.c"
+//#include "dev/noise-sensor.c"
 
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG

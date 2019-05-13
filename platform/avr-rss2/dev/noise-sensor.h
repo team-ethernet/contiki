@@ -4,6 +4,6 @@
 #include "lib/sensors.h"
 
 extern const struct sensors_sensor noise_sensor;
-double OLDMICvalue(void);
+int OLDMICvalue(int type);
 
 #endif
