@@ -20,7 +20,7 @@ UNIT_TEST(name) {
   UNIT_TEST_BEGIN();
   a = 1;
   b = 2;
-  UNIT_TEST_ASSERT(a+b===3);
+  UNIT_TEST_ASSERT(a+b==3);
   UNIT_TEST_END();
 }
 ```
