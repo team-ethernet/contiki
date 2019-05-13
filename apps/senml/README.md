@@ -25,7 +25,7 @@ APPS += senml
 ## Use
 
 API is used through three different macros:  
-INIT_SENML_JSON or INIT_SENML_CBOR, ADD_RECORD, and END_RECORD.  
+INIT_SENML_JSON or INIT_SENML_CBOR, ADD_RECORD, and END_SENML.  
 
 The SenML message is written into the buffer given as an argument to INIT.
 
