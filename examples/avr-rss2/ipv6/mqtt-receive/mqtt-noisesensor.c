@@ -68,6 +68,10 @@
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
 
+#include "json.h"
+#include "jsonparse.h"
+#include "jsontree.h"
+
 static const int USE_OLD_MIC = 0;
 
 #include "dev/sen0232_gslm.h"
@@ -432,8 +436,14 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
        * last command gets priority. I think this is what
        * we want?
        */
+	   
+	   
+	   
       pub_now_message = mqtt_cli_input((char *) chunk);
+	printf("pub_now_message: %s\n", mqtt_cli_input);
+	printf("chunk: %s\n", chunk);
       pub_now_topic = reply_topic;
+	printf("pub_now_topic: %s\n", reply_topic);
     }
   }
   else {
@@ -787,6 +797,17 @@ publish_sensors(void)
   printf("Trying to sub\n");
   subscribe();
   printf("After sub\n");
+	
+	struct jsonparse_state state1;
+	state1.json = "[{bn: \"urn:mac:fcc2948375028573\", u: \"dB\", v: 0, t: 1557757566000}]";
+	state1.pos = 0;
+	state1.len = 67;
+	
+	//while(jsonparse_next != "}"){
+		//jsonparse_copy_value();
+	//}
+  
+  jsonparse_setup(state1, state1->json, state1->len);
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);

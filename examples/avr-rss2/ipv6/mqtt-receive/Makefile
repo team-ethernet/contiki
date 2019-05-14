@@ -6,6 +6,7 @@ CONTIKI_WITH_IPV6 = 1
 APPS += mqtt
 APPS += ping6
 APPS += cli
+APPS += json
 
 # We use floating vars. Add library.
 PRINTF_LIB_FLT  = -Wl,-u,vfprintf -lprintf_flt -lm
