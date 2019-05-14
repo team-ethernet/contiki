@@ -33,6 +33,7 @@ int add_record(char * buf_ptr, int buf_len, Label label, ...) {
 			{
 				char * str = va_arg(args, char *);
 				len += formatter.append_str_field(&buf_ptr[len], buf_len - len, label, str);
+				break;
 			}
 			case BASE_TIME:
 			case BASE_VALUE:
@@ -44,16 +45,19 @@ int add_record(char * buf_ptr, int buf_len, Label label, ...) {
 			{
 				double dbl = va_arg(args, double);
 				len += formatter.append_dbl_field(&buf_ptr[len], buf_len - len, label, dbl);
+				break;
 			}
 			case BOOLEAN_VALUE:
 			{
 				int b = va_arg(args, int);
 				len += formatter.append_bool_field(&buf_ptr[len], buf_len - len, label, b);
+				break;
 			}
 			case BASE_VERSION:
 			{
 				int i = va_arg(args, int);
 				len += formatter.append_int_field(&buf_ptr[len], buf_len - len, label, i);
+				break;
 			}
 			default:
 				break;

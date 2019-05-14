@@ -9,7 +9,7 @@
 #define ADD_RECORD(...) add_record(__VA_ARGS__, END)
 
 void init_senml(struct senml_formatter frmttr);
-void end_senml_pack_stream(char * buf_ptr, int buf_len);
-void start_senml_pack_stream(char * buf_ptr, int buf_len);
-void add_record(char* buf_ptr, int buf_len, Label label, ...);
+int end_senml_pack_stream(char * buf_ptr, int buf_len);
+int start_senml_pack_stream(char * buf_ptr, int buf_len);
+int add_record(char* buf_ptr, int buf_len, Label label, ...);
 #endif
