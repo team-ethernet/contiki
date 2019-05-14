@@ -419,9 +419,14 @@ pub_handler(const char *topic, uint16_t topic_len, const uint8_t *chunk,
   }
 
 #ifdef MQTT_CLI
-  cmd_topic = construct_topic("cli/cmd");
+  cmd_topic = construct_topic("sensors");
+	printf("cmd_topic: %s\n", cmd_topic);
+	printf("topic: %s\n", topic);
   if (strcmp(cmd_topic, topic) == 0) {
+	printf("works");
     reply_topic = construct_topic("cli/reply");
+	printf("works");
+	printf("reply_topic: %s\n", reply_topic);
     if (reply_topic) {
       /* This will oerwrite any pending reply with current --
        * last command gets priority. I think this is what
@@ -676,20 +681,32 @@ init_config()
 static void
 subscribe(void)
 {
+  printf("Firstline in sub\n");
   /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
+  printf("2 in sub\n");
   char *topic;
+  printf("3 in sub\n");
 
 #ifdef MQTT_CLI
-  topic = construct_topic("cli/cmd");
+  printf("4 in sub\n");
+  topic = construct_topic("sensors");
+  printf("topic: %s\n", topic);
+  printf("5 in sub\n");
   if (topic) {
+  printf("6 in sub\n");
     status = mqtt_subscribe(&conn, NULL, topic, MQTT_QOS_LEVEL_0);
+  printf("7 in sub\n");
     DBG("APP - Subscribing to %s!\n", topic);
+  printf("8 in sub\n");
     if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
+  printf("9 in sub\n");
       DBG("APP - Tried to subscribe but command queue was full!\n");
+  printf("10 in sub\n");
     }
   }
   else {
+  printf("11 in sub\n");
         state = STATE_CONFIG_ERROR;
   }
 #endif /* MQTT_CLI */
@@ -767,6 +784,10 @@ publish_sensors(void)
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
   topic = construct_topic("sensors");
+  printf("Trying to sub\n");
+  subscribe();
+  printf("After sub\n");
+  
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }
@@ -1122,9 +1143,26 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 
   PROCESS_BEGIN();
 
+  SENSORS_ACTIVATE(temp_sensor);
   SENSORS_ACTIVATE(battery_sensor);
-
+  SENSORS_ACTIVATE(sen0232_gslm);
+#ifdef CO2
+  SENSORS_ACTIVATE(co2_sa_kxx_sensor);
+#endif
   leds_init();
+  SENSORS_ACTIVATE(pulse_sensor);
+  SENSORS_ACTIVATE(pms5003_sensor);
+  if( i2c_probed & I2C_BME280 ) {
+    SENSORS_ACTIVATE(bme280_sensor);
+  }
+
+#if RF230_DEBUG
+  printf("RF230_CONF_FRAME_RETRIES: %d\n", RF230_CONF_FRAME_RETRIES);
+  printf("RF230_CONF_CMSA_RETRIES: %d\n", RF230_CONF_CSMA_RETRIES);
+#endif
+  /* The data sink runs with a 100% duty cycle in order to ensure high
+     packet reception rates. */
+  //NETSTACK_MAC.off(1);
 
   printf("MQTT Demo Process\n");
 
