@@ -3,36 +3,25 @@
 #include "label.h"
 #include "senml-formatter.h"
 
-int len = 0;
-int remaining = 0;
-char * buf_ptr;
-
 struct senml_formatter formatter;
 
-#define BUFFER(len) { \
-	if (len < 0 || len >= remaining) { \
-		printf("SenML: Buffer too short. Have %d, need %d + \\0", remaining, len); \
-		return; \
-	} \
-	remaining -= len; \
-	buf_ptr += len; \
-}
-
-void init_senml(char * buffer_pointer, int size, struct senml_formatter frmttr){
-	buf_ptr = buffer_pointer;
-	remaining = size;
+void init_senml(struct senml_formatter frmttr){
 	formatter = frmttr;
-	BUFFER(formatter.start_pack(buf_ptr, remaining));
 }
 
-void end_senml(){
-	BUFFER(formatter.end_pack(buf_ptr, remaining));
+int start_senml_pack_stream(char * buf_ptr, int buf_len){
+	return formatter.start_pack(buf_ptr, buf_len);
 }
 
-void add_record(Label label, ...) {
+int end_senml_pack_stream(char * buf_ptr, int buf_len){
+	return formatter.end_pack(buf_ptr, buf_len);
+}
+
+int add_record(char * buf_ptr, int buf_len, Label label, ...) {
+	uint8_t len = 0;
 	va_list args;
 	va_start(args, label);
-	BUFFER(formatter.start_record(buf_ptr, remaining));
+	len += formatter.start_record(buf_ptr, buf_len);
 	while(label != END) {
 		switch(label) {
 			case BASE_NAME:
@@ -43,9 +32,8 @@ void add_record(Label label, ...) {
 			case DATA_VALUE:
 			{
 				char * str = va_arg(args, char *);
-				BUFFER(formatter.append_str_field(buf_ptr, remaining, label, str));
+				len += formatter.append_str_field(&buf_ptr[len], buf_len - len, label, str);
 			}
-			    break;
 			case BASE_TIME:
 			case BASE_VALUE:
 			case BASE_SUM:
@@ -55,21 +43,18 @@ void add_record(Label label, ...) {
 			case UPDATE_TIME:
 			{
 				double dbl = va_arg(args, double);
-				BUFFER(formatter.append_dbl_field(buf_ptr, remaining, label, dbl));
+				len += formatter.append_dbl_field(&buf_ptr[len], buf_len - len, label, dbl);
 			}
-			  	break;
 			case BOOLEAN_VALUE:
 			{
 				int b = va_arg(args, int);
-				BUFFER(formatter.append_bool_field(buf_ptr, remaining, label, b));
+				len += formatter.append_bool_field(&buf_ptr[len], buf_len - len, label, b);
 			}
-				break;
 			case BASE_VERSION:
 			{
 				int i = va_arg(args, int);
-				BUFFER(formatter.append_int_field(buf_ptr, remaining, label, i));
+				len += formatter.append_int_field(&buf_ptr[len], buf_len - len, label, i);
 			}
-				break;
 			default:
 				break;
 		}
@@ -77,5 +62,6 @@ void add_record(Label label, ...) {
 		label = va_arg(args, Label);
 
 	}
-	BUFFER(formatter.end_record(buf_ptr, remaining));
+	len += formatter.end_record(&buf_ptr[len], buf_len - len);
+	return len;
 }

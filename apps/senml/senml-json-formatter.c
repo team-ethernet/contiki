@@ -26,11 +26,13 @@ int start_pack_json(char * buf_ptr, int remaining) {
 
 int end_pack_json(char * buf_ptr, int remaining) {
 	buf_ptr -= sizeof(char);
-	if (buf_ptr[0] == '[') {
+
+	if(buf_ptr[0] == ","){
+		return snprintf(buf_ptr, remaining, "]") -1;
+	}else{
 		buf_ptr += sizeof(char);
 		return snprintf(buf_ptr, remaining, "]");
 	}
-	else return snprintf(buf_ptr, remaining, "]") - 1;
 }
 
 int start_record_json(char * buf_ptr, int remaining) {
