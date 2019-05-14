@@ -100,11 +100,11 @@ User macros defined in `senml-json.h` and `senml-cbor.h` provide a formatter to 
 Implementation of XML and EXI.  
 
 ## Authors
-Anton Bothin  
-Erik Flink  
-Nelly Friman  
-Jacob Klasmark  
-Valter Lundegårdh  
-Isak Olsson  
-Andreas Sjödin  
-Carina Wickström
+Erik Flink   \
+Isak Olsson \
+Nelly Friman \
+Anton Bothin   \
+Andreas Sjödin \
+Jacob Klasmark  \
+Carina Wickström \
+Valter Lundegårdh 
