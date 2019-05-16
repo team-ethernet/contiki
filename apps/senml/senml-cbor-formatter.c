@@ -84,23 +84,23 @@ int append_int_field_cbor(char * buffer, int buffer_len, Label label, int value)
         return len;
 }
 
-int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, double value)
+int append_dbl_field_cbor(char * buffer, int buffer_len, Label label, float value)
 {
         uint8_t len = 0;
 
-        // 0xFB for start of double value
-        len += snprintf(&buffer[len], buffer_len - len,"%c%c", label_cbor[label], 0xFB);
+        // 0xFA for start of float value
+        len += snprintf(&buffer[len], buffer_len - len,"%c%c", label_cbor[label], 0xFA);
 
         union {
-                double d_val;
-                uint64_t u_val;
-        } u64;
+                float f_val;
+                uint32_t u_val;
+        } u32;
 
-        u64.d_val = value;
+        u32.f_val = value;
 
         int i;
-        for (i = 0; i < 8; i++) {
-                len += snprintf(&buffer[len], buffer_len - len, "%c", (uint8_t)((u64.u_val >> 8*(7 - i)) & 0xFF));
+        for (i = 0; i < 4; i++) {
+                len += snprintf(&buffer[len], buffer_len - len, "%c", (uint8_t)((u32.u_val >> 8*(3 - i)) & 0xFF));
         }
         return len;
 }
