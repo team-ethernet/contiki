@@ -18,7 +18,7 @@ int end_senml_pack_stream(char * buf_ptr, int buf_len){
 }
 
 int add_record(char * buf_ptr, int buf_len, Label label, ...) {
-	uint8_t len = 0;
+	int len = 0;
 	va_list args;
 	va_start(args, label);
 	len += formatter.start_record(buf_ptr, buf_len);
@@ -43,8 +43,8 @@ int add_record(char * buf_ptr, int buf_len, Label label, ...) {
 			case TIME:
 			case UPDATE_TIME:
 			{
-				double dbl = va_arg(args, double);
-				len += formatter.append_dbl_field(&buf_ptr[len], buf_len - len, label, dbl);
+				float dbl = va_arg(args, double);
+				len += formatter.append_float_field(&buf_ptr[len], buf_len - len, label, dbl);
 				break;
 			}
 			case BOOLEAN_VALUE:
