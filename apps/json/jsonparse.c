@@ -172,6 +172,7 @@ jsonparse_next(struct jsonparse_state *state)
 
   switch(c) {
   case '{':
+printf("It worked");
     if((s == 0 && v == 0) || s == '[' || s == ':') {
       push(state, c);
     } else {
@@ -216,6 +217,7 @@ jsonparse_next(struct jsonparse_state *state)
     }
     return c;
   case '"':
+printf("Jaaaa");
     if((s == 0 && v == 0) || s == '{' || s == '[' || s == ':') {
       return atomic(state, c = (s == '{' ? JSON_TYPE_PAIR_NAME : c));
     } else {
@@ -224,6 +226,11 @@ jsonparse_next(struct jsonparse_state *state)
     }
     return c;
   case '[':
+printf("Det blev [");
+printf("Här är c: %c", c);
+printf("Här är s: %c", s);
+printf("Här är v: %c", v);
+
     if((s == 0 && v == 0) || s == '[' || s == ':') {
       push(state, c);
     } else {

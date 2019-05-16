@@ -800,6 +800,8 @@ publish_sensors(void)
 	
 	struct jsonparse_state state1;
 	state1.json = "[{bn: \"urn:mac:fcc2948375028573\", u: \"dB\", v: 0, t: 1557757566000}]";
+
+
 	state1.pos = 0;
 	state1.len = 67;
 	
@@ -807,7 +809,10 @@ publish_sensors(void)
 		//jsonparse_copy_value();
 	//}
   
-  jsonparse_setup(state1, state1->json, state1->len);
+  jsonparse_setup(&state1, state1.json, state1.len);
+	
+  int x = jsonparse_next(&state1);
+  printf("Here is the number x: %d",x);
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
