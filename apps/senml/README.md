@@ -27,13 +27,13 @@ You also need to link in a library for printing floating point numbers, such as 
 ## Use
 
 API is used through different macros:  
-`INIT_SENML_JSON` or `INIT_SENML_CBOR`,  
-`START_SENML_PACK_STREAM`,  
-`ADD_RECORD`,  
-and `END_SENML_PACK_STREAM`.  
+`SENML_INIT_JSON` or `SENML_INIT_CBOR`,  
+`SENML_START_PACK`,  
+`SENML_ADD_RECORD`,  
+and `SENML_END_PACK`.  
 
 The SenML message is written into the buffer given as an argument.
-`ADD_RECORD` also takes field name-value pairs as arguments. The supported fields are:
+`SENML_ADD_RECORD` also takes field name-value pairs as arguments. The supported fields are:
 
 | Field name    | Data type |
 | ------------- |:---------:|
@@ -62,27 +62,27 @@ Note: When using JSON format, floating point numbers are printed with a precisio
 ### Macros
 ```c
 // Initializes SenML API to use JSON format
-void INIT_SENML_JSON()
+void SENML_INIT_JSON()
 ```
 ```c
 // Initializes SenML API to use CBOR format
-void INIT_SENML_CBOR()
+void SENML_INIT_CBOR()
 ```
 ```c
 // Begins a new SenML message in the given buffer and returns the number of characters written.
-int START_SENML_PACK_STREAM(buf_ptr, buf_len)
+int SENML_START_PACK(buf_ptr, buf_len)
 ```
 ```c
 // Adds a record with the given fields in the given buffer and returns the number of characters written.
 // For example 
 // ADD_RECORD(buf_ptr, buf_len, BASE_NAME, "name", BASE_UNIT, "unit", VALUE, 4.6)
 // adds a record with the fields bn = name, bu = unit, v = 4.6
-int ADD_RECORD(buf_ptr, buf_len, ...)
+int SENML_ADD_RECORD(buf_ptr, buf_len, ...)
 ```
 ```c
 // Ends the SenML message in the given buffer and returns the number of characters written.
 // Shall not be called in the beginning of a buffer if using JSON since it needs to step backwards in the buffer and overwrite the last record separation character.
-int END_SENML_PACK_STREAM(buf_ptr, buf_len)
+int SENML_END_PACK(buf_ptr, buf_len)
 ```
 
 ## Example usage
@@ -93,11 +93,11 @@ static char buffer[BUFFER_SIZE];
 char* buf_ptr = buffer;
 int len = 0;
 
-INIT_SENML_JSON();
-len += START_SENML_PACK_STREAM(buf_ptr + len, BUFFER_SIZE - len);
-len += ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
-len += ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, NAME, "current", UNIT, "A", VALUE, 1.2);
-END_SENML_PACK_STREAM(buf_ptr + len, BUFFER_SIZE - len);
+SENML_INIT_JSON();
+len += SENML_START_PACK(buf_ptr + len, BUFFER_SIZE - len);
+len += SENML_ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
+len += SENML_ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, NAME, "current", UNIT, "A", VALUE, 1.2);
+len += SENML_END_PACK(buf_ptr + len, BUFFER_SIZE - len);
 
 printf("%s", buffer);
 ```

@@ -3,13 +3,13 @@
 #include "label.h"
 #include "senml-formatter.h"
 
-#define END_SENML_PACK_STREAM(buf_ptr, buf_len) end_senml_pack_stream(buf_ptr, buf_len) 
-#define START_SENML_PACK_STREAM(buf_ptr, buf_len) start_senml_pack_stream(buf_ptr, buf_len) 
+#define SENML_START_PACK(buf_ptr, buf_len) senml_start_pack(buf_ptr, buf_len)
+#define SENML_END_PACK(buf_ptr, buf_len) senml_end_pack(buf_ptr, buf_len)
 
-#define ADD_RECORD(buf_ptr, buf_len, ...) add_record(buf_ptr, buf_len, __VA_ARGS__, END)
+#define SENML_ADD_RECORD(buf_ptr, buf_len, ...) senml_add_record(buf_ptr, buf_len, __VA_ARGS__, END)
 
-void init_senml(struct senml_formatter frmttr);
-int end_senml_pack_stream(char * buf_ptr, int buf_len);
-int start_senml_pack_stream(char * buf_ptr, int buf_len);
-int add_record(char* buf_ptr, int buf_len, Label label, ...);
+void senml_init(struct senml_formatter frmttr);
+int senml_end_pack(char *buf_ptr, int buf_len);
+int senml_start_pack(char *buf_ptr, int buf_len);
+int senml_add_record(char *buf_ptr, int buf_len, Label label, ...);
 #endif
