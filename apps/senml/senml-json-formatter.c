@@ -56,7 +56,7 @@ append_str_field_json(char *buf_ptr, int remaining, Label label, char *str)
 int
 append_dbl_field_json(char *buf_ptr, int remaining, Label label, float flt)
 {
-  return snprintf(buf_ptr, remaining, "\"%s\":%.9g,", label_strings[label], flt);
+  return snprintf(buf_ptr, remaining, "\"%s\":%g,", label_strings[label], flt);
 }
 int
 append_bool_field_json(char *buf_ptr, int remaining, Label label, int b)

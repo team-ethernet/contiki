@@ -49,7 +49,7 @@ UNIT_TEST(json_noise_sensor){
   len += SENML_START_PACK(buffer_pointer + len, BUFFER_SIZE - len);
   len += SENML_ADD_RECORD(buffer_pointer + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:mac:fcc23d0000003790", UNIT, "dB", BOOLEAN_VALUE, 0, VALUE, 50.00);
   len += SENML_END_PACK(buffer_pointer + len, BUFFER_SIZE - len);
-  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"vb\":false,\"v\":50.000000}]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"vb\":false,\"v\":50}]") == 0);
 
   UNIT_TEST_END();
 }
@@ -63,7 +63,7 @@ UNIT_TEST(json_many_parameters){
   len += SENML_START_PACK(buffer_pointer + len, BUFFER_SIZE - len);
   len += SENML_ADD_RECORD(buffer_pointer + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:mac:fcc23d0000003790", BASE_TIME, 123456789.00, BASE_UNIT, "Volt", BASE_VERSION, 2, VALUE, -1.00, SUM, 0.00, TIME, 643.00, UPDATE_TIME, 0.00);
   len += SENML_END_PACK(buffer_pointer + len, BUFFER_SIZE - len);
-  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"bt\":1.2345679e+08,\"bu\":\"Volt\",\"bver\":2,\"v\":-1.000000,\"s\":0.000000,\"t\":643.000000,\"ut\":0.000000}]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"bt\":1.23457e+08,\"bu\":\"Volt\",\"bver\":2,\"v\":-1,\"s\":0,\"t\":643,\"ut\":0}]") == 0);
 
   UNIT_TEST_END();
 }
@@ -80,7 +80,7 @@ UNIT_TEST(json_multiple_records){
   len += SENML_ADD_RECORD(buffer_pointer + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:mac:fcc23d0000013290", UNIT, "m", VALUE, 35.25);
   len += SENML_END_PACK(buffer_pointer + len, BUFFER_SIZE - len);
 
-  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50.000000},{\"bn\":\"urn:dev:mac:fcc23d0000003788\",\"u\":\"w\",\"v\":0.000000},{\"bn\":\"urn:dev:mac:fcc23d0000013290\",\"u\":\"m\",\"v\":35.250000}]") == 0);
+  UNIT_TEST_ASSERT(strcmp(buffer_pointer, "[{\"bn\":\"urn:dev:mac:fcc23d0000003790\",\"u\":\"dB\",\"v\":50},{\"bn\":\"urn:dev:mac:fcc23d0000003788\",\"u\":\"w\",\"v\":0},{\"bn\":\"urn:dev:mac:fcc23d0000013290\",\"u\":\"m\",\"v\":35.25}]") == 0);
 
   UNIT_TEST_END();
 }

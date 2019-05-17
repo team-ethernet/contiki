@@ -57,7 +57,7 @@ The SenML message is written into the buffer given as an argument.
 
 Maximum int value and string length is 65535 in CBOR formatter (can be extended if needed).
 
-Note: When using JSON format, floating point numbers are printed with a precision of 9. This can result in truncation errors and small differences between platforms.
+Note: When using JSON format, floating point numbers are printed using `%g` format with a precision of 6 digits. This can result in rounding errors.
 
 ### Macros
 ```c
