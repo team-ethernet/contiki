@@ -70,9 +70,11 @@
 
 #include "json.h"
 #include "jsonparse.h"
-#include "jsontree.h"
 
 static const int USE_OLD_MIC = 0;
+
+
+#include "senml-decode.h"
 
 #include "dev/sen0232_gslm.h"
 #include "dev/pwr.h"
@@ -691,32 +693,20 @@ init_config()
 static void
 subscribe(void)
 {
-  printf("Firstline in sub\n");
   /* Publish MQTT topic in IBM quickstart format */
   mqtt_status_t status;
-  printf("2 in sub\n");
   char *topic;
-  printf("3 in sub\n");
 
 #ifdef MQTT_CLI
-  printf("4 in sub\n");
   topic = construct_topic("sensors");
-  printf("topic: %s\n", topic);
-  printf("5 in sub\n");
   if (topic) {
-  printf("6 in sub\n");
     status = mqtt_subscribe(&conn, NULL, topic, MQTT_QOS_LEVEL_0);
-  printf("7 in sub\n");
     DBG("APP - Subscribing to %s!\n", topic);
-  printf("8 in sub\n");
     if(status == MQTT_STATUS_OUT_QUEUE_FULL) {
-  printf("9 in sub\n");
       DBG("APP - Tried to subscribe but command queue was full!\n");
-  printf("10 in sub\n");
     }
   }
   else {
-  printf("11 in sub\n");
         state = STATE_CONFIG_ERROR;
   }
 #endif /* MQTT_CLI */
@@ -783,36 +773,30 @@ publish_sensors(void)
 
   seq_nr_value++;
   
-  float noiseValue = noise();
+  //float noiseValue = noise();
+  float noiseValue = 1;
 
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
   PUTFMT("[{\"bn\":\"urn:dev:mac:%s\"", node_id);
   PUTFMT(",\"u\":\"dB\",\"v\":%-4.2f}]", noiseValue);
 
-  printf("printing publish_sensors: id=%s dB=%f\n", node_id, noiseValue);
+  //printf("printing publish_sensors: id=%s dB=%f\n", node_id, noiseValue);
   
   DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
   //printf("%s\n", app_buffer);
   topic = construct_topic("sensors");
-  printf("Trying to sub\n");
   subscribe();
-  printf("After sub\n");
-	
-	struct jsonparse_state state1;
-	state1.json = "[{bn: \"urn:mac:fcc2948375028573\", u: \"dB\", v: 0, t: 1557757566000}]";
-
-
-	state1.pos = 0;
-	state1.len = 67;
-	
-	//while(jsonparse_next != "}"){
-		//jsonparse_copy_value();
-	//}
   
-  jsonparse_setup(&state1, state1.json, state1.len);
-	
-  int x = jsonparse_next(&state1);
-  printf("Here is the number x: %d",x);
+  
+  struct pair result = read_next_token(&abc);
+  printf("result.label: %s\n", result.label);
+  //Checks the type of the void pointer and then picks the correct printf
+  
+  
+  
+  printf("result.value: %s\n", result.value);
+  
+  
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
@@ -1203,6 +1187,7 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
                                     echo_reply_handler);
   etimer_set(&echo_request_timer, conf.def_rt_ping_interval);
 
+  
   /* Main loop */
   while(1) {
 
@@ -1249,9 +1234,12 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
   static uint16_t stale_publishing = 0, stale_connecting = 0;
   static uint16_t seen_seq_nr_value = 0;
 
+  struct jsonparse_state abc = init_json_decoder("[{\"bn\": \"urn:mac:fcc2948375028573\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
+  
+  
   PROCESS_BEGIN();
   etimer_set(&checktimer, WATCHDOG_INTERVAL);
-
+  
   /* Main loop */
   while(1) {
 

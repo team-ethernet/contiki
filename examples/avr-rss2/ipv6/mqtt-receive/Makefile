@@ -7,6 +7,7 @@ APPS += mqtt
 APPS += ping6
 APPS += cli
 APPS += json
+APPS += senml-decode
 
 # We use floating vars. Add library.
 PRINTF_LIB_FLT  = -Wl,-u,vfprintf -lprintf_flt -lm
