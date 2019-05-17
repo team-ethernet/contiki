@@ -1,6 +1,6 @@
 # senml app
 The senml app is an API for creating SenML messages in JSON or CBOR format.  
-It handles the formatting of the SenML pack conforming to [RFC 8428](https://tools.ietf.org/html/rfc8428).
+It handles the formatting of the SenML pack conforming to [RFC 8428](https://tools.ietf.org/html/rfc8428). It can also be used to create SenSML messages.
 
 ## Project code needs
 
@@ -22,73 +22,88 @@ in Makefile add
 APPS += senml
 ```
 
+You also need to link in a library for printing floating point numbers, such as `libprintf_flt` for AVR if you are using the JSON format.
+
 ## Use
 
-API is used through three different macros:  
-INIT_SENML_JSON or INIT_SENML_CBOR, ADD_RECORD, and END_SENML.  
+API is used through different macros:  
+`INIT_SENML_JSON` or `INIT_SENML_CBOR`,  
+`START_SENML_PACK_STREAM`,  
+`ADD_RECORD`,  
+and `END_SENML_PACK_STREAM`.  
 
-The SenML message is written into the buffer given as an argument to INIT.
-
-ADD_RECORD takes field name-value pairs as arguments. The supported fields are:
+The SenML message is written into the buffer given as an argument.
+`ADD_RECORD` also takes field name-value pairs as arguments. The supported fields are:
 
 | Field name    | Data type |
 | ------------- |:---------:|
 | BASE_NAME     | char *    |
-| BASE_TIME     | double    |
+| BASE_TIME     | float     |
 | BASE_UNIT     | char *    |
-| BASE_VALUE    | double    |
-| BASE_SUM      | double    |
+| BASE_VALUE    | float     |
+| BASE_SUM      | float     |
 | BASE_VERSION  | int       |
 | NAME          | char *    |
 | UNIT          | char *    |
-| VALUE         | double    |
+| VALUE         | float     |
 | STRING_VALUE  | char *    |
-| BOOLEAN_VALUE | int (*)   |
+| BOOLEAN_VALUE | int(*)    |
 | DATA_VALUE    | char *    |
-| SUM           | double    |
-| TIME          | double    |
-| UPDATE_TIME   | double    |
+| SUM           | float     |
+| TIME          | float     |
+| UPDATE_TIME   | float     |
 
 (*) 0 = false, all other values = true
 
 Maximum int value and string length is 65535 in CBOR formatter (can be extended if needed).
 
+Note: When using JSON format, floating point numbers are printed with a precision of 9. This can result in truncation errors and small differences between platforms.
+
 ### Macros
 ```c
-// Creates and begins new SenML message in JSON format, given a buffer and its size
-INIT_SENML_JSON(char* buffer_pointer, int size)
+// Initializes SenML API to use JSON format
+void INIT_SENML_JSON()
 ```
 ```c
-// Creates and begins new SenML message in CBOR format
-INIT_SENML_CBOR(char* buffer_pointer, int size)
+// Initializes SenML API to use CBOR format
+void INIT_SENML_CBOR()
 ```
 ```c
-// Adds a record with the given fields
+// Begins a new SenML message in the given buffer and returns the number of characters written.
+int START_SENML_PACK_STREAM(buf_ptr, buf_len)
+```
+```c
+// Adds a record with the given fields in the given buffer and returns the number of characters written.
 // For example 
-// ADD_RECORD(BASE_NAME, "name", BASE_UNIT, "unit", VALUE, 4.6)
+// ADD_RECORD(buf_ptr, buf_len, BASE_NAME, "name", BASE_UNIT, "unit", VALUE, 4.6)
 // adds a record with the fields bn = name, bu = unit, v = 4.6
-ADD_RECORD(...)
+int ADD_RECORD(buf_ptr, buf_len, ...)
 ```
 ```c
-// Ends the SenML message
-END_SENML()
+// Ends the SenML message in the given buffer and returns the number of characters written.
+// Shall not be called in the beginning of a buffer if using JSON since it needs to step backwards in the buffer and overwrite the last record separation character.
+int END_SENML_PACK_STREAM(buf_ptr, buf_len)
 ```
 
 ## Example usage
 ```c
-static char buffer[1024];
+#define BUFFER_SIZE 1024
+
+static char buffer[BUFFER_SIZE];
 char* buf_ptr = buffer;
+int len = 0;
 
-INIT_SENML_JSON(buf_ptr, 1024);
-ADD_RECORD(BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
-ADD_RECORD(NAME, "current", UNIT, "A", VALUE, 1.2);
-END_SENML();
+INIT_SENML_JSON();
+len += START_SENML_PACK_STREAM(buf_ptr + len, BUFFER_SIZE - len);
+len += ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
+len += ADD_RECORD(buf_ptr + len, BUFFER_SIZE - len, NAME, "current", UNIT, "A", VALUE, 1.2);
+END_SENML_PACK_STREAM(buf_ptr + len, BUFFER_SIZE - len);
 
-printf(buffer);
+printf("%s", buffer);
 ```
 Should print
 ```json
-[{"bn":"urn:dev:ow:10e2073a01080063:","n":"voltage","u":"V","v":120.100000},{"n":"current","u":"A","v":1.200000}]
+[{"bn":"urn:dev:ow:10e2073a01080063:","n":"voltage","u":"V","v":120.1},{"n":"current","u":"A","v":1.2}]
 ```
 ## Code structure
 The different lables are defined in `label.h`.  
@@ -96,8 +111,9 @@ The main code that handles the different labels is in `senml-api.c`.
 Formatting is handled in `senml-cbor-fomatter.c` and `senml-json-formatter.c`, both implementing the functions defined in `senml-formatter.h`  
 User macros defined in `senml-json.h` and `senml-cbor.h` provide a formatter to the main functions in `senml-api.c`.  
 
-## TODO
+## Future work
 Implementation of XML and EXI.  
+Add support for double- and half-precision floating point numbers.  
 
 ## Authors
 Erik Flink   \
