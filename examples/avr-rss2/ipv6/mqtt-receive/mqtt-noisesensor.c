@@ -793,33 +793,17 @@ publish_sensors(void)
   
   if(shouldIinit == 1){
 	  shouldIinit = 0;
-	  init_json_decoder("[{\"bn\": \"urn:mac:fcc23d000001856e\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
+	  init_json_decoder("[{\"bn\": \"urn:mac:fcc23d000001856e\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000},{\"n\": \"hejsanhhhheeeejjjjssssannnnAAAnnnjaghoppasW22ddettafungerar\"}");
+	  add_new_msg(",{\"bn\": \"urn:mac:fcc23d000001856e\"}]");
   }
   struct pair lv;
-  printf("address to lv: %d\n", &lv);
   read_next_token(&lv);
   printf("result.label: %s\n", lv.label);
   printf("result.value: %s\n", lv.value);
   
   
-  printf("result.label: %d\n", lv.label);
-  printf("result.value: %d\n", lv.value);
-  
-  
-  
-  
-  
-  
-  
-  
   printf("done with loop\n");
   printf("\n");
-  
-  
-  
-  
-  
-  
   
   
   
