@@ -757,9 +757,9 @@ double no2(void)
 
 static float noise(void)
 {	
-	if(USE_OLD_MIC == 1) {
-		return (float)OLDMICvalue(0);
-	}
+	//if(USE_OLD_MIC == 1) {
+		//return (float)OLDMICvalue(0);
+	//}
 	
 	sen0232_init();
 	return (float)sen0232_gslm.value(0);
@@ -793,32 +793,35 @@ publish_sensors(void)
   
   if(shouldIinit == 1){
 	  shouldIinit = 0;
-	  init_json_decoder("[{\"bn\": \"urn:mac:testID\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
+	  init_json_decoder("[{\"bn\": \"urn:mac:fcc23d000001856e\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
   }
-  
-  //add_new_msg("newteststring");
-  
-  /*
-  struct pair testpair = pair_test();
-  printf("testpair.label: %s\n", testpair.label);
-  printf("testpair.value: %d\n", testpair.value);
-  */
-  
-  struct pair lv = read_next_token();
-  
- /* 
-  if(resultlv.label != NULL){
-	  printf("lab != null\n");
-  }
-  if(resultlv.value != NULL){
-	  printf("val != nul\n");
-  }
-  */
-  
+  struct pair lv;
+  printf("address to lv: %d\n", &lv);
+  read_next_token(&lv);
   printf("result.label: %s\n", lv.label);
   printf("result.value: %s\n", lv.value);
   
+  
+  printf("result.label: %d\n", lv.label);
+  printf("result.value: %d\n", lv.value);
+  
+  
+  
+  
+  
+  
+  
+  
   printf("done with loop\n");
+  printf("\n");
+  
+  
+  
+  
+  
+  
+  
+  
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
