@@ -798,13 +798,14 @@ publish_sensors(void)
   
   //add_new_msg("newteststring");
   
-  
-  
-  
+  /*
   struct pair testpair = pair_test();
   printf("testpair.label: %s\n", testpair.label);
   printf("testpair.value: %d\n", testpair.value);
-  struct pair resultlv = read_next_token();
+  */
+  
+  struct pair lv = read_next_token();
+  
  /* 
   if(resultlv.label != NULL){
 	  printf("lab != null\n");
@@ -813,13 +814,11 @@ publish_sensors(void)
 	  printf("val != nul\n");
   }
   */
-  printf("result.label: %s\n", resultlv.label);
-  printf("result.value: %s\n", resultlv.value);
   
-  
+  printf("result.label: %s\n", lv.label);
+  printf("result.value: %s\n", lv.value);
   
   printf("done with loop\n");
-  
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
                strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);

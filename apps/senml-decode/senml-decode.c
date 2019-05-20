@@ -80,22 +80,58 @@ struct pair read_next_token(){
 		elem_len++;
 		printf("elemn_len LEABEL: %d\n", elem_len);
 		char* label_buf[elem_len];
+		char* label[elem_len];
 		jsonparse_copy_value(&state, label_buf, elem_len);
 		jsonparse_next(&state);
 		printf("READdef label_buf: %s\n", label_buf);
 		elem_len = jsonparse_get_len(&state);
-		char* value_buf[elem_len];
 		elem_len++;
+		char* value_buf[elem_len];
+		char* value[elem_len];
 		printf("elemn_len VALUE: %d\n", elem_len);
 		jsonparse_copy_value(&state, value_buf, elem_len);
 		printf("READdef value_buf: %s\n", value_buf);
 		//struct pair lv = {.label = label_buf, .value = value_buf};
 		
+		
+		//printf("---------\n");
 		printf("label buf: %s\n", label_buf);
 		printf("value buf: %s\n", value_buf);
 		
-		lv.label = label_buf;
-		lv.value = value_buf;
+		 printf("label buf: %d\n", label_buf);
+		 printf("value buf: %d\n", value_buf);
+		
+		printf("text buf: %s\n", "bn");
+		printf("text buf: %s\n", "urn:mac:testID");
+		
+		printf("text buf: %d\n", "bn");
+		printf("text buf: %d\n", "urn:mac:testID");
+		
+	
+		
+		
+		printf("label: %s\n", label);
+		printf("value: %s\n", value);
+		
+		printf("label: %d\n", label);
+		printf("value: %d\n", value);
+		
+		printf("---------\n");
+		
+		strcpy(label, label_buf);
+		strcpy(value, value_buf);
+		
+		printf("----AFTER COPY:::-----\n");
+		
+		printf("label: %s\n", label);
+		printf("value: %s\n", value);
+		
+		printf("label: %d\n", label);
+		printf("value: %d\n", value);
+		printf("---------\n");
+		
+		lv.label = label;
+		lv.value = value;
 		
 		printf("default!! lv.label: %s\n", lv.label);
 		printf("default!! lv.value: %s\n", lv.value);
