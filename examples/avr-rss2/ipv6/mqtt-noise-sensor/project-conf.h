@@ -51,7 +51,7 @@
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "::ffff:c010:7dea" 
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b:0000:0000:0000:0000:c010:7dea"
-#define MQTT_CONF_PUBLISH_INTERVAL    (60 * CLOCK_SECOND)
+#define MQTT_CONF_PUBLISH_INTERVAL    (5 * CLOCK_SECOND)
 
 #define NETSTACK_CONF_RDC nullrdc_driver
 #define NETSTACK_CONF_MAC nullmac_driver
@@ -80,14 +80,14 @@
 #define RPL_CONF_LEAF_ONLY  1
 #define RPL_CONF_WITH_DAO_ACK 1
 #else	/* KTH configuration: this is a default configuration */
-#define MQTT_DEMO_TOPIC_BASE 	"KTH/avr-rss2"
-#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::c010:7dea"
+#define MQTT_DEMO_TOPIC_BASE 	"noise-sensor"
+#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::82e5:8e34" // 130.229.142.52
 //#define MQTT_DEMO_BROKER_IP_ADDR "0064:ff9b::c0a8:0103"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1d
 #define IEEE802154_CONF_PANID 0xFEED
 //#define IEEE802154_CONF_PANID 0xABBA
 //#define CHANNEL_CONF_802_15_4 12
-#define CHANNEL_CONF_802_15_4 25
+#define CHANNEL_CONF_802_15_4 24
 #define RPL_CONF_WITH_DAO_ACK 1
 #endif /* TESTBED_UPWIS_CONF */
 
