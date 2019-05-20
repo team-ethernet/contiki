@@ -67,6 +67,9 @@
 #include "i2c.h"
 #include "dev/bme280/bme280-sensor.h"
 #include "dev/serial-line.h"
+#include "dev/sen0232-gslm.h"
+#include "senml-cbor.h"
+#include "senml-json.h"
 #include <dev/watchdog.h>
 #ifndef RF230_DEBUG
 #define RF230_DEBUG 0
@@ -688,13 +691,12 @@ subscribe(void)
 }
 /*---------------------------------------------------------------------------*/
 #define PUTFMT(...) { \
-		len = snprintf(buf_ptr, remaining, __VA_ARGS__);	\
-		if (len < 0 || len >= remaining) { \
-			printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); \
+		l = snprintf(BUF_PTR, REMAINING, __VA_ARGS__);	\
+		if (l < 0 || l >= REMAINING) { \
+			printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, REMAINING, l); \
 			return; \
 		} \
-		remaining -= len; \
-		buf_ptr += len; \
+		len += l; \
 	}
 
 
@@ -731,64 +733,31 @@ publish_sensors(void)
 {
   /* Publish MQTT topic in SenML format */
 
-  int len;
-  int remaining = APP_BUFFER_SIZE;
+  int len = 0;
+  // int remaining = APP_BUFFER_SIZE;
   char *topic;
-  buf_ptr = app_buffer;
+  // buf_ptr = app_buffer;
+  #define BUF_PTR app_buffer + len
+  #define REMAINING APP_BUFFER_SIZE - len
 
   seq_nr_value++;
 
+  float noiseValue = (float)sen0232_gslm.value(0);
+  char bn[31];
+  sprintf(bn, "urn:dev:mac:%s;", node_id);
+
   /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"bt\":%lu}", clock_seconds());
-  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+  SENML_INIT_CBOR();
+  len += SENML_START_PACK(BUF_PTR, REMAINING);
+  len += SENML_ADD_RECORD(BUF_PTR, REMAINING, BASE_NAME, bn, UNIT, "dB", VALUE, noiseValue);
+  len += SENML_END_PACK(BUF_PTR, REMAINING);
 
-#ifdef CO2
-  PUTFMT(",{\"n\":\"co2\",\"u\":\"ppm\",\"v\":%d}", co2_sa_kxx_sensor.value(CO2_SA_KXX_CO2));
-#endif
+  printf("publish_sensors: bn=%s v=%f\n", bn, noiseValue);
 
-    if(lc.no2_corr) {
-      /* Assume 5V VCC and 0 correection */
-      PUTFMT(",{\"n\":\"no2\",\"u\":\"ug/m3\",\"v\":%-4.2f}", no2());
-      PUTFMT(",{\"n\":\"a2\",\"u\":\"V\",\"v\":%-4.2f}", adc_read_a2());
-    }
-
-  if (pms5003_sensor.value(PMS5003_SENSOR_TIMESTAMP) != 0) {
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1));
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5));
-    PUTFMT(",{\"n\":\"pms5003;tsi;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm1\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM1_ATM));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm2_5\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM2_5_ATM));
-    PUTFMT(",{\"n\":\"pms5003;atm;pm10\",\"u\":\"ug/m3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_PM10_ATM));
-
-    if(lc.dustbin) {
-      PUTFMT(",{\"n\":\"pms5003;db;0_3\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_3));
-      PUTFMT(",{\"n\":\"pms5003;db;0_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB0_5));
-      PUTFMT(",{\"n\":\"pms5003;db;1\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB1));
-      PUTFMT(",{\"n\":\"pms5003;db;2_5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB2_5));
-      PUTFMT(",{\"n\":\"pms5003;db;5\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB5));
-      PUTFMT(",{\"n\":\"pms5003;db;10\",\"u\":\"cnt/dm3\",\"v\":%d}", pms5003_sensor.value(PMS5003_SENSOR_DB10));
-    }
-
-  }
-  if( i2c_probed & I2C_BME280 ) {
-    bme280_sensor.value(BME280_SENSOR_TEMP);
-    PUTFMT(",{\"n\":\"bme280;temp\",\"u\":\"Cel\",\"v\":%4.2f}", (double)bme280_mea.t_overscale100/100.0);
-    PUTFMT(",{\"n\":\"bme280;humidity\",\"u\":\"%%RH\",\"v\":%4.2f}", (double)bme280_mea.h_overscale1024 / 1024.0);
-#ifdef BME280_64BIT
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p_overscale256/ (256.0*100));
-#else
-    PUTFMT(",{\"n\":\"bme280;pressure\",\"u\":\"hPa\",\"v\":%4.2f}", (double)bme280_mea.p);
-#endif
-  }
-
-  PUTFMT("]");
-
-  DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, strlen(app_buffer));
-  //printf("%s\n", app_buffer);
+  DBG("MQTT publish sensors %d: %d bytes\n", seq_nr_value, len);
   topic = construct_topic("sensors");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
-               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+               len, MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 }
 
 static void
@@ -804,104 +773,141 @@ publish_stats(void)
 #define ENDSTATS STATS_RPL
 
   static int stats = STARTSTATS;
-  int len;
-  int remaining = APP_BUFFER_SIZE;
+  int len = 0;
   char *topic;
-  
-  buf_ptr = app_buffer;
+  #define BUF_PTR app_buffer + len
+  #define REMAINING APP_BUFFER_SIZE - len
 
   seq_nr_value++;
 
-  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
-  PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
-  PUTFMT(",\"bu\":\"count\"");
-  PUTFMT(",\"bt\":%lu}", clock_seconds());
+  char bn[31];
+  sprintf(bn, "urn:dev:mac:%s;", node_id);
 
-  PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
+  /* Use device URN as base name -- draft-arkko-core-dev-urn-03 */
+  SENML_INIT_JSON();
+  len += SENML_START_PACK(BUF_PTR, REMAINING);
+  len += SENML_ADD_RECORD(BUF_PTR, REMAINING, BASE_NAME, bn, BASE_UNIT, "count", BASE_TIME, (float)clock_seconds());
+  // PUTFMT("[{\"bn\":\"urn:dev:mac:%s;\"", node_id);
+  // PUTFMT(",\"bu\":\"count\"");
+  // PUTFMT(",\"bt\":%lu}", clock_seconds());
+
+  len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "seq_no", UNIT, "count", VALUE, (float)seq_nr_value);
+  // PUTFMT(",{\"n\":\"seq_no\",\"u\":\"count\",\"v\":%d}", seq_nr_value);
   switch (stats) {
   case STATS_DEVICE:
 
-    PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "battery", UNIT, "V", VALUE, ((float) battery_sensor.value(0)/1000.));
+    // PUTFMT(",{\"n\":\"battery\", \"u\":\"V\",\"v\":%-5.2f}", ((double) battery_sensor.value(0)/1000.));
 
     /* Put our Default route's string representation in a buffer */
     char def_rt_str[64];
     memset(def_rt_str, 0, sizeof(def_rt_str));
     ipaddr_sprintf(def_rt_str, sizeof(def_rt_str), uip_ds6_defrt_choose());
 
-    PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
-    PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "def_route", STRING_VALUE, def_rt_str);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rssi", UNIT, "dBm", VALUE, (float)def_rt_rssi);
+    // PUTFMT(",{\"n\":\"def_route\",\"vs\":\"%s\"}", def_rt_str);
+    // PUTFMT(",{\"n\":\"rssi\",\"u\":\"dBm\",\"v\":%lu}", def_rt_rssi);
 
     extern uint32_t pms5003_valid_frames();
     extern uint32_t pms5003_invalid_frames();
 
-    PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
-    PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "pms5003;valid", VALUE, (float)pms5003_valid_frames());
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "pms5003;invalid", VALUE, (float)pms5003_invalid_frames());
+    // PUTFMT(",{\"n\":\"pms5003;valid\",\"v\":%lu}", pms5003_valid_frames());
+    // PUTFMT(",{\"n\":\"pms5003;invalid\",\"v\":%lu}", pms5003_invalid_frames());
 
 #if RF230_DEBUG
-    PUTFMT(",{\"n\":\"rf230;no_ack\",\"v\":%u}", count_no_ack);
-    PUTFMT(",{\"n\":\"rf230;cca_fail\",\"v\":%u}", count_cca_fail);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rf230;no_ack", VALUE, (float)count_no_ack);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rf230;cca_fail", VALUE, (float)count_cca_fail);
+    // PUTFMT(",{\"n\":\"rf230;no_ack\",\"v\":%u}", count_no_ack);
+    // PUTFMT(",{\"n\":\"rf230;cca_fail\",\"v\":%u}", count_cca_fail);
 #endif
     
      /* case STATS_MQTT:*/
-     
-    PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
-    PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
-    PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
-    PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;conn", VALUE, (float)mqtt_stats.connected);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;disc", VALUE, (float)mqtt_stats.disconnected);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;pub", VALUE, (float)mqtt_stats.published);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;puback", VALUE, (float)mqtt_stats.pubacked);
+    // PUTFMT(",{\"n\":\"mqtt;conn\",\"v\":%u}", mqtt_stats.connected);
+    // PUTFMT(",{\"n\":\"mqtt;disc\",\"v\":%u}", mqtt_stats.disconnected);
+    // PUTFMT(",{\"n\":\"mqtt;pub\",\"v\":%u}", mqtt_stats.published);
+    // PUTFMT(",{\"n\":\"mqtt;puback\",\"v\":%u}", mqtt_stats.pubacked);
 
 #ifdef MQTT_WATCHDOG
-    PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
-    PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
-    PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;wd;stale_pub", VALUE, (float)watchdog_stats.stale_publishing);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;wd;stale_conn", VALUE, (float)watchdog_stats.stale_connecting);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "mqtt;wd;close_conn", VALUE, (float)watchdog_stats.closed_connection);
+    // PUTFMT(",{\"n\":\"mqtt;wd;stale_pub\",\"v\":%u}", watchdog_stats.stale_publishing);
+    // PUTFMT(",{\"n\":\"mqtt;wd;stale_conn\",\"v\":%u}", watchdog_stats.stale_connecting);
+    // PUTFMT(",{\"n\":\"mqtt;wd;close_conn\",\"v\":%u}", watchdog_stats.closed_connection);
 #endif
 
 #ifdef CONTIKI_TARGET_AVR_RSS2
-    PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "unused_stack", VALUE, (float)unused_stack);
+    // PUTFMT(",{\"n\":\"unused_stack\",\"v\":%u}", unused_stack);
     /* Send bootcause 3 times after reboot (in the first 20 min after reboot) */
     if (seq_nr_value < 40) {
-      PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
+      char bc[5];
+      sprintf(bc, "%02x", GPIOR0);
+      len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "bootcause", STRING_VALUE, bc);
+      // PUTFMT(",{\"n\":\"bootcause\",\"v\":\"%02x\"}", GPIOR0);
     }
 #endif
 
-    PUTFMT(",");
-    len = mqtt_i2c_pub(buf_ptr, remaining);
-    if (len < 0 || len >= remaining) { 
-      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+    // PUTFMT(",");
+    int l = mqtt_i2c_pub(BUF_PTR, REMAINING);
+    if (l < 0 || l >= REMAINING) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, REMAINING, l); 
       return;
     }
-    remaining -= len;
-    buf_ptr += len;
+    // remaining -= len;
+    // buf_ptr += len;
+    len += l;
+    PUTFMT(",");
     break;
   case STATS_RPL:
 #if RPL_CONF_STATS
-    PUTFMT(",{\"n\":\"rpl;mem_overflows\",\"v\":%u}", rpl_stats.mem_overflows);
-    PUTFMT(",{\"n\":\"rpl;local_repairs\",\"v\":%u}", rpl_stats.local_repairs);
-    PUTFMT(",{\"n\":\"rpl;global_repairs\",\"v\":%u}", rpl_stats.global_repairs);
-    PUTFMT(",{\"n\":\"rpl;malformed_msgs\",\"v\":%u}", rpl_stats.malformed_msgs);
-    PUTFMT(",{\"n\":\"rpl;resets\",\"v\":%u}", rpl_stats.resets);
-    PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
-    PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
-    PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
-    PUTFMT(",{\"n\":\"rpl;loop_warnings\",\"v\":%u}", rpl_stats.loop_warnings);
-    PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;mem_overflows", VALUE, (float)rpl_stats.mem_overflows);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;local_repairs", VALUE, (float)rpl_stats.local_repairs);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;global_repairs", VALUE, (float)rpl_stats.global_repairs);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;malformed_msgs", VALUE, (float)rpl_stats.malformed_msgs);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;resets", VALUE, (float)rpl_stats.resets);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;parent_switch", VALUE, (float)rpl_stats.parent_switch);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;forward_errors", VALUE, (float)rpl_stats.forward_errors);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;loop_errors", VALUE, (float)rpl_stats.loop_errors);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;loop_warnings", VALUE, (float)rpl_stats.loop_warnings);
+    len += SENML_ADD_RECORD(BUF_PTR, REMAINING, NAME, "rpl;root_repairs", VALUE, (float)rpl_stats.root_repairs);
+    // PUTFMT(",{\"n\":\"rpl;mem_overflows\",\"v\":%u}", rpl_stats.mem_overflows);
+    // PUTFMT(",{\"n\":\"rpl;local_repairs\",\"v\":%u}", rpl_stats.local_repairs);
+    // PUTFMT(",{\"n\":\"rpl;global_repairs\",\"v\":%u}", rpl_stats.global_repairs);
+    // PUTFMT(",{\"n\":\"rpl;malformed_msgs\",\"v\":%u}", rpl_stats.malformed_msgs);
+    // PUTFMT(",{\"n\":\"rpl;resets\",\"v\":%u}", rpl_stats.resets);
+    // PUTFMT(",{\"n\":\"rpl;parent_switch\",\"v\":%u}", rpl_stats.parent_switch);
+    // PUTFMT(",{\"n\":\"rpl;forward_errors\",\"v\":%u}", rpl_stats.forward_errors);
+    // PUTFMT(",{\"n\":\"rpl;loop_errors\",\"v\":%u}", rpl_stats.loop_errors);
+    // PUTFMT(",{\"n\":\"rpl;loop_warnings\",\"v\":%u}", rpl_stats.loop_warnings);
+    // PUTFMT(",{\"n\":\"rpl;root_repairs\",\"v\":%u}", rpl_stats.root_repairs);
 #endif
-    PUTFMT(",");
-    len = mqtt_rpl_pub(buf_ptr, remaining);
-    if (len < 0 || len >= remaining) { 
-      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, remaining, len); 
+    // PUTFMT(",");
+    l = mqtt_rpl_pub(BUF_PTR, REMAINING);
+    if (l < 0 || l >= REMAINING) { 
+      printf("Line %d: Buffer too short. Have %d, need %d + \\0", __LINE__, REMAINING, l); 
       return;
     }
-    remaining -= len;
-    buf_ptr += len;
+    len += l;
+    // remaining -= len;
+    // buf_ptr += len;
     break;
   }
-  PUTFMT("]");
+  // PUTFMT("]");
+  len += SENML_END_PACK(BUF_PTR, REMAINING);
 
-  DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, strlen(app_buffer));
+  DBG("MQTT publish stats part %d, seq %d, %d bytes:\n", stats, seq_nr_value, len);
   //printf("%s\n", app_buffer);
   topic = construct_topic("status");
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
-               strlen(app_buffer), MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
+               len, MQTT_QOS_LEVEL_0, MQTT_RETAIN_OFF);
 
   if (++stats > ENDSTATS)
     stats = STARTSTATS;
@@ -926,12 +932,12 @@ publish_now(void)
 static void
 publish_cca_test(void)
 {
-
-  int len;
   int i;
-  int remaining = APP_BUFFER_SIZE;
+  int l;
+  int len = 0;
   char *topic;
-  buf_ptr = app_buffer;
+  #define BUF_PTR app_buffer + len
+  #define REMAINING APP_BUFFER_SIZE - len
 
   seq_nr_value++;
 
@@ -1143,7 +1149,8 @@ PROCESS_THREAD(mqtt_demo_process, ev, data)
 {
 
   PROCESS_BEGIN();
-
+  SENSORS_ACTIVATE(sen0232_gslm);
+  sen0232_gslm_init();
   SENSORS_ACTIVATE(temp_sensor);
   SENSORS_ACTIVATE(battery_sensor);
 #ifdef CO2
