@@ -5,13 +5,15 @@
 struct pair {
 	char* label;
 	void* value;
-};
+} lv;
 
 /* Initializes state struct and returns it, use it when calling read and add */
 void init_json_decoder(char* msg);
 
 /* Reads and returns the next label-value pair as a struct */
 struct pair read_next_token(void);
+
+struct pair pair_test(void);
 
 /* Adds msg to the end of the JSON string. Stream friendly */
 void add_new_msg(char* msg);
