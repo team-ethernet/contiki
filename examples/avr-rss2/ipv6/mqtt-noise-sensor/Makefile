@@ -1,5 +1,5 @@
 DEFINES+=PROJECT_CONF_H=\"project-conf.h\"
-all: mqtt-greeniot
+all: mqtt-noise-sensor
 
 CONTIKI_WITH_IPV6 = 1
 

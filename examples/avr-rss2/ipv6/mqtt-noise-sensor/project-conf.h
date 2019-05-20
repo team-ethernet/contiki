@@ -61,7 +61,7 @@
 #define NETSTACK_CONF_FRAMER      framer_802154
 #define NETSTACK_CONF_RADIO       rf230_driver
 
-#define BOARD_STRING  "greeniot"
+#define BOARD_STRING  "noise-sensor"
 
 //#define RS232_BAUDRATE USART_BAUD_9600
 
@@ -72,7 +72,7 @@
 //#define TESTBED_UPWIS_CONF 1
 /* uncomment the line above to use UPWIS configuration */
 #ifdef TESTBED_UPWIS_CONF /* UPWIS configuration */
-#define MQTT_DEMO_TOPIC_BASE 	"greeniot/KTH/avr-rss2"
+#define MQTT_DEMO_TOPIC_BASE 	"noise-sensor/KTH/avr-rss2"
 #define MQTT_DEMO_BROKER_IP_ADDR "bbbb::1"
 #define RPL_CONF_DEFAULT_INSTANCE 0x1e
 #define IEEE802154_CONF_PANID 0x5EE9
