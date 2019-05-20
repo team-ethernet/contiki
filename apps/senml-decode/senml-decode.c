@@ -1,24 +1,12 @@
 #include "jsonparse.h"
 #include <string.h>
+#include "senml-decode.h"
+#include <string.h>
 
 /* REQUIRES JSON APP - MAKE SURE TO INCLUDE IT IN YOUR PROJECT ASWELL */
 
-char* concat(const char* s1, const char* s2)
-{
-	int lens1 = length(s1);
-	int lens2 = length(s2);
-	char returnbuffer[lens1+lens2];
-	int currpos = 0;
-	for(int i = 0; i < lens1; i++){
-		returnbuffer[i] = s1[i];
-		currpos++;
-	}
-	for(int i = 0; i < lens2; i++){
-		returnbuffer[currpos] = s2[i];
-		currpos++;
-	}
-	return returnbuffer;
-}
+struct jsonparse_state state;
+struct pair lv;
 
 int length(char* string){
 	int i;
@@ -26,39 +14,100 @@ int length(char* string){
     return i;
 }
 
-struct pair{
-	char* label;
-	void* value;
-};
-
-struct jsonparse_state init_json_decoder(char* msg){
-	struct jsonparse_state state = {.json = msg, .pos = 2, .len = length(msg)};
+void init_json_decoder(char* msg){
+	state.json = msg;
+	state.pos = 0;
+	state.len = length(msg);
 	jsonparse_setup(&state, state.json, state.len);
-	return state;
+	jsonparse_next(&state);
+	jsonparse_next(&state);
+	printf("INIT state.json: %s\n", state.json);
 }
 
-struct pair read_next_token(struct jsonparse_state *state){
-	
-	if(jsonparse_next(&state) != 125){
+struct pair read_next_token(){
+	printf("READ state.pos: %d\n", state.pos);
+		switch(jsonparse_next(&state)){
+	//Reads comma
+	case ((int)44):
+	{
+		jsonparse_next(&state);
 		int elem_len = jsonparse_get_len(&state);
 		char* label_buf[elem_len];
 		jsonparse_copy_value(&state, label_buf, elem_len);
+		printf("READ44 label_buf: %s\n", label_buf);
 		jsonparse_next(&state);
 		elem_len = jsonparse_get_len(&state);
 		char* value_buf[elem_len];
 		jsonparse_copy_value(&state, value_buf, elem_len);
-		struct pair lv = {.label = label_buf, .value = value_buf};
-		jsonparse_next(&state);
+		printf("READ44 value_buf: %s\n", value_buf);
+		//struct pair lv = {.label = label_buf, .value = value_buf};
+		lv.label = label_buf;
+		lv.value = value_buf;
+	printf("44!! lv.labal: %s\n", lv.label);
+		return lv;
+		
+	}
+	//Reads }
+	case ((int)125):
+	{
+		//If ]
+		if(jsonparse_next(&state) == 93){
+			struct pair lvnull = {.label = NULL, .value = NULL};
+			
+	printf("should be null: %s\n", lvnull.label);
+			return lvnull;
+		}
+		//If not ] then it has to be comma 
+		else{
+			jsonparse_next(&state);
+			jsonparse_next(&state);
+			int elem_len = jsonparse_get_len(&state);
+			char* label_buf[elem_len];
+			jsonparse_copy_value(&state, label_buf, elem_len);
+		printf("READ125 label_buf: %s\n", label_buf);
+			jsonparse_next(&state);
+			elem_len = jsonparse_get_len(&state);
+			char* value_buf[elem_len];
+			jsonparse_copy_value(&state, value_buf, elem_len);
+		printf("READ125 value_buf: %s\n", value_buf);
+			//struct pair lv = {.label = label_buf, .value = value_buf};
+		lv.label = label_buf;
+		lv.value = value_buf;
+		
+	printf("125 else!! lv.labal: %s\n", lv.label);
+		return lv;
+		}
+	}
+	//Reads a label+value
+	default:
+	{
+		int elem_len = jsonparse_get_len(&state);
+		elem_len++;
+		printf("elemn_len LEABEL: %d\n", elem_len);
+		char* label_buf[elem_len];
+		jsonparse_copy_value(&state, label_buf, elem_len);
+		printf("READdef label_buf: %s\n", label_buf);
+		printf("READdef jsonparse_next: %d\n", jsonparse_next(&state));
+		elem_len = jsonparse_get_len(&state);
+		char* value_buf[elem_len];
+		elem_len++;
+		printf("elemn_len VALUE: %d\n", elem_len);
+		jsonparse_copy_value(&state, value_buf, elem_len);
+		printf("READdef value_buf: %s\n", value_buf);
+		//struct pair lv = {.label = label_buf, .value = value_buf};
+		lv.label = label_buf;
+		lv.value = value_buf;
+		
+	printf("default!! lv.label: %s\n", lv.label);
+	printf("default!! lv.value: %s\n", lv.value);
+	printf("default!! lv.value: %d\n", lv);
+	printf("default!! lv.value: %d\n", &lv.value);
 		return lv;
 	}
-	else {
-		struct pair lvnull = {.label = NULL, .value = NULL};
-		return lvnull;
-	}
+  }
 }
 
-void add_new_msg(struct jsonparse_state *state, char* msg){
-	char* jsonmsg = state->json;
-	state->json = concat(jsonmsg, msg);
-	state->len = state->len + length(msg);
+void add_new_msg(char* msg){
+	strcat(state.json, msg);
+	state.len = state.len + length(msg) + 1;
 }

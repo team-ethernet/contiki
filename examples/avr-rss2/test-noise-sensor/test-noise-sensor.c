@@ -18,8 +18,9 @@ static struct etimer et;
 
 static void read_values (void)
 {
-	printf("%d\n", sen0232_gslm.value(0));
-	//printf("%d\n", OLDMICvalue(0));
+	//printf("%d\n", sen0232_gslm.value(0));
+	printf("%d\n", OLDMICvalue(0));
+	
 }
 
   PROCESS_THREAD(noise_sensors_process, ev, data)

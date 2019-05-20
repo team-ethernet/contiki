@@ -73,6 +73,10 @@
 
 static const int USE_OLD_MIC = 0;
 
+static int shouldIinit = 1;
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "senml-decode.h"
 
@@ -787,15 +791,32 @@ publish_sensors(void)
   topic = construct_topic("sensors");
   subscribe();
   
+  if(shouldIinit == 1){
+	  shouldIinit = 0;
+	  init_json_decoder("[{\"bn\": \"urn:mac:testID\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
+  }
   
-  struct pair result = read_next_token(&abc);
-  printf("result.label: %s\n", result.label);
+  //add_new_msg("newteststring");
+  
+  
+  struct pair resultlv = read_next_token();
+  if(resultlv.label != NULL){
+	  printf("lab != null\n");
+  }
+  if(resultlv.value != NULL){
+	  printf("val != nul\n");
+  }
+  printf("result.label: %s\n", resultlv.label);
   //Checks the type of the void pointer and then picks the correct printf
   
+  printf("result.value: %s\n", resultlv.value);
+  printf("&result.label: %s\n", &resultlv.label);
+  printf("result adress: %d\n", resultlv);
+  printf("&result pointer address: %d\n", &resultlv);
+  printf("*result.label: %s\n", *resultlv.label);
   
   
-  printf("result.value: %s\n", result.value);
-  
+  printf("hej\n");
   
   
   mqtt_publish(&conn, NULL, topic, (uint8_t *)app_buffer,
@@ -1233,9 +1254,6 @@ PROCESS_THREAD(mqtt_checker_process, ev, data)
 {
   static uint16_t stale_publishing = 0, stale_connecting = 0;
   static uint16_t seen_seq_nr_value = 0;
-
-  struct jsonparse_state abc = init_json_decoder("[{\"bn\": \"urn:mac:fcc2948375028573\", \"u\": \"dB\", \"v\": 0, \"t\": 1557757566000}]");
-  
   
   PROCESS_BEGIN();
   etimer_set(&checktimer, WATCHDOG_INTERVAL);

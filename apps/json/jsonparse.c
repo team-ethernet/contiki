@@ -275,11 +275,15 @@ jsonparse_copy_value(struct jsonparse_state *state, char *str, int size)
 {
   int i, o;
   char c;
-
+  printf("str: %s\n", str);
   if(!is_atomic(state)) {
     return 0;
   }
   for(i = 0, o = 0; i < state->vlen && o < size - 1; i++) {
+	  
+	  
+	printf("Loopstr: %s\n", str);
+	  
     c = state->json[state->vstart + i];
     if(c == '\\') {
       i++;

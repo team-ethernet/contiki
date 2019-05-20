@@ -6,7 +6,7 @@
 #include "adc.h"
 #include "sen0232_gslm.h"
 
-#define multiply_value 57
+#define multiply_value 50
 	/*
 	* Multiply voltage value with
 	* a constant as the voltage is linearly proportional 
