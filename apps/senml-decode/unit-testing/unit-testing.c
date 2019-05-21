@@ -1,10 +1,12 @@
 #include "contiki.h"
 #include "unit-test.h"
-#include "senml-json.h"
-#include "senml-cbor.h"
+//#include "senml-json.h"
+//#include "senml-cbor.h"
 #include <string.h>
 #include <stdio.h>
-
+#include "senml-decode.h"
+#include "jsonparse.h"
+/*
 UNIT_TEST_REGISTER(json_empty_string, "JSON: Adding 0 records should return \"[]\"");
 UNIT_TEST_REGISTER(json_noise_sensor, "JSON: Noise sensor example");
 UNIT_TEST_REGISTER(json_many_parameters, "JSON: Many parameters");
@@ -13,7 +15,9 @@ UNIT_TEST_REGISTER(cbor_empty_string, "CBOR: Adding 0 records should return \"[]
 UNIT_TEST_REGISTER(cbor_noise_sensor, "CBOR: Noise sensor example");
 UNIT_TEST_REGISTER(cbor_many_parameters, "CBOR: Many parameters");
 UNIT_TEST_REGISTER(cbor_multiple_records, "CBOR: Multiple records");
+*/
 
+UNIT_TEST_REGISTER(read_one_label, "abc");
 int strcmpn(char * str1, char * str2, int n) {
   int i;
   for (i = 0; i < n; i++)
@@ -23,6 +27,18 @@ int strcmpn(char * str1, char * str2, int n) {
   return 0;
 }
 
+UNIT_TEST(read_one_label){
+  UNIT_TEST_BEGIN();
+
+  init_json_decoder("[{\"bn\": \"urn:mac:testID\"]");
+  struct pair lv;
+  read_next_token(&lv);
+  //strcmp("bn", lv.label);
+  UNIT_TEST_ASSERT(strcmp(lv.label, "bn") == 0);
+  UNIT_TEST_END();
+}
+
+/*
 UNIT_TEST(json_empty_string){
 	char buffer_pointer[1024];
   UNIT_TEST_BEGIN();
@@ -135,7 +151,7 @@ UNIT_TEST(cbor_many_parameters) {
 
   UNIT_TEST_END();
 }
-
+*/
 PROCESS(unit_testing, "Unit Testing");
 
 AUTOSTART_PROCESSES(&unit_testing);
@@ -143,7 +159,7 @@ AUTOSTART_PROCESSES(&unit_testing);
 PROCESS_THREAD(unit_testing, ev, data){
   PROCESS_BEGIN();
 
-  UNIT_TEST_RUN(json_empty_string);
+ /* UNIT_TEST_RUN(json_empty_string);
   UNIT_TEST_RUN(json_noise_sensor);
   UNIT_TEST_RUN(json_many_parameters);
   UNIT_TEST_RUN(json_multiple_records);
@@ -151,6 +167,7 @@ PROCESS_THREAD(unit_testing, ev, data){
   UNIT_TEST_RUN(cbor_noise_sensor);
   UNIT_TEST_RUN(cbor_many_parameters);
   UNIT_TEST_RUN(cbor_multiple_records);
-
+*/
+	UNIT_TEST_RUN(read_one_label);
   PROCESS_END();
 }
