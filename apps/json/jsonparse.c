@@ -164,7 +164,6 @@ jsonparse_next(struct jsonparse_state *state)
   char s;
   char v;
   
-
   skip_ws(state);
   c = state->json[state->pos];
   s = jsonparse_get_type(state);
@@ -275,6 +274,7 @@ jsonparse_copy_value(struct jsonparse_state *state, char *str, int size)
   if(!is_atomic(state)) {
     return 0;
   }
+  
   for(i = 0, o = 0; i < state->vlen && o < size - 1; i++) {
 	  
     c = state->json[state->vstart + i];
