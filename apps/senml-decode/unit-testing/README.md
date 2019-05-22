@@ -1,5 +1,5 @@
-# Unit testing for SenML API
-Unit tests for the SenML API using the unit-test app.
+# Unit testing for SenML-decode API
+Unit tests for the SenML-decode API using the unit-test app.
 ## How to run
 Create the build using make. Native will be used by default if no target is specified.
 ```
