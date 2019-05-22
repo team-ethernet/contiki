@@ -23,7 +23,7 @@ APPS += json
 API is used through three different functions:  
 `init_json_decode(char* msg)`, `read_next_token(struct pair* token)` and `add_new_msg(char* msg)`. 
 
-The SenML message that is to be decoded is written into the jsonparser with `init_json_decode`. It then reads the next label value pair with `read_next_token` and places the label and value in the struct given as the argument. With `add_new_msg` it is also possible to add further messages to the already existing one. 
+The SenML message that is to be decoded is written into the JSON parser with `init_json_decode`. It then reads the next label-value pair with `read_next_token` and places the label and value in the struct given as the argument. With `add_new_msg` it is also possible to add further messages to the already existing one. 
 
 ### Functions 
 ```c
@@ -100,7 +100,7 @@ The main part is in `senml-decode.c` but it heavily relies on the code in `jsonp
 ## TODO
 Right now the `read_next_token` only reads values as strings. In the future an implementation that can read different values such as integers and doubles is needed. 
 
-The current API also does not inform the user if the end of the message that is a "}" followed by a "]" has been read but requires the user to continously check if label and value has been set to NULL to see if there are no more messages. A functionality that informs the user of this could be useful so that it forces the user to not being able to read more. 
+The current API also does not inform the user if the end of the message has been read, that is a "}" followed by a "]". Instead it requires the user to continously check if label and value has been set to NULL to see if there are no more messages. A functionality that informs the user of this could be useful so that the user does not try to read after the end has been reached.  
 
 ## Authors
 Anton Bothin  
