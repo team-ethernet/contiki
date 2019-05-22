@@ -27,13 +27,18 @@ The SenML message that is to be decoded is written into the jsonparser with init
 
 ### Functions 
 ```c
-// Creates a jsonparse struct that is used to parse the message passed as an argument to the function. 
-// It sets the inital values and read the first two chars of the message which should be "[" and "{". 
+// Creates a jsonparse struct that is used to parse the message 
+// passed as an argument to the function. 
+// It sets the inital values and reads the first two chars 
+// of the message which should be "[" and "{". 
 void init_json_decode(char* msg)
 ```
 ```c
-// Reads the next label-value pair in the message passed as an argument in init_json_decode and sets the struct pair* token's // members to the label and value read. The struct pair* token is created by the user. 
-// If it reads a "}" followed by a "]" it will assume the message is complete and will set the pair struct's members to NULL. 
+// Reads the next label-value pair in the message passed as an argument 
+// in init_json_decode and sets the struct pair* token's members to the label and value read. 
+// The struct pair* token is created by the user. 
+// If it reads a "}" followed by a "]" it will assume the message 
+// is complete and will set the pair struct's members to NULL. 
 void read_next_token(struct pair* token)
 ```
 ```c
