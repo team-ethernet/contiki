@@ -23,7 +23,7 @@ APPS += json
 API is used through three different functions:  
 init_json_decode(char* msg), read_next_token(struct pair* token) and add_new_msg(char* msg). 
 
-The SenML message that is to be decoded is written into the jsonparser with init_json_decode. It then reads the next label value pair with read_next_token and places the label and value in the struct pair* token argument. With add_new_msg it is also possible to add further messages to the already existing
+The SenML message that is to be decoded is written into the jsonparser with init_json_decode. It then reads the next label value pair with read_next_token and places the label and value in the struct pair* token argument. With add_new_msg it is also possible to add further messages to the already existing one. 
 
 ### Functions 
 ```c
