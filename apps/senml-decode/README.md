@@ -1,17 +1,12 @@
 # senml app
-The senml app is an API for creating SenML messages in JSON or CBOR format.  
-It handles the formatting of the SenML pack conforming to [RFC 8428](https://tools.ietf.org/html/rfc8428).
+The senml-decode app is an API for decoding SenML messages in JSON format.  
+It uses the jsonparser already implemented in Contiki and supports streaming. 
 
 ## Project code needs
 
 ```c
-#include "senml-json.h"
+#include "senml-decode.h"
 ```  
-and/or  
-```c
-#include "senml-cbor.h"
-```  
-depending on desired format
 
 ## Build
 
@@ -19,85 +14,84 @@ To include in project:
 in Makefile add
 
 ```
-APPS += senml
+APPS += senml-decode
+APPS += json 
 ```
 
 ## Use
 
-API is used through three different macros:  
-INIT_SENML_JSON or INIT_SENML_CBOR, ADD_RECORD, and END_SENML.  
+API is used through three different functions:  
+init_json_decode(char* msg), read_next_token(struct pair* token) and add_new_msg(char* msg). 
 
-The SenML message is written into the buffer given as an argument to INIT.
+The SenML message that is to be decoded is written into the jsonparser with init_json_decode. It then reads the next label value pair with read_next_token and places the label and value in the struct pair* token argument. With add_new_msg it is also possible to add further messages to the already existing
 
-ADD_RECORD takes field name-value pairs as arguments. The supported fields are:
-
-| Field name    | Data type |
-| ------------- |:---------:|
-| BASE_NAME     | char *    |
-| BASE_TIME     | double    |
-| BASE_UNIT     | char *    |
-| BASE_VALUE    | double    |
-| BASE_SUM      | double    |
-| BASE_VERSION  | int       |
-| NAME          | char *    |
-| UNIT          | char *    |
-| VALUE         | double    |
-| STRING_VALUE  | char *    |
-| BOOLEAN_VALUE | int (*)   |
-| DATA_VALUE    | char *    |
-| SUM           | double    |
-| TIME          | double    |
-| UPDATE_TIME   | double    |
-
-(*) 0 = false, all other values = true
-
-Maximum int value and string length is 65535 in CBOR formatter (can be extended if needed).
-
-### Macros
+### Functions 
 ```c
-// Creates and begins new SenML message in JSON format, given a buffer and its size
-INIT_SENML_JSON(char* buffer_pointer, int size)
+// Creates a jsonparse struct that is used to parse the message passed as an argument to the function. It will set the inital 
+// values and read the first two chars of the message which should be "[" and "{". 
+void init_json_decode(char* msg)
 ```
 ```c
-// Creates and begins new SenML message in CBOR format
-INIT_SENML_CBOR(char* buffer_pointer, int size)
+// Reads the next label-value pair in the message passed as an argument in init_json_decode and sets the struct pair* token's // members to the label and value read. The struct pair* token is created by the user. 
+// If it reads a "}" followed by a "]" it will assume the message is complete and will set the pair struct's members to NULL. 
+void read_next_token(struct pair* token)
 ```
 ```c
-// Adds a record with the given fields
-// For example 
-// ADD_RECORD(BASE_NAME, "name", BASE_UNIT, "unit", VALUE, 4.6)
-// adds a record with the fields bn = name, bu = unit, v = 4.6
-ADD_RECORD(...)
-```
-```c
-// Ends the SenML message
-END_SENML()
+// Takes a message and adds it to the json message currently being parsed. 
+void add_new_msg(char* msg)
+
 ```
 
 ## Example usage
+
 ```c
-static char buffer[1024];
-char* buf_ptr = buffer;
+init_json_decoder("[{\"bn\": \"urn:mac:fcc23d000001856e\"}, {"v": 0}");
+struct pair lv;
 
-INIT_SENML_JSON(buf_ptr, 1024);
-ADD_RECORD(BASE_NAME, "urn:dev:ow:10e2073a01080063", NAME, "voltage", UNIT, "V", VALUE, 120.1);
-ADD_RECORD(NAME, "current", UNIT, "A", VALUE, 1.2);
-END_SENML();
+read_next_token(&lv);
+printf("result.label: %s\n", lv.label);
+printf("result.value: %s\n", lv.value);
 
-printf(buffer);
+add_new_msg(",{\"u\": \"dB\"}]");
+
+read_next_token(&lv);
+printf("\n");
+printf("result.label: %s\n", lv.label);
+printf("result.value: %s\n", lv.value);
+
+read_next_token(&lv);
+printf("\n");
+printf("result.label: %s\n", lv.label);
+printf("result.value: %s\n", lv.value);
+
+read_next_token(&lv)
+printf("\n");
+printf("result.label: %s\n", lv.label);
+printf("result.value: %s\n", lv.value);
 ```
 Should print
-```json
-[{"bn":"urn:dev:ow:10e2073a01080063:","n":"voltage","u":"V","v":120.100000},{"n":"current","u":"A","v":1.200000}]
+```
+result.label: bn
+result.value: urn:mac:fcc23d000001856e
+
+result.label: v 
+result.value: 0 
+
+result.label: u 
+result.value: dB
+
+result.label: 
+result.value:
+
 ```
 ## Code structure
-The different lables are defined in `label.h`.  
-The main code that handles the different labels is in `senml-api.c`.  
-Formatting is handled in `senml-cbor-fomatter.c` and `senml-json-formatter.c`, both implementing the functions defined in `senml-formatter.h`  
-User macros defined in `senml-json.h` and `senml-cbor.h` provide a formatter to the main functions in `senml-api.c`.  
+Since the API is based on the jsonparser already implemented in C the code is split up in 2 parts. 
+The main part is in `senml-decode.c` but it heavily relies on the code in `jsonparser.c` in the json app. 
 
 ## TODO
-Implementation of XML and EXI.  
+Right now the read_next_token only reads values as strings. In the future an implementation that can read different values such as integers and doubles is needed. 
+
+The current API also does not inform the user if the end of the message that is a "}" followed by a "]" has been read but requires the user to continously check if label and value has been set to NULL to see if there are no more messages. A functionality that informs the user of this could be useful so that it forces the user to not being able to read more. 
 
 ## Authors
 Anton Bothin  
