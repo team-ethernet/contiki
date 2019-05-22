@@ -1,4 +1,4 @@
-# senml app
+# senml-decode app
 The senml-decode app is an API for decoding SenML messages in JSON format.  
 It uses the jsonparser already implemented in Contiki and supports streaming. 
 
