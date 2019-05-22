@@ -27,8 +27,7 @@ The SenML message that is to be decoded is written into the jsonparser with `ini
 
 ### Functions 
 ```c
-// Creates a jsonparse struct that is used to parse the message 
-// passed as an argument to the function. 
+// Creates a jsonparse struct that is used to parse the message passed as an argument to the function. 
 // It sets the inital values and reads the first two chars 
 // of the message which should be "[" and "{". 
 void init_json_decode(char* msg)
