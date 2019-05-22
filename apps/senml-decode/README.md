@@ -1,6 +1,6 @@
 # senml-decode app
 The senml-decode app is an API for decoding SenML messages in JSON format.  
-It uses the jsonparser already implemented in Contiki and supports streaming. 
+It uses the JSON parser already implemented in Contiki and supports streaming. 
 
 ## Project code needs
 
@@ -27,7 +27,7 @@ The SenML message that is to be decoded is written into the jsonparser with `ini
 
 ### Functions 
 ```c
-// Creates a jsonparse struct that is used to parse the message passed as an argument to the function. 
+//Creates a jsonparse struct that is used to parse the message passed as an argument to the function. 
 // It sets the inital values and reads the first two chars 
 // of the message which should be "[" and "{". 
 void init_json_decode(char* msg)
@@ -89,7 +89,7 @@ result.value:
 
 ```
 ## Code structure
-Since the API is based on the jsonparser already implemented in C the code is split up in 2 parts. 
+Since the API is based on the JSON parser already implemented in C the code is split up in 2 parts. 
 The main part is in `senml-decode.c` but it heavily relies on the code in `jsonparser.c` in the json app. 
 
 ## TODO
