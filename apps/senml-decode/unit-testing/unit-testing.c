@@ -5,13 +5,18 @@
 #include "senml-decode.h"
 #include "jsonparse.h"
 
+UNIT_TEST_REGISTER(read_label_null, "read null label");
+UNIT_TEST_REGISTER(read_value_null, "read null value");
+UNIT_TEST_REGISTER(read_one_label, "read one label");
+UNIT_TEST_REGISTER(read_one_value_str, "read one str value");
+UNIT_TEST_REGISTER(read_one_value_int, "read one int value");
 UNIT_TEST_REGISTER(add_msg_and_read_label, "Add msg and read label");
 UNIT_TEST_REGISTER(add_msg_and_read_value_str, "Add msg and read str value");
 UNIT_TEST_REGISTER(add_msg_and_read_value_int, "Add msg and read int value");
 UNIT_TEST_REGISTER(read_add_read_label, "Read, add, read label");
 UNIT_TEST_REGISTER(read_add_read_value_str, "read, add, read str value");
 UNIT_TEST_REGISTER(read_add_read_value_int," read, add, read int value");
-UNIT_TEST_REGISTER(read_one_label, "read one label");
+
 int strcmpn(char * str1, char * str2, int n) {
   int i;
   for (i = 0; i < n; i++)
@@ -20,13 +25,48 @@ int strcmpn(char * str1, char * str2, int n) {
   }
   return 0;
 }
+UNIT_TEST(read_label_null){
+  UNIT_TEST_BEGIN();
+  init_json_decoder("[{}]");
+  struct pair lv;
+  read_next_token(&lv);
+  UNIT_TEST_ASSERT(lv.label == NULL);
+  UNIT_TEST_END();
+}
+
+UNIT_TEST(read_value_null){
+  UNIT_TEST_BEGIN();
+  init_json_decoder("[{}]");
+  struct pair lv;
+  read_next_token(&lv);
+  UNIT_TEST_ASSERT(lv.value == NULL);
+  UNIT_TEST_END();
+}
 
 UNIT_TEST(read_one_label){
   UNIT_TEST_BEGIN();
-  init_json_decoder("[{\"bn\": \"urn:mac:testID\"]");
+  init_json_decoder("[{\"bn\": \"urn:mac:testID\"}]");
   struct pair lv;
   read_next_token(&lv);
   UNIT_TEST_ASSERT(strcmp(lv.label, "bn") == 0);
+  UNIT_TEST_END();
+}
+
+UNIT_TEST(read_one_value_str){
+  UNIT_TEST_BEGIN();
+  init_json_decoder("[{\"bn\": \"urn:mac:testID\"}]");
+  struct pair lv;
+  read_next_token(&lv);
+  UNIT_TEST_ASSERT(strcmp(lv.value, "urn:mac:testID") == 0);
+  UNIT_TEST_END();
+}
+
+UNIT_TEST(read_one_value_int){
+  UNIT_TEST_BEGIN();
+  init_json_decoder("[{\"v\": 10}]");
+  struct pair lv;
+  read_next_token(&lv);
+  UNIT_TEST_ASSERT(strcmp(lv.value, "10") == 0);
   UNIT_TEST_END();
 }
 
@@ -104,7 +144,11 @@ AUTOSTART_PROCESSES(&unit_testing);
 
 PROCESS_THREAD(unit_testing, ev, data){
   PROCESS_BEGIN();
-	UNIT_TEST_RUN(read_one_label);
+  UNIT_TEST_RUN(read_label_null);
+  UNIT_TEST_RUN(read_value_null);
+  UNIT_TEST_RUN(read_one_label);
+  UNIT_TEST_RUN(read_one_value_str);
+  UNIT_TEST_RUN(read_one_value_int);
   UNIT_TEST_RUN(add_msg_and_read_label);
   UNIT_TEST_RUN(add_msg_and_read_value_str);
   UNIT_TEST_RUN(add_msg_and_read_value_int);
