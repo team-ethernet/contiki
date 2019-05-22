@@ -98,7 +98,7 @@ Since the API is based on the JSON parser already implemented in C the code is s
 The main part is in `senml-decode.c` but it heavily relies on the code in `jsonparser.c` in the json app. 
 
 ## TODO
-Right now the read_next_token only reads values as strings. In the future an implementation that can read different values such as integers and doubles is needed. 
+Right now the `read_next_token` only reads values as strings. In the future an implementation that can read different values such as integers and doubles is needed. 
 
 The current API also does not inform the user if the end of the message that is a "}" followed by a "]" has been read but requires the user to continously check if label and value has been set to NULL to see if there are no more messages. A functionality that informs the user of this could be useful so that it forces the user to not being able to read more. 
 
